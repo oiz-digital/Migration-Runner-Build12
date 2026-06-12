@@ -4,7 +4,7 @@
  * Returns: fills, GST breakdown, TDS, brand details — used by Invoice.tsx page
  */
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { db, ordersTable, usersTable, tradesTable, pairsTable, coinsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getInrRate } from "../lib/price-service";
@@ -122,6 +122,90 @@ router.get("/orders/:id/invoice", requireAuth, async (req: any, res): Promise<vo
       tds:        parseFloat(f.tds ?? "0"),
       executedAt: f.createdAt instanceof Date ? f.createdAt.toISOString() : String(f.createdAt),
     })),
+  });
+});
+
+/* ─────────────────────── Spot Trading Statement ─────────────────────────── */
+/* GET /api/orders/statement?from=YYYY-MM-DD&to=YYYY-MM-DD                    */
+router.get("/orders/statement", requireAuth, async (req: any, res): Promise<void> => {
+  const userId  = req.user!.id;
+  const inrRate = await getInrRate();
+
+  const fromStr = typeof req.query.from === "string" ? req.query.from : undefined;
+  const toStr   = typeof req.query.to   === "string" ? req.query.to   : undefined;
+  const now     = new Date();
+  const from    = fromStr ? new Date(fromStr + "T00:00:00Z") : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to      = toStr   ? new Date(toStr   + "T23:59:59Z") : now;
+
+  if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+    res.status(400).json({ error: "Invalid date range" }); return;
+  }
+
+  /* Trades in range */
+  const trades = await db.select().from(tradesTable)
+    .where(and(eq(tradesTable.userId, userId), gte(tradesTable.createdAt, from), lte(tradesTable.createdAt, to)))
+    .orderBy(tradesTable.createdAt);
+
+  /* Pair + coin lookups */
+  const pairIds = [...new Set(trades.map(t => t.pairId))];
+  const pairs   = pairIds.length
+    ? await db.select({ id: pairsTable.id, symbol: pairsTable.symbol, baseCoinId: pairsTable.baseCoinId, quoteCoinId: pairsTable.quoteCoinId })
+        .from(pairsTable).where(inArray(pairsTable.id, pairIds))
+    : [];
+  const coinIds = [...new Set(pairs.flatMap(p => [p.baseCoinId, p.quoteCoinId].filter(Boolean) as number[]))];
+  const coins   = coinIds.length
+    ? await db.select({ id: coinsTable.id, symbol: coinsTable.symbol }).from(coinsTable).where(inArray(coinsTable.id, coinIds))
+    : [];
+
+  const pairMap = new Map(pairs.map(p => [p.id, p]));
+  const coinMap = new Map(coins.map(c => [c.id, c.symbol]));
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+  /* Aggregate */
+  let totalVolume = 0, totalFee = 0, totalTds = 0;
+  const rows = trades.map(t => {
+    const pair     = pairMap.get(t.pairId);
+    const symbol   = pair?.symbol ?? `PAIR-${t.pairId}`;
+    const base     = pair?.baseCoinId  ? (coinMap.get(pair.baseCoinId)  ?? "?") : "?";
+    const quote    = pair?.quoteCoinId ? (coinMap.get(pair.quoteCoinId) ?? "?") : "?";
+    const price    = parseFloat(t.price ?? "0");
+    const qty      = parseFloat(t.qty   ?? "0");
+    const fee      = parseFloat(t.fee   ?? "0");
+    const tds      = parseFloat(t.tds   ?? "0");
+    const notional = price * qty;
+    totalVolume += notional; totalFee += fee; totalTds += tds;
+    return {
+      id: t.id, uid: t.uid, symbol, base, quote, side: t.side,
+      price, qty, notional, fee, tds,
+      executedAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+    };
+  });
+
+  const gstAmount      = totalFee * GST_RATE;
+  const totalFeeGst    = totalFee + gstAmount;
+  const netDeducted    = totalFeeGst + totalTds;
+  const mmYY           = `${String(from.getUTCMonth() + 1).padStart(2, "0")}${from.getUTCFullYear()}`;
+  const statementNo    = `ZBX-SPOT-${mmYY}-${userId}`;
+
+  res.json({
+    statementNo,
+    generatedAt: now.toISOString(),
+    period: { from: from.toISOString(), to: to.toISOString() },
+    brand: {
+      legalName: COMPANY_NAME, tradingName: COMPANY_SHORT,
+      address: COMPANY_ADDRESS, gstin: COMPANY_GST, cin: COMPANY_CIN,
+      pan: "AAAAZ0000Z", supportEmail: "support@zebvix.com", website: "https://zebvix.com",
+    },
+    customer: { name: user?.name ?? user?.email ?? "User", email: user?.email ?? "", userId },
+    summary: {
+      totalTrades: trades.length,
+      totalVolumeUsdt: totalVolume, totalVolumeInr: totalVolume * inrRate,
+      tradingFee: totalFee, gstPercent: GST_RATE * 100, gstAmount,
+      totalFeeWithGst: totalFeeGst, tdsPercent: TDS_RATE * 100,
+      totalTds, netDeducted, inrRate,
+    },
+    trades: rows,
   });
 });
 

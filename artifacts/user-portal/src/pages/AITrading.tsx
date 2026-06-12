@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -23,7 +23,7 @@ import {
   ChevronRight, RefreshCw, BarChart2, Cpu, Target, Sparkles,
   Calendar, ArrowUpRight, CheckCircle2, Activity, Lock,
   Star, Users, Play, Info, Award, Layers, Infinity,
-  Receipt, Printer, IndianRupee, XCircle,
+  Receipt, Printer, IndianRupee, XCircle, FileText,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -333,11 +333,19 @@ export default function AITrading() {
               Institutional-grade automated strategies. Deploy capital, earn daily returns — no trading experience required.
             </p>
           </div>
-          <Button variant="outline" size="sm" className="shrink-0"
-            onClick={() => { plansQ.refetch(); subsQ.refetch(); }}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/ai-trading/statement">
+              <Button variant="outline" size="sm">
+                <FileText className="w-4 h-4 mr-2" />
+                Full Statement
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm"
+              onClick={() => { plansQ.refetch(); subsQ.refetch(); }}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 

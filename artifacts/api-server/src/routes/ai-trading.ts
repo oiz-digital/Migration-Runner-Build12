@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, aiTradingPlansTable, aiTradingSubscriptionsTable, aiTradingEarningsTable, walletsTable, coinsTable, usersTable, walletLedgerTable } from "@workspace/db";
-import { eq, and, desc, count } from "drizzle-orm";
+import { eq, and, desc, count, gte, lte, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getInrRate } from "../lib/price-service";
 import { COMPANY_NAME, COMPANY_SHORT, COMPANY_CIN, COMPANY_GST, COMPANY_ADDRESS } from "../lib/company";
@@ -304,6 +304,116 @@ router.get("/ai-trading/subscriptions/:id/invoice", requireAuth, async (req, res
     legend: grossProfitUsdt >= 0
       ? "Net Profit = Gross Profit − TDS. Payout = Returned Principal + Net Profit."
       : "Loss recorded on this bot. Net = Gross Profit (no TDS on losses).",
+  });
+});
+
+/* ─────────────────────── AI Trading Statement ───────────────────────────── */
+/* GET /api/ai-trading/statement?from=YYYY-MM-DD&to=YYYY-MM-DD               */
+router.get("/ai-trading/statement", requireAuth, async (req: any, res): Promise<void> => {
+  const userId  = req.user!.id;
+  const inrRate = await getInrRate();
+
+  const fromStr = typeof req.query.from === "string" ? req.query.from : undefined;
+  const toStr   = typeof req.query.to   === "string" ? req.query.to   : undefined;
+  const now     = new Date();
+  const from    = fromStr ? new Date(fromStr + "T00:00:00Z") : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const to      = toStr   ? new Date(toStr   + "T23:59:59Z") : now;
+
+  if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+    res.status(400).json({ error: "Invalid date range" }); return;
+  }
+
+  /* Subscriptions started in range (join with plan for name/risk) */
+  const subs = await db
+    .select({
+      id:               aiTradingSubscriptionsTable.id,
+      planId:           aiTradingSubscriptionsTable.planId,
+      investedAmount:   aiTradingSubscriptionsTable.investedAmount,
+      totalEarned:      aiTradingSubscriptionsTable.totalEarned,
+      status:           aiTradingSubscriptionsTable.status,
+      startedAt:        aiTradingSubscriptionsTable.startedAt,
+      expiresAt:        aiTradingSubscriptionsTable.expiresAt,
+      lastCreditedAt:   aiTradingSubscriptionsTable.lastCreditedAt,
+      planName:         aiTradingPlansTable.name,
+      riskLevel:        aiTradingPlansTable.riskLevel,
+      dailyReturnPct:   aiTradingPlansTable.dailyReturnPercent,
+      durationDays:     aiTradingPlansTable.durationDays,
+    })
+    .from(aiTradingSubscriptionsTable)
+    .leftJoin(aiTradingPlansTable, eq(aiTradingSubscriptionsTable.planId, aiTradingPlansTable.id))
+    .where(and(
+      eq(aiTradingSubscriptionsTable.userId, userId),
+      gte(aiTradingSubscriptionsTable.startedAt, from),
+      lte(aiTradingSubscriptionsTable.startedAt, to),
+    ))
+    .orderBy(desc(aiTradingSubscriptionsTable.startedAt));
+
+  /* Earnings credited in range */
+  const subIds = subs.map(s => s.id);
+  const earnings = subIds.length
+    ? await db.select().from(aiTradingEarningsTable)
+        .where(and(
+          eq(aiTradingEarningsTable.userId, userId),
+          gte(aiTradingEarningsTable.creditedAt, from),
+          lte(aiTradingEarningsTable.creditedAt, to),
+          inArray(aiTradingEarningsTable.subscriptionId, subIds),
+        ))
+        .orderBy(desc(aiTradingEarningsTable.creditedAt))
+    : [];
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+  /* Totals */
+  const totalInvested   = subs.reduce((s, x) => s + parseFloat(x.investedAmount ?? "0"), 0);
+  const grossProfit     = subs.reduce((s, x) => s + parseFloat(x.totalEarned    ?? "0"), 0);
+  const tdsUsdt         = Math.max(0, grossProfit * AI_TDS_RATE);
+  const netProfit       = grossProfit - tdsUsdt;
+  const roiPct          = totalInvested > 0 ? (netProfit / totalInvested) * 100 : 0;
+  const mmYY            = `${String(from.getUTCMonth() + 1).padStart(2, "0")}${from.getUTCFullYear()}`;
+  const statementNo     = `ZBX-AI-${mmYY}-${userId}`;
+  const toInr           = (u: number) => u * inrRate;
+
+  res.json({
+    statementNo,
+    generatedAt: now.toISOString(),
+    period: { from: from.toISOString(), to: to.toISOString() },
+    brand: {
+      legalName: COMPANY_NAME, tradingName: COMPANY_SHORT,
+      address: COMPANY_ADDRESS, gstin: COMPANY_GST, cin: COMPANY_CIN,
+      pan: "AAAAZ0000Z", supportEmail: "support@zebvix.com", website: "https://zebvix.com",
+    },
+    customer: { name: user?.name ?? user?.email ?? "User", email: user?.email ?? "", userId },
+    summary: {
+      totalSubscriptions:  subs.length,
+      totalEarningsCredits: earnings.length,
+      totalInvestedUsdt:   totalInvested,    totalInvestedInr:   toInr(totalInvested),
+      grossProfitUsdt:     grossProfit,       grossProfitInr:     toInr(grossProfit),
+      tdsPercent:          AI_TDS_RATE * 100, tdsUsdt,            tdsInr: toInr(tdsUsdt),
+      netProfitUsdt:       netProfit,         netProfitInr:       toInr(netProfit),
+      roiPct,              inrRate,
+    },
+    subscriptions: subs.map(s => ({
+      id:              s.id,
+      planName:        s.planName ?? "Unknown Plan",
+      riskLevel:       s.riskLevel,
+      status:          s.status,
+      investedUsdt:    parseFloat(s.investedAmount ?? "0"),
+      totalEarnedUsdt: parseFloat(s.totalEarned    ?? "0"),
+      roiPct:          parseFloat(s.investedAmount ?? "0") > 0
+                         ? (parseFloat(s.totalEarned ?? "0") / parseFloat(s.investedAmount ?? "0")) * 100
+                         : 0,
+      startedAt:  s.startedAt  instanceof Date ? s.startedAt.toISOString()  : String(s.startedAt),
+      expiresAt:  s.expiresAt  instanceof Date ? s.expiresAt.toISOString()  : (s.expiresAt ? String(s.expiresAt) : null),
+      lastCreditedAt: s.lastCreditedAt instanceof Date ? s.lastCreditedAt.toISOString() : (s.lastCreditedAt ? String(s.lastCreditedAt) : null),
+    })),
+    earnings: earnings.map(e => ({
+      id:             e.id,
+      subscriptionId: e.subscriptionId,
+      planName:       e.planName,
+      amountUsdt:     parseFloat(e.amountUsdt ?? "0"),
+      amountInr:      toInr(parseFloat(e.amountUsdt ?? "0")),
+      creditedAt:     e.creditedAt instanceof Date ? e.creditedAt.toISOString() : String(e.creditedAt),
+    })),
   });
 });
 

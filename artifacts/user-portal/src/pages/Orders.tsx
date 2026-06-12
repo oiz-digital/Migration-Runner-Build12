@@ -161,10 +161,18 @@ export default function Orders() {
         title="My Orders"
         description="Live, cancelled and filled orders — complete trading history across Spot, Futures and Convert."
         actions={
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh orders">
-            <RefreshCw className={cn("w-4 h-4 mr-2", isFetching && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/orders/statement">
+              <Button variant="outline" size="sm">
+                <FileText className="w-4 h-4 mr-2" />
+                Full Statement
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh orders">
+              <RefreshCw className={cn("w-4 h-4 mr-2", isFetching && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
