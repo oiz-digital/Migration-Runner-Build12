@@ -185,6 +185,52 @@ function calcLiqPrice(side: string, entry: number, qty: number, margin: number, 
   }
 }
 
+// ─── 3a. Force-close a position at mark price for SL/TP trigger ──────────────
+async function closeSLTP(
+  pos: { id: number; userId: number; side: string; qty: string; entryPrice: string; marginAmount: string },
+  mark: number,
+  pair: { quoteCoinId: number; takerFeeRate?: string | number | null },
+  reason: "stop_loss" | "take_profit",
+): Promise<boolean> {
+  const qty = Number(pos.qty);
+  const entry = Number(pos.entryPrice);
+  const margin = Number(pos.marginAmount);
+  const direction = pos.side === "long" ? 1 : -1;
+  const pnl = (mark - entry) * qty * direction;
+  const feeRate = Number(pair.takerFeeRate ?? 0.0006);
+  const fee = qty * mark * feeRate;
+  const net = pnl - fee;
+
+  return await db.transaction(async (trx) => {
+    const [locked] = await trx.select().from(futuresPositionsTable)
+      .where(and(eq(futuresPositionsTable.id, pos.id), eq(futuresPositionsTable.status, "open")))
+      .for("update").limit(1);
+    if (!locked) return false;
+
+    const [w] = await trx.select().from(walletsTable).where(and(
+      eq(walletsTable.userId, pos.userId),
+      eq(walletsTable.coinId, pair.quoteCoinId),
+      eq(walletsTable.walletType, "futures"),
+    )).for("update").limit(1);
+    if (w) {
+      await trx.update(walletsTable).set({
+        locked: sql`GREATEST(0, ${walletsTable.locked} - ${margin})`,
+        balance: sql`GREATEST(0, ${walletsTable.balance} + ${net})`,
+        updatedAt: new Date(),
+      }).where(eq(walletsTable.id, w.id));
+    }
+
+    const upd = await trx.update(futuresPositionsTable).set({
+      qty: "0", marginAmount: "0",
+      status: "closed", closedAt: new Date(),
+      closeReason: reason === "stop_loss" ? `Stop loss triggered @ ${mark.toFixed(8)}` : `Take profit triggered @ ${mark.toFixed(8)}`,
+      markPrice: String(mark),
+      realizedPnl: sql`${futuresPositionsTable.realizedPnl} + ${pnl}`,
+    }).where(and(eq(futuresPositionsTable.id, pos.id), eq(futuresPositionsTable.status, "open"))).returning();
+    return upd.length > 0;
+  });
+}
+
 // ─── 3. Risk: mark-to-market & liquidate breached positions ──────────────────
 export interface RiskCheckResult {
   checked: number;
@@ -228,6 +274,23 @@ export async function tickRiskCheck(): Promise<RiskCheckResult> {
       const positionValue = mark * qty;
       const maintMargin = positionValue * mmRate;
       const liqPrice = calcLiqPrice(pos.side, entry, qty, margin, mmRate);
+
+      // SL/TP trigger — evaluated before liquidation so user-set exits fire first.
+      // Uses pos.stopLoss / pos.takeProfit written by applyFills() when the
+      // position-opening order had SL/TP specified.
+      const stopLoss = (pos as any).stopLoss ? Number((pos as any).stopLoss) : null;
+      const takeProfit = (pos as any).takeProfit ? Number((pos as any).takeProfit) : null;
+      const isLong = pos.side === "long";
+      if (stopLoss && ((isLong && mark <= stopLoss) || (!isLong && mark >= stopLoss))) {
+        const triggered = await closeSLTP(pos, mark, pair, "stop_loss");
+        if (triggered) logger.info({ positionId: pos.id, userId: pos.userId, mark, stopLoss }, "Stop loss triggered");
+        if (triggered) continue;
+      }
+      if (takeProfit && ((isLong && mark >= takeProfit) || (!isLong && mark <= takeProfit))) {
+        const triggered = await closeSLTP(pos, mark, pair, "take_profit");
+        if (triggered) logger.info({ positionId: pos.id, userId: pos.userId, mark, takeProfit }, "Take profit triggered");
+        if (triggered) continue;
+      }
 
       if (equity <= maintMargin) {
         // Atomic liquidate: only succeeds if still 'open'

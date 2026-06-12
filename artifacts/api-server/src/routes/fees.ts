@@ -59,7 +59,7 @@ export interface FeeSettings {
 }
 const DEFAULT_FEE_SETTINGS: FeeSettings = {
   spotFeePercent: 0, spotGstPercent: 18, tdsPercent: 1,
-  futuresFeePercent: 0, futuresGstPercent: 18, referralCommission: 20,
+  futuresFeePercent: 0, futuresGstPercent: 18, referralCommission: 30,
 };
 export async function loadFeeSettings(): Promise<FeeSettings> {
   try {
@@ -76,6 +76,17 @@ export async function loadFeeSettings(): Promise<FeeSettings> {
       referralCommission: num("referral.commission", DEFAULT_FEE_SETTINGS.referralCommission),
     };
   } catch { return DEFAULT_FEE_SETTINGS; }
+}
+
+/** Compute effective futures maker/taker rates for a given VIP tier (GST-inclusive). */
+export async function getFuturesFeeRates(vipTier: number): Promise<{ maker: number; taker: number; gstPercent: number }> {
+  const tiers = await loadVipTiers();
+  const settings = await loadFeeSettings();
+  const t = tiers[Math.max(0, Math.min(tiers.length - 1, vipTier ?? 0))] ?? tiers[0];
+  const baseMaker = Math.max(t.futuresMaker, settings.futuresFeePercent) / 100;
+  const baseTaker = Math.max(t.futuresTaker, settings.futuresFeePercent) / 100;
+  const gstMul = 1 + settings.futuresGstPercent / 100;
+  return { maker: baseMaker * gstMul, taker: baseTaker * gstMul, gstPercent: settings.futuresGstPercent };
 }
 
 /** Compute effective spot maker/taker rates (as fractions, e.g. 0.0025) including GST.

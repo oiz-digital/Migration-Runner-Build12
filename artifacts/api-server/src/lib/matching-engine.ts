@@ -179,16 +179,20 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             // store the +10% slippage cap there at placement, so both
             // paths share the same accounting and any over-lock is refunded
             // immediately on each fill.
-            const takerQuoteLocked = isMarket
-              ? fillQty * limitPrice * (1 + takerFeeRate)
-              : fillQty * limitPrice;
+            // Both market AND limit locks include a fee buffer (1 + takerFeeRate) at
+            // placement time (see placeSpotOrder in routes/orders.ts). Release the
+            // same per-fill slice here so locked stays in sync, then credit the
+            // difference (price improvement + fee over/under) back to free balance.
+            // takerRefund can be slightly negative if the VIP tier changed between
+            // placement and fill — always apply the delta so fees are never skipped.
+            const takerQuoteLocked = fillQty * limitPrice * (1 + takerFeeRate);
             const takerSpend = notional + takerFee; // what we actually take from locked
-            const takerRefund = takerQuoteLocked - takerSpend; // ≥0 by construction (limitPrice ≥ tradePrice)
+            const takerRefund = takerQuoteLocked - takerSpend;
             const tQuote = await ensureWallet(tx, taker.userId, pair.quoteCoinId);
             takerQuoteBalBefore = parseFloat(tQuote.balance ?? "0");
             await tx.update(walletsTable).set({
               locked: sql`${walletsTable.locked} - ${takerQuoteLocked}`,
-              balance: takerRefund > 0 ? sql`${walletsTable.balance} + ${takerRefund}` : walletsTable.balance,
+              balance: takerRefund !== 0 ? sql`${walletsTable.balance} + ${takerRefund}` : walletsTable.balance,
               updatedAt: new Date(),
             }).where(eq(walletsTable.id, tQuote.id));
             const tBase = await ensureWallet(tx, taker.userId, pair.baseCoinId);

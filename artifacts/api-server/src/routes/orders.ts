@@ -276,12 +276,14 @@ export async function placeSpotOrder(opts: {
       }
 
       // Lock balances against the WORST-CASE settlement.
-      //  - BUY MARKET : qty * cap * (1 + takerFee)         (refund on each better fill)
-      //  - BUY LIMIT  : qty * limitPrice                   (no upfront fee)
+      //  - BUY (market or limit): qty * price * (1 + takerFee)
+      //    Limit buys lock fee upfront so the matching engine can always deduct
+      //    the fee from the pre-locked slice without touching free balance.
+      //    Any over-lock (price improvement + fee difference) is refunded per fill.
       //  - SELL ANY   : qty (base coin)
       let baseW: any = null, quoteW: any = null;
       if (side === "buy") {
-        const lockQuote = qtyNum * effPrice * (isMarket ? (1 + feeRate) : 1);
+        const lockQuote = qtyNum * effPrice * (1 + fees.taker);
         quoteW = await ensureWallet(tx, userId, pair.quoteCoinId, "spot");
         const bal = Number(quoteW.balance);
         if (bal < lockQuote) { const e: any = new Error(`Insufficient quote balance (have ${bal.toFixed(8)}, need ${lockQuote.toFixed(8)})`); e.code = 400; throw e; }
@@ -457,7 +459,7 @@ router.get("/orders/:id/invoice", requireAuth, async (req, res): Promise<void> =
   const settingsRows = await db.select().from(settingsTable);
   const brandMap = new Map(settingsRows.map(r => [r.key, r.value]));
   const brand = {
-    legalName: brandMap.get("brand.legal_name") || "Zebvix Zebvix Exchange Pvt. Ltd.",
+    legalName: brandMap.get("brand.legal_name") || "Zebvix Technologies Private Limited",
     tradingName: brandMap.get("brand.trading_name") || "Zebvix Exchange",
     address: brandMap.get("brand.address") || "Mumbai, Maharashtra, India",
     gstin: brandMap.get("brand.gstin") || "—",

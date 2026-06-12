@@ -21,6 +21,8 @@ export const futuresPositionsTable = pgTable("futures_positions", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closeReason: text("close_reason"),
   realizedPnl: numeric("realized_pnl", { precision: 28, scale: 8 }).notNull().default("0"),
+  stopLoss:    numeric("stop_loss",    { precision: 28, scale: 8 }),
+  takeProfit:  numeric("take_profit",  { precision: 28, scale: 8 }),
 }, (t) => ({
   byUserStatus: index("futures_positions_user_status_idx").on(t.userId, t.status),
   byPair:       index("futures_positions_pair_idx").on(t.pairId),

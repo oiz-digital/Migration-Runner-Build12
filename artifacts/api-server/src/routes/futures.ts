@@ -29,6 +29,7 @@ import { verifyJwt } from "../lib/jwt";
 import { readSessionCookie, getUserBySession } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { getInrRate } from "../lib/price-service";
+import { getFuturesFeeRates } from "./fees";
 
 const r: IRouter = Router();
 
@@ -542,6 +543,23 @@ r.post("/futures/order", bicryptoAuth, async (req: any, res: Response): Promise<
  *       * realized PnL credits/debits balance net of fees.
  */
 async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<any> {
+  // Pre-load VIP tiers for all involved users (outside the tx to avoid long-lived reads).
+  const allUserIds = Array.from(new Set<number>([
+    Number(taker.userId),
+    ...match.trades.map((t: any) => Number(t.makerUserId)),
+  ]));
+  const userVipRows = await db.select({ id: usersTable.id, vipTier: usersTable.vipTier })
+    .from(usersTable).where(inArray(usersTable.id, allUserIds));
+  const vipByUser = new Map<number, number>(userVipRows.map((u: any) => [Number(u.id), Number(u.vipTier ?? 0)]));
+
+  // Pre-load futures fee rates for each unique VIP tier.
+  const uniqueVips = Array.from(new Set(Array.from(vipByUser.values())));
+  const ratesByVip = new Map<number, { maker: number; taker: number }>();
+  for (const vip of uniqueVips) {
+    ratesByVip.set(vip, await getFuturesFeeRates(vip));
+  }
+  const defaultRates = { maker: pair.makerFeeRate, taker: pair.takerFeeRate };
+
   return await db.transaction(async (tx) => {
     // Lookup all maker order rows in one shot.
     const makerIds: number[] = Array.from(new Set(match.trades.map((t: any) => Number(t.makerOrderId))));
@@ -553,6 +571,7 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
     let takerFilledTotal = Number(taker.filledQty ?? 0);
     let takerNotional = Number(taker.avgFillPrice ?? 0) * takerFilledTotal;
     let takerFeeTotal = Number(taker.fee ?? 0);
+    let lastTakerPosId: number | null = null;
 
     // Per-fill, the order's proportional pre-lock = (fillQty / origQty) * marginLocked.
     // We release that pre-lock and then re-lock the actual position margin (open/increase)
@@ -568,10 +587,15 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
       const maker = makerById.get(Number(tr.makerOrderId));
       if (!maker) continue;
 
-      // Per-fill fees in quote currency.
+      // Per-fill fees using VIP-tier-adjusted rates (GST-inclusive).
+      // Bots use 0 fee (handled inside applyFillToPosition via isBot flag).
       const tradeNotional = fillPrice * fillQty;
-      const tradeTakerFee = tradeNotional * pair.takerFeeRate;
-      const tradeMakerFee = tradeNotional * pair.makerFeeRate;
+      const takerVip = vipByUser.get(Number(tr.takerUserId)) ?? 0;
+      const makerVip = vipByUser.get(Number(tr.makerUserId)) ?? 0;
+      const takerFeeRates = ratesByVip.get(takerVip) ?? defaultRates;
+      const makerFeeRates = ratesByVip.get(makerVip) ?? defaultRates;
+      const tradeTakerFee = tradeNotional * takerFeeRates.taker;
+      const tradeMakerFee = tradeNotional * makerFeeRates.maker;
 
       // Persist the trade itself.
       await tx.insert(futuresTradesTable).values({
@@ -597,6 +621,7 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
         isBot: Boolean(tr.takerIsBot),
       };
       const takerEffect = await applyFillToPosition(tx, takerCtx);
+      lastTakerPosId = takerEffect.positionId;
       // 1) Release this fill's share of the taker order's pre-lock.
       //    (Bots have no wallet so skip.)
       const takerPreLockRelease = Boolean(tr.takerIsBot) ? 0 : takerLockPerUnit * fillQty;
@@ -666,6 +691,16 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
       takerFilledTotal += fillQty;
       takerNotional += fillPrice * fillQty;
       takerFeeTotal += takerEffect.fee;
+    }
+
+    // Propagate SL/TP from the taker order to the resulting position.
+    // This ensures the futures-engine risk tick can trigger SL/TP correctly.
+    if (lastTakerPosId && (taker.stopLoss || taker.takeProfit)) {
+      const slUpdate: Record<string, unknown> = { updatedAt: new Date() };
+      if (taker.stopLoss) slUpdate.stopLoss = String(taker.stopLoss);
+      if (taker.takeProfit) slUpdate.takeProfit = String(taker.takeProfit);
+      await tx.update(futuresPositionsTable).set(slUpdate)
+        .where(eq(futuresPositionsTable.id, lastTakerPosId));
     }
 
     // Final taker order update.
@@ -879,6 +914,40 @@ r.get("/futures/position", bicryptoAuth, async (req: any, res: Response): Promis
     return;
   }
   res.json({ data: rows.map((r) => positionToFlutter(r, pair!, pair!.lastPrice || Number(r.markPrice))) });
+});
+
+// ── PATCH /futures/position/:id/sltp ─────────────────────────────────
+// Update Stop Loss / Take Profit on an existing open position.
+r.patch("/futures/position/:id/sltp", bicryptoAuth, async (req: any, res: Response): Promise<void> => {
+  const u = req.bcUser;
+  const idParam = String(req.params.id);
+  const b = req.body ?? {};
+  const numId = /^\d+$/.test(idParam) ? Number(idParam) : null;
+
+  const [pos] = numId !== null
+    ? await db.select().from(futuresPositionsTable).where(and(eq(futuresPositionsTable.id, numId), eq(futuresPositionsTable.userId, u.id), eq(futuresPositionsTable.status, "open"))).limit(1)
+    : await db.select().from(futuresPositionsTable).where(and(eq(futuresPositionsTable.uid, idParam), eq(futuresPositionsTable.userId, u.id), eq(futuresPositionsTable.status, "open"))).limit(1);
+  if (!pos) { res.status(404).json({ message: "Open position not found" }); return; }
+
+  const upd: Record<string, unknown> = {};
+  // Accept explicit null to CLEAR an existing SL/TP.
+  if ("stopLossPrice" in b) {
+    upd.stopLoss = b.stopLossPrice != null ? String(Number(b.stopLossPrice)) : null;
+  }
+  if ("takeProfitPrice" in b) {
+    upd.takeProfit = b.takeProfitPrice != null ? String(Number(b.takeProfitPrice)) : null;
+  }
+  if (Object.keys(upd).length === 0) {
+    res.status(400).json({ message: "stopLossPrice or takeProfitPrice required" }); return;
+  }
+
+  const [updated] = await db.update(futuresPositionsTable)
+    .set(upd)
+    .where(and(eq(futuresPositionsTable.id, pos.id), eq(futuresPositionsTable.status, "open")))
+    .returning();
+  if (!updated) { res.status(409).json({ message: "Position no longer open" }); return; }
+
+  res.json({ ok: true, stopLoss: updated.stopLoss, takeProfit: updated.takeProfit });
 });
 
 // ── DELETE /futures/position ──────────────────────────────────────────
