@@ -2,8 +2,6 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, put, post } from "@/lib/api";
 import { PageHeader } from "@/components/premium/PageHeader";
-import { SectionCard } from "@/components/premium/SectionCard";
-import { StatusPill } from "@/components/premium/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,9 +12,99 @@ import { toast } from "sonner";
 import {
   Settings, Save, ChevronDown, ChevronRight, Eye, EyeOff,
   Globe, Zap, Banknote, CreditCard, Share2, BarChart3, RefreshCw,
-  ShieldCheck, CheckCircle2, AlertCircle, Loader2,
+  ShieldCheck, CheckCircle2, Loader2, Search, X, AlertTriangle, MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ─── World countries list ────────────────────────────────────────────────────
+const ALL_COUNTRIES: { code: string; name: string }[] = [
+  { code: "AF", name: "Afghanistan" }, { code: "AL", name: "Albania" },
+  { code: "DZ", name: "Algeria" }, { code: "AO", name: "Angola" },
+  { code: "AR", name: "Argentina" }, { code: "AM", name: "Armenia" },
+  { code: "AU", name: "Australia" }, { code: "AT", name: "Austria" },
+  { code: "AZ", name: "Azerbaijan" }, { code: "BH", name: "Bahrain" },
+  { code: "BD", name: "Bangladesh" }, { code: "BY", name: "Belarus" },
+  { code: "BE", name: "Belgium" }, { code: "BZ", name: "Belize" },
+  { code: "BJ", name: "Benin" }, { code: "BT", name: "Bhutan" },
+  { code: "BO", name: "Bolivia" }, { code: "BA", name: "Bosnia & Herzegovina" },
+  { code: "BW", name: "Botswana" }, { code: "BR", name: "Brazil" },
+  { code: "BN", name: "Brunei" }, { code: "BG", name: "Bulgaria" },
+  { code: "BF", name: "Burkina Faso" }, { code: "BI", name: "Burundi" },
+  { code: "KH", name: "Cambodia" }, { code: "CM", name: "Cameroon" },
+  { code: "CA", name: "Canada" }, { code: "CF", name: "Central African Republic" },
+  { code: "TD", name: "Chad" }, { code: "CL", name: "Chile" },
+  { code: "CN", name: "China" }, { code: "CO", name: "Colombia" },
+  { code: "CD", name: "Congo, DR" }, { code: "CG", name: "Congo, Republic" },
+  { code: "CR", name: "Costa Rica" }, { code: "CI", name: "Côte d'Ivoire" },
+  { code: "HR", name: "Croatia" }, { code: "CU", name: "Cuba" },
+  { code: "CY", name: "Cyprus" }, { code: "CZ", name: "Czech Republic" },
+  { code: "DK", name: "Denmark" }, { code: "DJ", name: "Djibouti" },
+  { code: "DO", name: "Dominican Republic" }, { code: "EC", name: "Ecuador" },
+  { code: "EG", name: "Egypt" }, { code: "SV", name: "El Salvador" },
+  { code: "ER", name: "Eritrea" }, { code: "EE", name: "Estonia" },
+  { code: "ET", name: "Ethiopia" }, { code: "FJ", name: "Fiji" },
+  { code: "FI", name: "Finland" }, { code: "FR", name: "France" },
+  { code: "GA", name: "Gabon" }, { code: "GM", name: "Gambia" },
+  { code: "GE", name: "Georgia" }, { code: "DE", name: "Germany" },
+  { code: "GH", name: "Ghana" }, { code: "GR", name: "Greece" },
+  { code: "GT", name: "Guatemala" }, { code: "GN", name: "Guinea" },
+  { code: "GW", name: "Guinea-Bissau" }, { code: "GY", name: "Guyana" },
+  { code: "HT", name: "Haiti" }, { code: "HN", name: "Honduras" },
+  { code: "HK", name: "Hong Kong" }, { code: "HU", name: "Hungary" },
+  { code: "IS", name: "Iceland" }, { code: "IN", name: "India" },
+  { code: "ID", name: "Indonesia" }, { code: "IR", name: "Iran" },
+  { code: "IQ", name: "Iraq" }, { code: "IE", name: "Ireland" },
+  { code: "IL", name: "Israel" }, { code: "IT", name: "Italy" },
+  { code: "JM", name: "Jamaica" }, { code: "JP", name: "Japan" },
+  { code: "JO", name: "Jordan" }, { code: "KZ", name: "Kazakhstan" },
+  { code: "KE", name: "Kenya" }, { code: "KW", name: "Kuwait" },
+  { code: "KG", name: "Kyrgyzstan" }, { code: "LA", name: "Laos" },
+  { code: "LV", name: "Latvia" }, { code: "LB", name: "Lebanon" },
+  { code: "LY", name: "Libya" }, { code: "LI", name: "Liechtenstein" },
+  { code: "LT", name: "Lithuania" }, { code: "LU", name: "Luxembourg" },
+  { code: "MG", name: "Madagascar" }, { code: "MW", name: "Malawi" },
+  { code: "MY", name: "Malaysia" }, { code: "MV", name: "Maldives" },
+  { code: "ML", name: "Mali" }, { code: "MT", name: "Malta" },
+  { code: "MR", name: "Mauritania" }, { code: "MU", name: "Mauritius" },
+  { code: "MX", name: "Mexico" }, { code: "MD", name: "Moldova" },
+  { code: "MN", name: "Mongolia" }, { code: "ME", name: "Montenegro" },
+  { code: "MA", name: "Morocco" }, { code: "MZ", name: "Mozambique" },
+  { code: "MM", name: "Myanmar" }, { code: "NA", name: "Namibia" },
+  { code: "NP", name: "Nepal" }, { code: "NL", name: "Netherlands" },
+  { code: "NZ", name: "New Zealand" }, { code: "NI", name: "Nicaragua" },
+  { code: "NE", name: "Niger" }, { code: "NG", name: "Nigeria" },
+  { code: "KP", name: "North Korea" }, { code: "MK", name: "North Macedonia" },
+  { code: "NO", name: "Norway" }, { code: "OM", name: "Oman" },
+  { code: "PK", name: "Pakistan" }, { code: "PA", name: "Panama" },
+  { code: "PG", name: "Papua New Guinea" }, { code: "PY", name: "Paraguay" },
+  { code: "PE", name: "Peru" }, { code: "PH", name: "Philippines" },
+  { code: "PL", name: "Poland" }, { code: "PT", name: "Portugal" },
+  { code: "QA", name: "Qatar" }, { code: "RO", name: "Romania" },
+  { code: "RU", name: "Russia" }, { code: "RW", name: "Rwanda" },
+  { code: "SA", name: "Saudi Arabia" }, { code: "SN", name: "Senegal" },
+  { code: "RS", name: "Serbia" }, { code: "SL", name: "Sierra Leone" },
+  { code: "SG", name: "Singapore" }, { code: "SK", name: "Slovakia" },
+  { code: "SI", name: "Slovenia" }, { code: "SO", name: "Somalia" },
+  { code: "ZA", name: "South Africa" }, { code: "SS", name: "South Sudan" },
+  { code: "ES", name: "Spain" }, { code: "LK", name: "Sri Lanka" },
+  { code: "SD", name: "Sudan" }, { code: "SR", name: "Suriname" },
+  { code: "SE", name: "Sweden" }, { code: "CH", name: "Switzerland" },
+  { code: "SY", name: "Syria" }, { code: "TW", name: "Taiwan" },
+  { code: "TJ", name: "Tajikistan" }, { code: "TZ", name: "Tanzania" },
+  { code: "TH", name: "Thailand" }, { code: "TL", name: "Timor-Leste" },
+  { code: "TG", name: "Togo" }, { code: "TT", name: "Trinidad & Tobago" },
+  { code: "TN", name: "Tunisia" }, { code: "TR", name: "Turkey" },
+  { code: "TM", name: "Turkmenistan" }, { code: "UG", name: "Uganda" },
+  { code: "UA", name: "Ukraine" }, { code: "AE", name: "UAE" },
+  { code: "GB", name: "United Kingdom" }, { code: "US", name: "United States" },
+  { code: "UY", name: "Uruguay" }, { code: "UZ", name: "Uzbekistan" },
+  { code: "VE", name: "Venezuela" }, { code: "VN", name: "Vietnam" },
+  { code: "YE", name: "Yemen" }, { code: "ZM", name: "Zambia" },
+  { code: "ZW", name: "Zimbabwe" },
+];
+
+// Countries flagged under FATF/UN sanctions — shown with warning badge
+const SANCTIONED_CODES = new Set(["IR","KP","SY","CU","SD","LY","SO","YE","BY","MM","RU","VE"]);
 
 const SECTIONS: {
   label: string;
@@ -115,6 +203,329 @@ const SECTIONS: {
   },
 ];
 
+// ─── Geo Restrictions Component ───────────────────────────────────────────────
+interface GeoConfig {
+  mode: "blocklist" | "allowlist";
+  blockedCountries: string[];
+  allowedCountries: string[];
+}
+
+function GeoRestrictionsSection() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+
+  const { data: siteConfig } = useQuery<{ geo?: GeoConfig }>({
+    queryKey: ["site-config-geo"],
+    queryFn: () => get<{ geo?: GeoConfig }>("/content/site-config"),
+    staleTime: 30_000,
+  });
+
+  const serverGeo: GeoConfig = useMemo(() => ({
+    mode: siteConfig?.geo?.mode ?? "blocklist",
+    blockedCountries: siteConfig?.geo?.blockedCountries ?? [],
+    allowedCountries: siteConfig?.geo?.allowedCountries ?? [],
+  }), [siteConfig]);
+
+  const [localGeo, setLocalGeo] = useState<GeoConfig | null>(null);
+  const geo = localGeo ?? serverGeo;
+
+  const isDirty = localGeo !== null;
+
+  const saveGeoMutation = useMutation({
+    mutationFn: (value: GeoConfig) =>
+      put<void>("/admin/settings/site.geo", { value }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["site-config-geo"] });
+      setLocalGeo(null);
+      toast.success("Geo restrictions saved");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to save geo settings"),
+  });
+
+  const toggleCountry = (code: string) => {
+    const current = localGeo ?? serverGeo;
+    const field = current.mode === "blocklist" ? "blockedCountries" : "allowedCountries";
+    const list = current[field];
+    const next = list.includes(code) ? list.filter(c => c !== code) : [...list, code];
+    setLocalGeo({ ...current, [field]: next });
+  };
+
+  const setMode = (mode: "blocklist" | "allowlist") => {
+    setLocalGeo({ ...geo, mode });
+  };
+
+  const clearAll = () => {
+    setLocalGeo({ ...geo, blockedCountries: [], allowedCountries: [] });
+  };
+
+  const selectSanctioned = () => {
+    const sanctionedList = ALL_COUNTRIES.filter(c => SANCTIONED_CODES.has(c.code)).map(c => c.code);
+    setLocalGeo({ ...geo, blockedCountries: sanctionedList });
+  };
+
+  const activeField = geo.mode === "blocklist" ? "blockedCountries" : "allowedCountries";
+  const activeList = geo[activeField];
+
+  const filtered = useMemo(() =>
+    ALL_COUNTRIES.filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.code.toLowerCase().includes(search.toLowerCase())
+    ),
+    [search]
+  );
+
+  return (
+    <div className={cn(
+      "rounded-xl border bg-card/50 overflow-hidden transition-all",
+      isDirty ? "border-amber-500/40" : "border-border",
+    )}>
+      {/* Section header */}
+      <button
+        onClick={() => setCollapsed(prev => !prev)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-9 h-9 rounded-lg flex items-center justify-center border",
+            isDirty ? "bg-amber-500/15 border-amber-500/30" : "bg-muted/40 border-border",
+          )}>
+            <MapPin className={cn("w-4 h-4", isDirty ? "text-amber-400" : "text-muted-foreground")} />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">Geo Restrictions</span>
+              {isDirty && (
+                <Badge className="h-4 px-1.5 text-[9px] bg-amber-500/20 text-amber-400 border-amber-500/30">
+                  unsaved
+                </Badge>
+              )}
+              {activeList.length > 0 && (
+                <Badge className="h-4 px-1.5 text-[9px] bg-rose-500/20 text-rose-400 border-rose-500/30">
+                  {activeList.length} {geo.mode === "blocklist" ? "blocked" : "allowed"}
+                </Badge>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Block or restrict access by country. Users from blocked countries see a compliance notice.
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!collapsed && isDirty && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 px-2.5 text-xs"
+              onClick={e => { e.stopPropagation(); saveGeoMutation.mutate(geo); }}
+              disabled={saveGeoMutation.isPending}
+            >
+              {saveGeoMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+              Save
+            </Button>
+          )}
+          {collapsed ? <ChevronRight className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-border/60 px-5 py-5 space-y-5">
+          {/* Mode selector */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Restriction Mode</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(["blocklist", "allowlist"] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={cn(
+                    "rounded-lg border px-4 py-3 text-left transition-all",
+                    geo.mode === m
+                      ? "border-primary/60 bg-primary/10 text-foreground"
+                      : "border-border bg-muted/20 text-muted-foreground hover:border-border/80",
+                  )}
+                >
+                  <div className="text-sm font-semibold capitalize">{m}</div>
+                  <div className="text-[11px] mt-0.5 leading-relaxed">
+                    {m === "blocklist"
+                      ? "Block specific countries — everyone else has access"
+                      : "Allow only specific countries — everyone else is blocked"}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sanctioned countries shortcut */}
+          <div className="rounded-lg bg-amber-500/8 border border-amber-500/25 p-3.5 flex items-start gap-3">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-amber-300 mb-1">FATF / UN Sanctioned Countries</p>
+              <p className="text-[11px] text-amber-200/70 leading-relaxed mb-2.5">
+                Quickly add all FATF blacklisted and UN-sanctioned jurisdictions (Iran, North Korea, Syria, Russia, Belarus, Myanmar, Cuba, Sudan, Libya, Somalia, Yemen, Venezuela) to the blocked list.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs border-amber-500/40 text-amber-300 hover:bg-amber-500/15"
+                  onClick={selectSanctioned}
+                >
+                  Add Sanctioned Countries
+                </Button>
+                {activeList.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-3 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={clearAll}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear All
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Country list */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">
+                {geo.mode === "blocklist" ? "Blocked Countries" : "Allowed Countries"}
+                {activeList.length > 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground">({activeList.length} selected)</span>
+                )}
+              </Label>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search countries..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Country grid */}
+            <div className="h-72 overflow-y-auto rounded-lg border border-border/60 bg-muted/10 p-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
+                {filtered.map(country => {
+                  const isSelected = activeList.includes(country.code);
+                  const isSanctioned = SANCTIONED_CODES.has(country.code);
+                  return (
+                    <button
+                      key={country.code}
+                      onClick={() => toggleCountry(country.code)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-md px-3 py-2 text-left transition-all text-sm",
+                        isSelected
+                          ? geo.mode === "blocklist"
+                            ? "bg-rose-500/15 border border-rose-500/30 text-rose-200"
+                            : "bg-emerald-500/15 border border-emerald-500/30 text-emerald-200"
+                          : "hover:bg-muted/40 border border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <div className={cn(
+                        "w-4 h-4 rounded flex items-center justify-center border shrink-0",
+                        isSelected
+                          ? geo.mode === "blocklist"
+                            ? "bg-rose-500 border-rose-400"
+                            : "bg-emerald-500 border-emerald-400"
+                          : "border-border bg-muted/30",
+                      )}>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                      <span className="font-mono text-[10px] text-muted-foreground/70 w-6 shrink-0">{country.code}</span>
+                      <span className="flex-1 truncate text-xs">{country.name}</span>
+                      {isSanctioned && (
+                        <span className="text-[9px] text-amber-400 bg-amber-500/15 border border-amber-500/25 rounded px-1 py-0.5 shrink-0">
+                          FATF
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <div className="col-span-2 py-8 text-center text-sm text-muted-foreground">
+                    No countries match "{search}"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Selected chips */}
+            {activeList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {activeList.map(code => {
+                  const country = ALL_COUNTRIES.find(c => c.code === code);
+                  return (
+                    <span
+                      key={code}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border",
+                        geo.mode === "blocklist"
+                          ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                          : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+                      )}
+                    >
+                      {country?.name ?? code}
+                      <button
+                        onClick={() => toggleCountry(code)}
+                        className="opacity-70 hover:opacity-100 ml-0.5"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Save button */}
+          <div className="flex justify-end pt-2 border-t border-border/60">
+            <div className="flex items-center gap-3">
+              {isDirty && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setLocalGeo(null)}
+                >
+                  Discard
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => saveGeoMutation.mutate(geo)}
+                disabled={saveGeoMutation.isPending || !isDirty}
+              >
+                {saveGeoMutation.isPending
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                  : <><Save className="w-3.5 h-3.5 mr-1.5" />Save Geo Restrictions</>
+                }
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ExchangeSettings() {
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -173,7 +584,6 @@ export default function ExchangeSettings() {
   };
 
   const totalChanges = Object.keys(pendingChanges).length;
-
   const isAnySaving = saveSingleMutation.isPending || saveBulkMutation.isPending;
 
   return (
@@ -243,7 +653,6 @@ export default function ExchangeSettings() {
                   sectionPending > 0 ? "border-amber-500/40" : "border-border",
                 )}
               >
-                {/* Section header */}
                 <button
                   onClick={() => setCollapsed(prev => ({ ...prev, [section.label]: !prev[section.label] }))}
                   className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
@@ -251,9 +660,7 @@ export default function ExchangeSettings() {
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "w-9 h-9 rounded-lg flex items-center justify-center border",
-                      sectionPending > 0
-                        ? "bg-amber-500/15 border-amber-500/30"
-                        : "bg-muted/40 border-border",
+                      sectionPending > 0 ? "bg-amber-500/15 border-amber-500/30" : "bg-muted/40 border-border",
                     )}>
                       <Icon className={cn("w-4 h-4", sectionPending > 0 ? "text-amber-400" : "text-muted-foreground")} />
                     </div>
@@ -403,6 +810,9 @@ export default function ExchangeSettings() {
               </div>
             );
           })}
+
+          {/* Geo Restrictions — separate section using site.geo via settingsTable */}
+          <GeoRestrictionsSection />
         </div>
       )}
     </div>

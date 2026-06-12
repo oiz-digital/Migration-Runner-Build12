@@ -841,7 +841,7 @@ export default function Trade() {
                 });
               })()}
               {orderbook.bids.length === 0 && orderbook.asks.length === 0 && (
-                <div className="py-6 text-center text-muted-foreground text-xs">No depth yet</div>
+                <div className="py-6 text-center text-muted-foreground text-xs">Awaiting order flow</div>
               )}
             </div>
           </div>
@@ -898,7 +898,7 @@ export default function Trade() {
                 </div>
               ))}
               {tradeFeed === "market" && trades.length === 0 && (
-                <div className="py-6 text-center text-muted-foreground text-xs">No trades yet</div>
+                <div className="py-6 text-center text-muted-foreground text-xs">No recent trades</div>
               )}
               {tradeFeed === "mine" && myTrades.length === 0 && (
                 <div className="py-6 text-center text-muted-foreground text-xs">

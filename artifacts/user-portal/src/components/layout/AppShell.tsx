@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { AppHeader } from "./AppHeader";
 import { AppFooter } from "./AppFooter";
@@ -6,8 +7,8 @@ import { SiteConfigProvider, useSiteConfig } from "@/lib/siteConfig";
 import { useAuth } from "@/lib/auth";
 import MaintenancePage from "@/pages/Maintenance";
 import { VerificationGateModal } from "@/components/VerificationGateModal";
+import { GeoBlockModal } from "@/components/GeoBlockModal";
 import { Sparkles, X } from "lucide-react";
-import { useState } from "react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -17,16 +18,68 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+interface GeoState {
+  countryCode: string;
+  countryName: string;
+  blocked: boolean;
+}
+
 function ShellInner({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user } = useAuth();
-  const { maintenance } = useSiteConfig();
-  const isAuthPage = location === "/login" || location === "/signup";
+  const { maintenance, geo } = useSiteConfig();
+  const [geoState, setGeoState] = useState<GeoState | null>(null);
 
-  // Maintenance gate — admins / superadmins / support can still access for ops
+  const isAuthPage = location === "/login" || location === "/signup";
   const isStaff = user?.role === "admin" || user?.role === "superadmin" || user?.role === "support";
+
+  // Geo check — only for non-staff, cache in sessionStorage
+  useEffect(() => {
+    if (isStaff) return;
+
+    const cached = sessionStorage.getItem("zbx_geo");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as { code: string; name: string };
+        const blocked = isGeoBlocked(parsed.code, geo);
+        setGeoState({ countryCode: parsed.code, countryName: parsed.name, blocked });
+        return;
+      } catch { /* ignore bad cache */ }
+    }
+
+    // Only fetch if geo config actually restricts something
+    const hasRestrictions =
+      (geo.mode === "blocklist" && geo.blockedCountries.length > 0) ||
+      (geo.mode === "allowlist" && geo.allowedCountries.length > 0);
+    if (!hasRestrictions) return;
+
+    fetch("https://ipapi.co/json/", { signal: AbortSignal.timeout(5000) })
+      .then(r => r.json())
+      .then((data: { country_code?: string; country_name?: string }) => {
+        const code = data.country_code ?? "";
+        const name = data.country_name ?? code;
+        if (code) {
+          sessionStorage.setItem("zbx_geo", JSON.stringify({ code, name }));
+          const blocked = isGeoBlocked(code, geo);
+          setGeoState({ countryCode: code, countryName: name, blocked });
+        }
+      })
+      .catch(() => { /* silently ignore — don't block on geo failure */ });
+  }, [geo, isStaff]);
+
+  // Maintenance gate — admins / superadmins / support can still access
   if (maintenance.enabled && !isStaff && !isAuthPage) {
     return <MaintenancePage />;
+  }
+
+  // Geo block gate
+  if (geoState?.blocked && !isStaff) {
+    return (
+      <GeoBlockModal
+        countryCode={geoState.countryCode}
+        countryName={geoState.countryName}
+      />
+    );
   }
 
   if (isAuthPage) {
@@ -43,6 +96,21 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       <VerificationGateModal />
     </div>
   );
+}
+
+function isGeoBlocked(
+  countryCode: string,
+  geo: { mode: string; blockedCountries: string[]; allowedCountries: string[] },
+): boolean {
+  if (!countryCode) return false;
+  const code = countryCode.toUpperCase();
+  if (geo.mode === "blocklist") {
+    return geo.blockedCountries.map(c => c.toUpperCase()).includes(code);
+  }
+  if (geo.mode === "allowlist" && geo.allowedCountries.length > 0) {
+    return !geo.allowedCountries.map(c => c.toUpperCase()).includes(code);
+  }
+  return false;
 }
 
 function BannerStrip() {

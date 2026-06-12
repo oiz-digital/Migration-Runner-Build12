@@ -54,12 +54,19 @@ export type BannerStrip = {
   kind: "info" | "success" | "warning" | "danger";
 };
 
+export type GeoConfig = {
+  mode: "blocklist" | "allowlist";
+  blockedCountries: string[];
+  allowedCountries: string[];
+};
+
 export type SiteConfig = {
   brand: Brand;
   maintenance: Maintenance;
   features: FeatureFlags;
   footer: FooterConfig;
   bannerStrip: BannerStrip;
+  geo: GeoConfig;
 };
 
 const DEFAULT_BRAND: Brand = {
@@ -157,13 +164,24 @@ const DEFAULT_BANNER_STRIP: BannerStrip = {
   kind: "info",
 };
 
+const DEFAULT_GEO: GeoConfig = {
+  mode: "blocklist",
+  blockedCountries: [],
+  allowedCountries: [],
+};
+
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   brand: DEFAULT_BRAND,
   maintenance: DEFAULT_MAINTENANCE,
   features: DEFAULT_FEATURES,
   footer: DEFAULT_FOOTER,
   bannerStrip: DEFAULT_BANNER_STRIP,
+  geo: DEFAULT_GEO,
 };
+
+export function useGeoConfig(): GeoConfig {
+  return useSiteConfig().geo;
+}
 
 const SiteConfigContext = createContext<SiteConfig>(DEFAULT_SITE_CONFIG);
 

@@ -614,7 +614,7 @@ export default function Signup() {
                 when you complete KYC.
               </h2>
               <p className="mt-4 text-lg text-muted-foreground max-w-md">
-                A premium account on India&apos;s most trusted exchange — built on Zebvix Blockchain (Chain 8989).
+                A premium account on India&apos;s most advanced crypto exchange — regulated, secure, and built to perform.
               </p>
             </div>
 

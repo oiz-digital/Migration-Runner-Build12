@@ -206,8 +206,8 @@ function SymbolSwitcher({ current, enabled }: { current: string; enabled: Set<st
           {list.length === 0 && (
             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
               {enabled.size === 0
-                ? "No futures markets are enabled yet. Markets will appear here once an admin activates a pair."
-                : "No matches."}
+                ? "No futures markets enabled. Markets appear here once an admin activates a pair."
+                : "No matching pairs found."}
             </div>
           )}
         </div>
@@ -740,7 +740,7 @@ export default function Futures() {
                   <span className="text-right text-muted-foreground">{new Date(t.ts).toLocaleTimeString([], { hour12: false })}</span>
                 </div>
               ))}
-              {trades.length === 0 && <div className="py-6 text-center text-muted-foreground text-xs">No trades yet</div>}
+              {trades.length === 0 && <div className="py-6 text-center text-muted-foreground text-xs">No recent trades</div>}
             </div>
           </div>
           </div>
@@ -1263,7 +1263,7 @@ function OrdersTable({
   if (rows.length === 0) {
     return (
       <div className="px-4 py-6 text-xs text-center text-muted-foreground">
-        {mode === "open" ? "No open orders." : "No order history."}
+        {mode === "open" ? "No open futures orders." : "No order history yet."}
       </div>
     );
   }

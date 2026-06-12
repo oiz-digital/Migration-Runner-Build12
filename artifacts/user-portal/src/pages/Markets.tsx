@@ -682,8 +682,8 @@ export default function Markets() {
                       24h Volume {sortKey === "volume" && <span>{sortDesc ? "↓" : "↑"}</span>}
                     </button>
                   </th>
-                  <th className="text-center px-2 py-3 font-medium hidden xl:table-cell">7d Trend</th>
-                  <th className="text-right px-4 py-3 font-medium">Action</th>
+                  <th className="text-center px-2 py-3 font-medium hidden xl:table-cell">7-Day Trend</th>
+                  <th className="text-right px-4 py-3 font-medium">Trade</th>
                 </tr>
               </thead>
               <tbody>

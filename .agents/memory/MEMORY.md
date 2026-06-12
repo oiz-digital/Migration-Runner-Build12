@@ -1,3 +1,4 @@
 - [Zebvix project structure](zebvix-structure.md) — full crypto exchange; user-portal=/user/, admin=/admin/, api-server=/api/
 - [Zebvix Go service setup](zebvix-go-service.md) — go-1.25 module installed; workflow uses PORT=23004 BASE_PATH=/go-service/ explicitly
 - [Zebvix VPS deploy fixes](zebvix-vps-deploy.md) — nginx.conf http2 fix, deploy/zebvix-setup.sh v2.5 is production-ready
+- [Zebvix CommandDialog accessibility](zebvix-commanddialog-a11y.md) — sr-only DialogTitle fix for both user-portal and admin command.tsx; never use @radix-ui/react-visually-hidden (not installed)

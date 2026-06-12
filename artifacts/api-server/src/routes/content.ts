@@ -27,6 +27,7 @@ const SITE_KEYS = [
   "site.features",
   "site.footer",
   "site.banner_strip",
+  "site.geo",
 ] as const;
 
 const DEFAULT_BRAND = {
@@ -124,6 +125,12 @@ const DEFAULT_BANNER_STRIP = {
   kind: "info" as "info" | "success" | "warning" | "danger",
 };
 
+const DEFAULT_GEO = {
+  mode: "blocklist" as "blocklist" | "allowlist",
+  blockedCountries: [] as string[],
+  allowedCountries: [] as string[],
+};
+
 function parseJson<T>(raw: string | undefined, fallback: T): T {
   if (!raw) return fallback;
   try { return { ...fallback, ...JSON.parse(raw) } as T; } catch { return fallback; }
@@ -144,6 +151,7 @@ router.get("/content/site-config", async (_req, res): Promise<void> => {
     features: parseJson(map["site.features"], DEFAULT_FEATURES),
     footer: parseJson(map["site.footer"], DEFAULT_FOOTER),
     bannerStrip: parseJson(map["site.banner_strip"], DEFAULT_BANNER_STRIP),
+    geo: parseJson(map["site.geo"], DEFAULT_GEO),
   });
 });
 
