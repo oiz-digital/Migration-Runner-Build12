@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
-import { db, cryptoWithdrawalsTable, networksTable } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, cryptoWithdrawalsTable, networksTable, walletsTable, walletLedgerTable } from "@workspace/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { decryptSecret } from "./crypto-vault";
 import { isEvmChain } from "./auto-broadcaster";
 import { logger } from "./logger";
@@ -43,14 +43,39 @@ export async function scanBroadcasting(): Promise<{ checked: number; confirmed: 
         continue;
       }
       if (receipt.status === 0) {
-        // Tx reverted on-chain — mark rejected and refund locked balance? Already deducted on broadcast.
-        // For safety, mark rejected with reason; admin must manually reconcile (refund).
-        await db.update(cryptoWithdrawalsTable).set({
-          status: "rejected",
-          rejectReason: "On-chain tx reverted (status=0). Balance was deducted on broadcast — manual refund required.",
-          processedAt: new Date(),
-        }).where(eq(cryptoWithdrawalsTable.id, w.id));
-        logger.error({ withdrawalId: w.id, txHash: w.txHash }, "Withdrawal tx reverted on-chain");
+        // Tx reverted on-chain — auto-refund user balance atomically.
+        await db.transaction(async (tx) => {
+          await tx.update(cryptoWithdrawalsTable).set({
+            status: "rejected",
+            rejectReason: `On-chain tx reverted (status=0, txHash=${w.txHash}). Balance auto-refunded.`,
+            processedAt: new Date(),
+          }).where(eq(cryptoWithdrawalsTable.id, w.id));
+
+          // Return funds to available balance and reduce locked informational counter.
+          await tx.update(walletsTable).set({
+            balance: sql`${walletsTable.balance} + ${w.amount}`,
+            locked:  sql`GREATEST(0, ${walletsTable.locked} - ${w.amount})`,
+          }).where(
+            and(
+              eq(walletsTable.userId, w.userId),
+              eq(walletsTable.coinId, w.coinId),
+              eq(walletsTable.walletType, "spot"),
+            ),
+          );
+
+          // Ledger entry for the auto-refund.
+          await tx.insert(walletLedgerTable).values({
+            userId:     w.userId,
+            coinId:     w.coinId,
+            walletType: "spot",
+            type:       "admin_credit",
+            amount:     w.amount,
+            refType:    "crypto_withdrawal",
+            refId:      String(w.id),
+            note:       `Auto-refund: on-chain tx reverted (${w.txHash})`,
+          });
+        });
+        logger.error({ withdrawalId: w.id, txHash: w.txHash, userId: w.userId }, "Withdrawal tx reverted — balance auto-refunded");
         continue;
       }
       const head = await provider.getBlockNumber();
