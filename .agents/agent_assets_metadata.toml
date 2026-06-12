@@ -227,3 +227,9 @@ id = "1DPW1VTmLx3kzp2xn6Eo8"
 uri = "file://attached_assets/features/security-architecture.png"
 type = "image"
 title = "🔐 Security Architecture"
+
+[[outputs]]
+id = "RnFsgSxT2EP0meQW6uphg"
+uri = "file://docs/Zebvix-Platform-Brochure.pdf"
+type = "pdf"
+title = "Zebvix Platform Brochure 2026 — Full PDF"
