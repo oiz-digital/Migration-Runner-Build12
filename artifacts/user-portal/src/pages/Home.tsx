@@ -175,7 +175,7 @@ function Sparkline({ symbol, positive }: { symbol: string; positive: boolean }) 
 // ──────────────────────────────────────────────────────────────────
 // Asset icon (text avatar)
 // ──────────────────────────────────────────────────────────────────
-function AssetIcon({ symbol }: { symbol: string }) {
+function AssetIcon({ symbol, size = 8 }: { symbol: string; size?: number }) {
   const b = baseAsset(symbol);
   const c = b.slice(0, 1);
   const palette = [
@@ -191,9 +191,10 @@ function AssetIcon({ symbol }: { symbol: string }) {
   let hash = 0;
   for (let i = 0; i < b.length; i++) hash = (hash * 31 + b.charCodeAt(i)) >>> 0;
   const grad = palette[hash % palette.length];
+  const dim = `h-${size} w-${size}`;
   return (
     <div
-      className={`h-8 w-8 rounded-full bg-gradient-to-br ${grad} text-white flex items-center justify-center text-xs font-bold shadow-md`}
+      className={`${dim} shrink-0 rounded-full bg-gradient-to-br ${grad} text-white flex items-center justify-center text-xs font-bold shadow-md`}
     >
       {c}
     </div>
@@ -397,7 +398,7 @@ function MarketRow({
   return (
     <div className="grid grid-cols-12 gap-3 items-center px-4 py-3 hover:bg-muted/30 transition-colors border-b border-border/60 last:border-b-0 group">
       {/* Rank + Star + Asset */}
-      <div className="col-span-5 sm:col-span-3 flex items-center gap-2.5 min-w-0">
+      <div className="col-span-6 sm:col-span-3 flex items-center gap-2.5 min-w-0">
         <button
           type="button"
           aria-label={isFav ? "Unfavorite" : "Favorite"}
@@ -419,12 +420,12 @@ function MarketRow({
         <span className="hidden md:inline-block text-[10px] font-mono tabular-nums text-muted-foreground/70 w-4 text-center">
           {rank}
         </span>
-        <Link href={`/trade/${encodeSymbol(t.symbol)}`} className="flex items-center gap-2.5 min-w-0 flex-1">
-          <AssetIcon symbol={t.symbol} />
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-bold text-sm truncate">{baseAsset(t.symbol)}</span>
-              <span className="text-[10px] text-muted-foreground">/{quoteAsset(t.symbol)}</span>
+        <Link href={`/trade/${encodeSymbol(t.symbol)}`} className="flex items-center gap-2 min-w-0 flex-1">
+          <AssetIcon symbol={t.symbol} size={7} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 overflow-hidden">
+              <span className="font-bold text-sm shrink-0">{baseAsset(t.symbol)}</span>
+              <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
             </div>
             <div className="text-[11px] text-muted-foreground truncate">{coinName(t.symbol)}</div>
           </div>
@@ -444,7 +445,7 @@ function MarketRow({
       {/* % change chip */}
       <Link
         href={`/trade/${encodeSymbol(t.symbol)}`}
-        className="col-span-4 sm:col-span-2 flex justify-end"
+        className="col-span-3 sm:col-span-2 flex justify-end"
       >
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono tabular-nums font-semibold ${
@@ -521,10 +522,10 @@ function MarketCard({
       <Link href={`/trade/${encodeSymbol(t.symbol)}`} className="block">
         <div className="flex items-center gap-2.5 mb-3">
           <AssetIcon symbol={t.symbol} />
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-bold text-sm truncate">{baseAsset(t.symbol)}</span>
-              <span className="text-[10px] text-muted-foreground">/{quoteAsset(t.symbol)}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 overflow-hidden">
+              <span className="font-bold text-sm shrink-0">{baseAsset(t.symbol)}</span>
+              <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
             </div>
             <div className="text-[11px] text-muted-foreground truncate">{coinName(t.symbol)}</div>
           </div>

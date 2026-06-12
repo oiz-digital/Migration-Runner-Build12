@@ -838,19 +838,19 @@ export default function Markets() {
                   <Link href={`/trade/${encodeSymbol(t.symbol)}`} className="flex items-center gap-2.5 flex-1 min-w-0">
                     <AssetIcon symbol={t.symbol} logoUrl={coinLogos.get(base)} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-sm">{baseAsset(t.symbol)}</span>
-                        <span className="text-[10px] text-muted-foreground">/{quoteAsset(t.symbol)}</span>
-                        {isNew && <Badge className="h-3.5 px-1 text-[8px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">NEW</Badge>}
+                      <div className="flex items-center gap-1 overflow-hidden">
+                        <span className="font-bold text-sm shrink-0">{baseAsset(t.symbol)}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
+                        {isNew && <Badge className="h-3.5 px-1 text-[8px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shrink-0">NEW</Badge>}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[10px] text-muted-foreground truncate">
                         Vol {isInr(t.symbol) ? fmtCompact(t.quoteVolume || 0, "₹") : fmtCompact(t.quoteVolume || 0) + " " + quoteAsset(t.symbol)}
                       </div>
                     </div>
                     <MiniSpark symbol={t.symbol} pct={t.priceChangePercent} w={48} h={20} />
-                    <div className="text-right">
-                      <div className="text-sm font-mono">{fmtPrice(t.lastPrice, t.symbol)}</div>
-                      <div className={`text-[11px] font-bold ${positive ? "text-success" : "text-destructive"}`}>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-mono tabular-nums">{fmtPrice(t.lastPrice, t.symbol)}</div>
+                      <div className={`text-[11px] font-bold tabular-nums ${positive ? "text-success" : "text-destructive"}`}>
                         {positive ? "+" : ""}{t.priceChangePercent.toFixed(2)}%
                       </div>
                     </div>
