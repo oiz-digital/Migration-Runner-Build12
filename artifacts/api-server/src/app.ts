@@ -38,18 +38,30 @@ if (process.env["NODE_ENV"] === "production") {
 }
 
 // ─── CORS allow-list ─────────────────────────────────────────────────────
-// In dev we trust the REPLIT_DEV_DOMAIN. In production CORS_ORIGINS
-// (comma-separated) is REQUIRED — we refuse to boot without it so a
-// misconfigured deploy can't accidentally fall back to "allow anyone".
+// Priority order:
+//  1. CORS_ORIGINS (explicit comma-separated list) — always wins if set
+//  2. REPLIT_DOMAINS (auto-set by Replit in both dev and production) — used
+//     as an automatic fallback so deploys work without manual env-var config
+//  3. REPLIT_DEV_DOMAIN + localhost fallbacks (dev only)
 function getAllowedOrigins(): string[] {
   const explicit = (process.env["CORS_ORIGINS"] || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
   if (explicit.length > 0) return explicit;
+
+  // Auto-derive from REPLIT_DOMAINS (bare hostnames → https:// origins).
+  // Replit sets this in both dev and production environments automatically.
+  const replitDomains = (process.env["REPLIT_DOMAINS"] || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((d) => `https://${d}`);
+  if (replitDomains.length > 0) return replitDomains;
+
   if (process.env["NODE_ENV"] === "production") {
     throw new Error(
-      "CORS_ORIGINS env required in production (comma-separated list of allowed origins)",
+      "CORS_ORIGINS env required in production — REPLIT_DOMAINS was also not set",
     );
   }
   const dev = process.env["REPLIT_DEV_DOMAIN"];
