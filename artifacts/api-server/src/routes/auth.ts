@@ -24,6 +24,7 @@ import {
   type AuthChallengePurpose,
 } from "../lib/auth-challenge";
 import { sendWelcomeEmail } from "../lib/email";
+import { loadReferralConfig } from "./admin-referrals";
 import { screenOnboarding } from "../lib/sanctions";
 
 const router: IRouter = Router();
@@ -235,7 +236,10 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
     const usdtCoinId = usdtCoin[0].id;
     (async () => {
       try {
-        const REGISTRATION_BONUS_USDT = 1.0;
+        // Use admin-configurable bonus amount (default 1.0 USDT)
+        const refConfig = await loadReferralConfig();
+        if (!refConfig.enabled) return;
+        const REGISTRATION_BONUS_USDT = refConfig.registrationBonus;
         // Upsert referrer's USDT spot wallet.
         const [rw] = await db.select().from(walletsTable)
           .where(eq(walletsTable.userId, referredBy!))

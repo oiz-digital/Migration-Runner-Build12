@@ -1,18 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, referralsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { randomBytes } from "node:crypto";
+import { loadReferralConfig } from "./admin-referrals";
 
 const router: IRouter = Router();
-
-const DEFAULT_COMMISSION_RATES = [
-  { level: 1, regBonus: "1.00 USDT", aiPercent: "5%", tradingFeePercent: "30%", earnPercent: "3%" },
-  { level: 2, regBonus: "0.50 USDT", aiPercent: "3%", tradingFeePercent: "15%", earnPercent: "2%" },
-  { level: 3, regBonus: "0.25 USDT", aiPercent: "2%", tradingFeePercent: "8%",  earnPercent: "1%" },
-  { level: 4, regBonus: "0.10 USDT", aiPercent: "1%", tradingFeePercent: "4%",  earnPercent: "0.5%" },
-  { level: 5, regBonus: "0.05 USDT", aiPercent: "0.5%", tradingFeePercent: "2%", earnPercent: "0.25%" },
-];
 
 function makeCode(name: string): string {
   const suffix = randomBytes(3).toString("hex").toUpperCase();
@@ -64,16 +57,26 @@ router.get("/referrals", requireAuth, async (req, res): Promise<void> => {
 
   const totalReferrals = levels.reduce((s, l) => s + l.referralCount, 0);
   const totalBonus     = allRows.reduce((s, r) => s + parseFloat(r.bonusAmount ?? "0"), 0);
-  const origin         = req.headers.origin ?? "https://zebvix.io";
+  const origin = req.headers.origin ?? "https://zebvix.io";
+  // Load admin-configurable referral rates — same source as the credit engine
+  const config = await loadReferralConfig();
+  const commissionRates = [1, 2, 3, 4, 5].map(level => ({
+    level,
+    // Registration bonus is only credited at L1 (direct referral on signup)
+    regBonus:         level === 1 ? `${config.registrationBonus.toFixed(2)} USDT` : "—",
+    aiPercent:        `${config.ai[String(level)]     ?? 0}%`,
+    tradingFeePercent:`${config.trading[String(level)] ?? 0}%`,
+    earnPercent:      `${config.earn[String(level)]   ?? 0}%`,
+  }));
 
   res.json({
     referralCode:    code,
     referralLink:    `${origin}/signup?ref=${code}`,
-    welcomeBonus:    "0.50",
+    welcomeBonus:    config.registrationBonus.toFixed(2),
     totalReferrals,
     totalBonusUsdt:  parseFloat(totalBonus.toFixed(4)),
     levels,
-    commissionRates: DEFAULT_COMMISSION_RATES,
+    commissionRates,
     recentReferrals: allRows
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50)

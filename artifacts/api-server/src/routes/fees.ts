@@ -216,13 +216,16 @@ router.get("/fees/my", requireAuth, async (req, res): Promise<void> => {
   const [u] = await db.select({ vipTier: usersTable.vipTier }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
   const adminTier = u?.vipTier ?? 0;
   const volTier = [...tiers].reverse().find(t => volumeUsdt >= t.minVolume) ?? tiers[0];
-  const finalTier = adminTier >= volTier.level ? tiers[adminTier] ?? volTier : volTier;
+  // Use level-based lookup (not array index) so custom tier ladders work correctly
+  const finalTier = adminTier >= volTier.level
+    ? (tiers.find(t => t.level === adminTier) ?? volTier)
+    : volTier;
 
   res.json({
     volume30dUsdt: +volumeUsdt.toFixed(2),
     totalFeesUsdt: +totalFeeUsdt.toFixed(4),
     currentTier: finalTier,
-    nextTier: tiers[finalTier.level + 1] ?? null,
+    nextTier: tiers.find(t => t.level === finalTier.level + 1) ?? null,
     tiers,
   });
 });

@@ -20,6 +20,7 @@ import {
 import { requireAuth } from "../middlewares/auth";
 import { consumeVerifiedOtp } from "./otp";
 import { getBankPolicy } from "./admin";
+import { loadVipTiers } from "./fees";
 
 const router: IRouter = Router();
 
@@ -273,7 +274,12 @@ router.post("/inr-withdrawals", requireAuth, async (req, res): Promise<void> => 
   if (amt < 100) { res.status(400).json({ error: "Minimum withdrawal is ₹100" }); return; }
   if (!otpId) { res.status(400).json({ error: "OTP verification required (otpId missing)" }); return; }
 
-  const fee = Math.max(10, +(amt * 0.001).toFixed(2));
+  // Apply VIP withdrawal fee discount (0% Regular → 25% VIP 5)
+  const inrVipTiers = await loadVipTiers();
+  const inrUserTier = inrVipTiers.find(t => t.level === (req.user!.vipTier ?? 0)) ?? inrVipTiers[0];
+  const inrDiscountPct = inrUserTier?.withdrawDiscount ?? 0;
+  const baseFeeInr = Math.max(10, +(amt * 0.001).toFixed(2));
+  const fee = +(baseFeeInr * (1 - inrDiscountPct / 100)).toFixed(2);
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -343,6 +349,11 @@ router.post("/crypto-withdrawals", requireAuth, async (req, res): Promise<void> 
   }
   if (!otpId) { res.status(400).json({ error: "OTP verification required (otpId missing)" }); return; }
 
+  // Pre-load VIP discount outside transaction to avoid async calls inside tx
+  const cryptoVipTiers = await loadVipTiers();
+  const cryptoUserTier = cryptoVipTiers.find(t => t.level === (req.user!.vipTier ?? 0)) ?? cryptoVipTiers[0];
+  const cryptoDiscountPct = cryptoUserTier?.withdrawDiscount ?? 0;
+
   try {
     const created = await db.transaction(async (tx) => {
       const otpRes = await consumeVerifiedOtp({ otpId: Number(otpId), purpose: "withdraw", userId, tx });
@@ -357,12 +368,13 @@ router.post("/crypto-withdrawals", requireAuth, async (req, res): Promise<void> 
         const e: any = new Error("This network requires a memo/destination tag"); e.code = 400; throw e;
       }
 
-      // Withdraw fee = max( fixed + (amt × percent%), feeMin )
+      // Withdraw fee = max( fixed + (amt × percent%), feeMin ), then apply VIP discount
       const feeFixed = Number(network.withdrawFee) || 0;
       const feePct = Number(network.withdrawFeePercent) || 0;
       const feeMin = Number(network.withdrawFeeMin) || 0;
       const calcFee = feeFixed + (amt * feePct / 100);
-      const fee = +Math.max(calcFee, feeMin).toFixed(8);
+      const baseFee = +Math.max(calcFee, feeMin).toFixed(8);
+      const fee = +(baseFee * (1 - cryptoDiscountPct / 100)).toFixed(8);
       const tds = +(amt * 0.01).toFixed(8); // 1% TDS on crypto withdraw
 
       const [wallet] = await tx.select().from(walletsTable)

@@ -8,25 +8,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type SpotTier = { tier: string; vol30d: string; zbxBalance: string; maker: string; taker: string };
+type SpotTier = { tier: string; vol30d: string; maker: string; taker: string; withdrawDiscount: string };
 const SPOT_TIERS: SpotTier[] = [
-  { tier: "Regular", vol30d: "< $100K", zbxBalance: "≥ 0",      maker: "0.10%", taker: "0.10%" },
-  { tier: "VIP 1",   vol30d: "≥ $100K", zbxBalance: "≥ 250",    maker: "0.090%", taker: "0.100%" },
-  { tier: "VIP 2",   vol30d: "≥ $500K", zbxBalance: "≥ 1,000",  maker: "0.080%", taker: "0.090%" },
-  { tier: "VIP 3",   vol30d: "≥ $2M",   zbxBalance: "≥ 5,000",  maker: "0.060%", taker: "0.080%" },
-  { tier: "VIP 4",   vol30d: "≥ $10M",  zbxBalance: "≥ 25,000", maker: "0.040%", taker: "0.060%" },
-  { tier: "VIP 5",   vol30d: "≥ $50M",  zbxBalance: "≥ 100,000",maker: "0.020%", taker: "0.040%" },
-  { tier: "VIP 6",   vol30d: "≥ $250M", zbxBalance: "Custom",   maker: "0.000%", taker: "0.030%" },
+  { tier: "Regular", vol30d: "< $100K",  maker: "0.20%",  taker: "0.25%",  withdrawDiscount: "0%" },
+  { tier: "VIP 1",   vol30d: "≥ $100K",  maker: "0.16%",  taker: "0.20%",  withdrawDiscount: "5%" },
+  { tier: "VIP 2",   vol30d: "≥ $500K",  maker: "0.12%",  taker: "0.15%",  withdrawDiscount: "10%" },
+  { tier: "VIP 3",   vol30d: "≥ $2.5M",  maker: "0.08%",  taker: "0.10%",  withdrawDiscount: "15%" },
+  { tier: "VIP 4",   vol30d: "≥ $10M",   maker: "0.06%",  taker: "0.08%",  withdrawDiscount: "20%" },
+  { tier: "VIP 5",   vol30d: "≥ $50M",   maker: "0.04%",  taker: "0.06%",  withdrawDiscount: "25%" },
 ];
 
 type FuturesTier = { tier: string; vol30d: string; maker: string; taker: string; maxLev: string };
 const FUTURES_TIERS: FuturesTier[] = [
-  { tier: "Regular", vol30d: "< $1M",   maker: "0.020%", taker: "0.050%", maxLev: "20×" },
-  { tier: "VIP 1",   vol30d: "≥ $1M",   maker: "0.016%", taker: "0.045%", maxLev: "30×" },
-  { tier: "VIP 2",   vol30d: "≥ $10M",  vol30dExt: "", maker: "0.014%", taker: "0.040%", maxLev: "50×" } as any,
-  { tier: "VIP 3",   vol30d: "≥ $50M",  maker: "0.012%", taker: "0.035%", maxLev: "75×" },
-  { tier: "VIP 4",   vol30d: "≥ $250M", maker: "0.010%", taker: "0.030%", maxLev: "100×" },
-  { tier: "VIP 5",   vol30d: "≥ $1B",   maker: "0.005%", taker: "0.025%", maxLev: "125×" },
+  { tier: "Regular", vol30d: "< $100K",  maker: "0.050%", taker: "0.070%", maxLev: "20×" },
+  { tier: "VIP 1",   vol30d: "≥ $100K",  maker: "0.040%", taker: "0.060%", maxLev: "30×" },
+  { tier: "VIP 2",   vol30d: "≥ $500K",  maker: "0.030%", taker: "0.050%", maxLev: "50×" },
+  { tier: "VIP 3",   vol30d: "≥ $2.5M",  maker: "0.020%", taker: "0.040%", maxLev: "75×" },
+  { tier: "VIP 4",   vol30d: "≥ $10M",   maker: "0.015%", taker: "0.030%", maxLev: "100×" },
+  { tier: "VIP 5",   vol30d: "≥ $50M",   maker: "0.010%", taker: "0.025%", maxLev: "125×" },
 ];
 
 type FundingItem = { asset: string; network: string; depositFee: string; withdrawFee: string; minWithdraw: string };
@@ -47,10 +46,10 @@ const FUNDING_TABLE: FundingItem[] = [
 ];
 
 const DISCOUNTS = [
-  { icon: Coins, title: "Pay fees in ZBX", body: "Hold ZBX in your spot wallet and we automatically apply a 25% discount on spot trading fees and 10% on futures fees." },
+  { icon: Coins, title: "Pay fees in ZBX (Coming Soon)", body: "ZBX fee discounts are coming in a future update. Hold ZBX now to qualify when the feature launches." },
   { icon: Sparkles, title: "First-week welcome", body: "0% spot maker/taker fees on your first ₹50,000 of trading volume in your first 7 days." },
-  { icon: Award, title: "VIP tier upgrades", body: "Tiers are recalculated daily at 00:00 IST based on rolling 30-day USD-equivalent volume + ZBX balance." },
-  { icon: BadgeCheck, title: "Referral kick-back", body: "Earn 30% of fees paid by users you refer, instantly credited as ZBX." },
+  { icon: Award, title: "VIP tier upgrades", body: "Tiers are recalculated daily at 00:00 IST based on rolling 30-day USD-equivalent volume. Higher VIP tiers also get withdrawal fee discounts (5%–25%)." },
+  { icon: BadgeCheck, title: "Referral kick-back", body: "Earn up to 30% of fees paid by users you refer across 5 levels, instantly credited as USDT to your spot wallet." },
 ];
 
 export default function Fees() {
@@ -75,10 +74,10 @@ export default function Fees() {
             <strong className="text-foreground">26 April 2026</strong>.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary"><Percent className="h-3 w-3 mr-1" /> Spot from 0.000% maker</Badge>
-            <Badge variant="secondary"><Percent className="h-3 w-3 mr-1" /> Futures from 0.005% maker</Badge>
+            <Badge variant="secondary"><Percent className="h-3 w-3 mr-1" /> Spot from 0.04% maker (VIP 5)</Badge>
+            <Badge variant="secondary"><Percent className="h-3 w-3 mr-1" /> Futures from 0.010% maker (VIP 5)</Badge>
             <Badge variant="secondary"><IndianRupee className="h-3 w-3 mr-1" /> Free NEFT in / out</Badge>
-            <Badge variant="secondary"><Coins className="h-3 w-3 mr-1" /> 25% off paying in ZBX</Badge>
+            <Badge variant="secondary"><Award className="h-3 w-3 mr-1" /> Up to 25% withdraw discount (VIP 5)</Badge>
           </div>
         </div>
       </section>
@@ -100,7 +99,7 @@ export default function Fees() {
               <div className="p-5 border-b border-border">
                 <h2 className="text-lg font-bold">Spot trading — maker / taker</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Tier is the better of (30-day rolling USD volume) or (ZBX balance held in your spot wallet).
+                  Tier is based on your rolling 30-day USD-equivalent trading volume, recalculated daily at 00:00 IST.
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -109,9 +108,9 @@ export default function Fees() {
                     <tr>
                       <th className="text-left font-semibold px-4 py-3">Tier</th>
                       <th className="text-left font-semibold px-4 py-3">30-day volume</th>
-                      <th className="text-left font-semibold px-4 py-3">or ZBX balance</th>
                       <th className="text-right font-semibold px-4 py-3">Maker</th>
                       <th className="text-right font-semibold px-4 py-3">Taker</th>
+                      <th className="text-right font-semibold px-4 py-3">Withdraw discount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -119,9 +118,9 @@ export default function Fees() {
                       <tr key={t.tier} className="hover:bg-accent/20" data-testid={`row-spot-${t.tier.toLowerCase().replace(/\s+/g, "-")}`}>
                         <td className="px-4 py-3 font-semibold">{t.tier}</td>
                         <td className="px-4 py-3 text-muted-foreground">{t.vol30d}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{t.zbxBalance}</td>
                         <td className="px-4 py-3 text-right tabular-nums font-mono">{t.maker}</td>
                         <td className="px-4 py-3 text-right tabular-nums font-mono">{t.taker}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{t.withdrawDiscount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -135,9 +134,9 @@ export default function Fees() {
               <Info className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
               <div className="text-sm text-muted-foreground leading-relaxed">
                 <strong className="text-foreground">Conversion (instant buy/sell):</strong>{" "}
-                a transparent spread of <strong>~0.50%</strong> is included in
-                the displayed price. There is no separate trading fee on
-                Convert orders.
+                a market spread of <strong>~0.10%</strong> is baked into the displayed rate, plus a
+                conversion fee of <strong>0.075%–0.30%</strong> (depending on your VIP tier) on the output amount.
+                No separate maker/taker fee applies to Convert orders.
               </div>
             </CardContent>
           </Card>
