@@ -9,28 +9,6 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "artifacts/go-service: Go Engine"
-
-[[workflows.workflow]]
-name = "artifacts/go-service: Go Engine"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/go-service && PORT=23004 BASE_PATH=/go-service/ go run ."
-waitForPort = 23004
 
 [agent]
 stack = "PNPM_WORKSPACE"
