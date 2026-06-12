@@ -669,10 +669,10 @@ export default function Trade() {
             <Link href={`/futures`} className="px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground rounded-sm transition-colors">Futures</Link>
           </div>
 
-          <div className="h-8 w-px bg-border flex-shrink-0" />
+          <div className="h-8 w-px bg-border flex-shrink-0 hidden sm:block" />
 
           <div className="flex flex-col items-start flex-shrink-0">
-            <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Last Price</div>
+            <div className="text-[10px] uppercase text-muted-foreground tracking-wider hidden sm:block">Last Price</div>
             <div className={`font-mono font-extrabold text-base sm:text-xl tabular-nums leading-tight transition-colors ${
               flash === "up" ? "text-success" : flash === "down" ? "text-destructive" : pct >= 0 ? "text-success" : "text-destructive"
             }`}>
@@ -685,10 +685,10 @@ export default function Trade() {
               {pct >= 0 ? "+" : ""}{fmtNum(pct, 2)}%
             </span>
           </Stat>
-          <Stat label="24h High">{fmtPrice(high, quote)}</Stat>
-          <Stat label="24h Low">{fmtPrice(low, quote)}</Stat>
-          <Stat label={`24h Vol (${base})`}>{fmtCompact(vol)}</Stat>
-          <Stat label={`24h Vol (${quote})`}>{fmtCompact(quoteVol, quote === "INR" ? "₹" : "")}{quote !== "INR" && quote ? ` ${quote}` : ""}</Stat>
+          <Stat label="24h High" className="hidden sm:flex">{fmtPrice(high, quote)}</Stat>
+          <Stat label="24h Low" className="hidden sm:flex">{fmtPrice(low, quote)}</Stat>
+          <Stat label={`24h Vol (${base})`} className="hidden md:flex">{fmtCompact(vol)}</Stat>
+          <Stat label={`24h Vol (${quote})`} className="hidden md:flex">{fmtCompact(quoteVol, quote === "INR" ? "₹" : "")}{quote !== "INR" && quote ? ` ${quote}` : ""}</Stat>
 
           {/* Layout switcher (right) */}
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
@@ -1330,10 +1330,10 @@ export default function Trade() {
 // ──────────────────────────────────────────────────────────────────
 // Header stat
 // ──────────────────────────────────────────────────────────────────
-function Stat({ label, children, tone }: { label: string; children: React.ReactNode; tone?: "success" | "destructive" }) {
+function Stat({ label, children, tone, className }: { label: string; children: React.ReactNode; tone?: "success" | "destructive"; className?: string }) {
   const color = tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : "text-foreground";
   return (
-    <div className="flex flex-col items-start flex-shrink-0">
+    <div className={`flex flex-col items-start flex-shrink-0 ${className ?? ""}`}>
       <div className="text-[10px] uppercase text-muted-foreground tracking-wider">{label}</div>
       <div className={`font-mono text-sm tabular-nums ${color}`}>{children}</div>
     </div>

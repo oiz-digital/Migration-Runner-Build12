@@ -794,40 +794,39 @@ export function PriceChart({ symbol }: { symbol: string }) {
 
       {/* ── OHLC info bar (overlay on chart) ── */}
       {display && (
-        <div className="absolute left-2 right-2 sm:left-3 sm:right-auto top-12 z-10 flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:gap-x-3 bg-card/85 backdrop-blur border border-border rounded-md px-2 py-1 sm:px-2.5 sm:py-1.5 text-[10px] sm:text-[11px] font-mono pointer-events-none shadow-lg">
-          <span className="font-bold text-foreground">{base}/{quote}</span>
-          <span className="text-muted-foreground">
-            O <span className="text-foreground">{fmtPrice(display.open, quote)}</span>
-          </span>
-          <span className="text-muted-foreground">
-            H <span className="text-success">{fmtPrice(display.high, quote)}</span>
-          </span>
-          <span className="text-muted-foreground">
-            L <span className="text-destructive">{fmtPrice(display.low, quote)}</span>
-          </span>
-          <span className="text-muted-foreground">
-            C <span className={displayPct >= 0 ? "text-success" : "text-destructive"}>{fmtPrice(display.close, quote)}</span>
-          </span>
-          <span className={`font-bold ${displayPct >= 0 ? "text-success" : "text-destructive"}`}>
-            {displayPct >= 0 ? "+" : ""}{displayPct.toFixed(2)}%
-          </span>
-          {display.volume > 0 && (
-            <span className="text-muted-foreground hidden sm:inline">
-              V <span className="text-foreground">{fmtCompact(display.volume)}</span>
-            </span>
-          )}
-          {/* Active MA legend (desktop only — saves space on mobile) */}
-          {MA_DEFS.filter((d) => indicators[d.id]).map((d) => {
-            const tail = candlesRef.current.slice(-d.period);
-            if (tail.length < d.period) return null;
-            const avg = tail.reduce((s, x) => s + x.close, 0) / d.period;
-            return (
-              <span key={d.id} className="hidden md:inline-flex items-center gap-1 text-muted-foreground">
-                <span className="h-0.5 w-3 rounded" style={{ backgroundColor: d.color }} />
-                <span className="text-foreground">{fmtPrice(avg, quote)}</span>
-              </span>
-            );
-          })}
+        <div className="absolute left-2 right-2 sm:left-3 sm:right-auto top-12 z-10 bg-card/85 backdrop-blur border border-border rounded-md px-2 py-1 sm:px-2.5 sm:py-1.5 text-[10px] sm:text-[11px] font-mono pointer-events-none shadow-lg">
+          {/* Mobile: compact single line — no unit suffix to save space */}
+          <div className="flex items-center gap-x-2 sm:hidden">
+            <span className="font-bold text-foreground">{base}/{quote}</span>
+            <span className="text-muted-foreground">O <span className="text-foreground">{fmtPrice(display.open, quote === "INR" ? "INR" : "")}</span></span>
+            <span className="text-muted-foreground">H <span className="text-success">{fmtPrice(display.high, quote === "INR" ? "INR" : "")}</span></span>
+            <span className="text-muted-foreground">L <span className="text-destructive">{fmtPrice(display.low, quote === "INR" ? "INR" : "")}</span></span>
+            <span className="text-muted-foreground">C <span className={displayPct >= 0 ? "text-success" : "text-destructive"}>{fmtPrice(display.close, quote === "INR" ? "INR" : "")}</span></span>
+            <span className={`font-bold ${displayPct >= 0 ? "text-success" : "text-destructive"}`}>{displayPct >= 0 ? "+" : ""}{displayPct.toFixed(2)}%</span>
+          </div>
+          {/* Desktop: full OHLCV with unit suffix */}
+          <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <span className="font-bold text-foreground">{base}/{quote}</span>
+            <span className="text-muted-foreground">O <span className="text-foreground">{fmtPrice(display.open, quote)}</span></span>
+            <span className="text-muted-foreground">H <span className="text-success">{fmtPrice(display.high, quote)}</span></span>
+            <span className="text-muted-foreground">L <span className="text-destructive">{fmtPrice(display.low, quote)}</span></span>
+            <span className="text-muted-foreground">C <span className={displayPct >= 0 ? "text-success" : "text-destructive"}>{fmtPrice(display.close, quote)}</span></span>
+            <span className={`font-bold ${displayPct >= 0 ? "text-success" : "text-destructive"}`}>{displayPct >= 0 ? "+" : ""}{displayPct.toFixed(2)}%</span>
+            {display.volume > 0 && (
+              <span className="text-muted-foreground">V <span className="text-foreground">{fmtCompact(display.volume)}</span></span>
+            )}
+            {MA_DEFS.filter((d) => indicators[d.id]).map((d) => {
+              const tail = candlesRef.current.slice(-d.period);
+              if (tail.length < d.period) return null;
+              const avg = tail.reduce((s, x) => s + x.close, 0) / d.period;
+              return (
+                <span key={d.id} className="hidden md:inline-flex items-center gap-1 text-muted-foreground">
+                  <span className="h-0.5 w-3 rounded" style={{ backgroundColor: d.color }} />
+                  <span className="text-foreground">{fmtPrice(avg, quote)}</span>
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
 
