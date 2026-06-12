@@ -1,5 +1,112 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "q0ylcLoPP66ksNR4yBTcY"
+uri = "file://attached_assets/features/spot-trading.png"
+type = "image"
+title = "spot trading terminal"
+
+[[generated]]
+id = "dXuLHu6Sba2e3J9pJwqXP"
+uri = "file://attached_assets/features/futures-trading.png"
+type = "image"
+title = "futures trading terminal"
+
+[[generated]]
+id = "SBeR63B5sM-A2MvXtffjp"
+uri = "file://attached_assets/features/options-trading.png"
+type = "image"
+title = "options chain dashboard"
+
+[[generated]]
+id = "otORA_VKSeMaRl1-AeKy3"
+uri = "file://attached_assets/features/p2p-trading.png"
+type = "image"
+title = "P2P marketplace escrow"
+
+[[generated]]
+id = "vYxHn2KZwuV6y4wMqQYnM"
+uri = "file://attached_assets/features/ai-trading.png"
+type = "image"
+title = "AI trading plans dashboard"
+
+[[generated]]
+id = "gI3UsueU_Q-U1u84THgYP"
+uri = "file://attached_assets/features/copy-trading.png"
+type = "image"
+title = "copy trading leaderboard"
+
+[[generated]]
+id = "VFs-a4mVGCCd1K27kYD83"
+uri = "file://attached_assets/features/trading-bots.png"
+type = "image"
+title = "grid DCA trading bots"
+
+[[generated]]
+id = "7U7pnCLXdXFgdZYBzYtbq"
+uri = "file://attached_assets/features/earn-staking.png"
+type = "image"
+title = "earn staking yield dashboard"
+
+[[generated]]
+id = "pvhYz1c69A3IiQqLn0Xcj"
+uri = "file://attached_assets/features/crypto-wallet.png"
+type = "image"
+title = "crypto wallet portfolio"
+
+[[generated]]
+id = "X1bVynVlLAybrMVdU-Xb3"
+uri = "file://attached_assets/features/kyc-verification.png"
+type = "image"
+title = "KYC verification steps"
+
+[[generated]]
+id = "BKLL7WErN-3DebrWfU3w5"
+uri = "file://attached_assets/features/inr-payments.png"
+type = "image"
+title = "INR UPI payment gateway"
+
+[[generated]]
+id = "I8G0MuAXcSV_1Ca2eRLza"
+uri = "file://attached_assets/features/koinx-integration.png"
+type = "image"
+title = "KoinX tax reporting"
+
+[[generated]]
+id = "qPYoBB46txBOAHE2Owl2w"
+uri = "file://attached_assets/features/convert-swap.png"
+type = "image"
+title = "instant crypto swap convert"
+
+[[generated]]
+id = "hkD18PqmM3YoIb3a9_uhA"
+uri = "file://attached_assets/features/portfolio-analytics.png"
+type = "image"
+title = "portfolio PnL analytics"
+
+[[generated]]
+id = "v55_1O6AcBNSC1QNWo7vk"
+uri = "file://attached_assets/features/trading-leagues.png"
+type = "image"
+title = "trading competition leagues"
+
+[[generated]]
+id = "p0ucZUm-WdAEG8QfFUaSe"
+uri = "file://attached_assets/features/hero-banner.png"
+type = "image"
+title = "Zebvix hero banner crypto"
+
+[[generated]]
+id = "GFf5pG48UvKFYnhEVB1dn"
+uri = "file://attached_assets/features/referral-program.png"
+type = "image"
+title = "referral affiliate program"
+
+[[generated]]
+id = "078iqaVtj5LyAZvP4QUIj"
+uri = "file://attached_assets/features/security-architecture.png"
+type = "image"
+title = "security layers architecture"
 
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
@@ -12,3 +119,111 @@ id = "pJb2oK-mXJiZ-yqzqNAUy"
 uri = "file://docs/FULL_AUDIT.md"
 type = "text"
 title = "Zebvix — Full Platform Audit"
+
+[[outputs]]
+id = "YN9YqmkK8ISmGiz5NJbb6"
+uri = "file://attached_assets/features/hero-banner.png"
+type = "image"
+title = "🏠 Hero Banner — Zebvix Exchange"
+
+[[outputs]]
+id = "S1B_bF65YN-C0ESXzDfwr"
+uri = "file://attached_assets/features/spot-trading.png"
+type = "image"
+title = "📈 Spot Trading Terminal"
+
+[[outputs]]
+id = "wYZjEf_e6R3xzceg5-OvB"
+uri = "file://attached_assets/features/futures-trading.png"
+type = "image"
+title = "⚡ Futures Trading (Perpetuals)"
+
+[[outputs]]
+id = "AMK7Po1GsBKGkKtSSMssC"
+uri = "file://attached_assets/features/options-trading.png"
+type = "image"
+title = "🎯 Options Chain Dashboard"
+
+[[outputs]]
+id = "XjxK_QtCtawhUeEUugQ_D"
+uri = "file://attached_assets/features/p2p-trading.png"
+type = "image"
+title = "🤝 P2P Marketplace with Escrow"
+
+[[outputs]]
+id = "5DF3cVHmZnqcwxrFtHgUj"
+uri = "file://attached_assets/features/ai-trading.png"
+type = "image"
+title = "🤖 AI Trading Plans"
+
+[[outputs]]
+id = "S9W98CnXb-eZpkZ4tSszd"
+uri = "file://attached_assets/features/copy-trading.png"
+type = "image"
+title = "👥 Copy Trading Leaderboard"
+
+[[outputs]]
+id = "x97bukWQu4NtrM4eJjoBn"
+uri = "file://attached_assets/features/trading-bots.png"
+type = "image"
+title = "⚙️ Grid & DCA Trading Bots"
+
+[[outputs]]
+id = "BMRf5POjEum-pN1FFAZlk"
+uri = "file://attached_assets/features/earn-staking.png"
+type = "image"
+title = "💰 Earn / Staking Dashboard"
+
+[[outputs]]
+id = "sdEytIrQjTObF6vQ9-JWu"
+uri = "file://attached_assets/features/crypto-wallet.png"
+type = "image"
+title = "👛 Multi-Asset Wallet"
+
+[[outputs]]
+id = "mzry9xZ_ZoxqY2sfP274I"
+uri = "file://attached_assets/features/kyc-verification.png"
+type = "image"
+title = "🛡️ KYC Verification (PAN + Aadhaar)"
+
+[[outputs]]
+id = "2b7C-fNYzq6XXMCf1cVw_"
+uri = "file://attached_assets/features/inr-payments.png"
+type = "image"
+title = "🏦 INR Payments (UPI / Razorpay)"
+
+[[outputs]]
+id = "9qWv4HgDZu4vJPgvBU2_o"
+uri = "file://attached_assets/features/koinx-integration.png"
+type = "image"
+title = "📊 KoinX Tax Integration"
+
+[[outputs]]
+id = "iGyzGQ-TwRY3iAGuzIwlM"
+uri = "file://attached_assets/features/convert-swap.png"
+type = "image"
+title = "🔄 Instant Convert / Swap"
+
+[[outputs]]
+id = "BproP6EJRAo5lhlJOH3kh"
+uri = "file://attached_assets/features/portfolio-analytics.png"
+type = "image"
+title = "📉 Portfolio Analytics & PnL"
+
+[[outputs]]
+id = "Jq6IYqqRVBVkDiEA8_PlI"
+uri = "file://attached_assets/features/trading-leagues.png"
+type = "image"
+title = "🏆 Trading Leagues & Competitions"
+
+[[outputs]]
+id = "TtXm5LBhrk1K30utavoaN"
+uri = "file://attached_assets/features/referral-program.png"
+type = "image"
+title = "🎁 Referral / Affiliate Program"
+
+[[outputs]]
+id = "1DPW1VTmLx3kzp2xn6Eo8"
+uri = "file://attached_assets/features/security-architecture.png"
+type = "image"
+title = "🔐 Security Architecture"
