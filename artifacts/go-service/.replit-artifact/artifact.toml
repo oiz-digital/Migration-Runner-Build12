@@ -1,0 +1,22 @@
+kind = "web"
+previewPath = "/go-service/"
+title = "CryptoX Go Service"
+version = "1.0.0"
+id = "artifacts/go-service"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/go-service/", "/go-service/healthz", "/go-service/ws" ]
+localPort = 23004
+
+[services.development]
+run = "go run ."
+
+[services.production]
+build = [ "go", "build", "-o", "server", "." ]
+run = [ "./server" ]
+
+[services.env]
+PORT = "23004"
+BASE_PATH = "/go-service/"

@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "go-1.25"]
 
 [deployment]
 router = "application"
@@ -11,6 +11,27 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/go-service: Go Engine"
+
+[[workflows.workflow]]
+name = "artifacts/go-service: Go Engine"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/go-service && PORT=23004 BASE_PATH=/go-service/ go run ."
+waitForPort = 23004
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
@@ -22,6 +43,14 @@ timeoutMs = 20000
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[[ports]]
+localPort = 8090
+externalPort = 3001
+
+[[ports]]
+localPort = 23004
+externalPort = 3003
 
 [[ports]]
 localPort = 23475

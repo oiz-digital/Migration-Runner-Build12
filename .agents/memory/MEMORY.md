@@ -1,1 +1,3 @@
 - [Zebvix project structure](zebvix-structure.md) — full crypto exchange; user-portal=/user/, admin=/admin/, api-server=/api/
+- [Zebvix Go service setup](zebvix-go-service.md) — go-1.25 module installed; workflow uses PORT=23004 BASE_PATH=/go-service/ explicitly
+- [Zebvix VPS deploy fixes](zebvix-vps-deploy.md) — nginx.conf http2 fix, deploy/zebvix-setup.sh v2.5 is production-ready
