@@ -182,7 +182,7 @@ export default function Profile() {
           {/* Identity */}
           <div className="flex-1 min-w-0 text-center lg:text-left">
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-1">
-              <h1 className="text-2xl sm:text-3xl font-bold truncate" data-testid="text-profile-name">{fullName}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold break-words leading-tight" data-testid="text-profile-name">{fullName}</h1>
               <Badge className={`${currentBenefit.color} border-transparent text-[10px] font-bold uppercase`} data-testid="badge-kyc-level">
                 <BadgeCheck className="h-3 w-3 mr-0.5" /> KYC L{kycLevel} · {currentBenefit.label}
               </Badge>
@@ -355,9 +355,9 @@ export default function Profile() {
               </div>
               <div className="space-y-2">
                 {referQ.data.recent.slice(0, 5).map((u) => (
-                  <div key={u.id} className="flex items-center justify-between text-sm">
-                    <span className="truncate">{u.name || `User #${u.id}`}</span>
-                    <Badge variant="outline" className="text-[9px]">L{u.kycLevel}</Badge>
+                  <div key={u.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-xs flex-1 min-w-0 line-clamp-1">{u.name || `User #${u.id}`}</span>
+                    <Badge variant="outline" className="text-[9px] shrink-0">L{u.kycLevel}</Badge>
                   </div>
                 ))}
               </div>

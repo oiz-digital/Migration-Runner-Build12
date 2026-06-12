@@ -216,7 +216,7 @@ export default function ProDashboard() {
                     <div className="flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <CoinAvatar symbol={c.symbol} icon={c.icon} size="sm" />
-                        <span className="font-bold text-sm truncate">{c.symbol}</span>
+                        <span className="font-bold text-xs shrink-0">{c.symbol}</span>
                       </div>
                       <span className={`text-[11px] font-mono font-bold inline-flex items-center shrink-0 ${ch >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                         {ch >= 0 ? <TrendingUp className="h-3 w-3 mr-0.5" /> : <TrendingDown className="h-3 w-3 mr-0.5" />}
@@ -264,8 +264,8 @@ export default function ProDashboard() {
                     <div className="flex items-center gap-2 min-w-0">
                       <CoinAvatar symbol={c.symbol} icon={c.icon} />
                       <div className="min-w-0">
-                        <div className="font-bold text-sm truncate">{c.symbol}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">{c.name !== c.symbol ? c.name : "USDT pair"}</div>
+                        <div className="font-bold text-xs">{c.symbol}</div>
+                        <div className="text-[10px] text-muted-foreground line-clamp-1">{c.name !== c.symbol ? c.name : "USDT pair"}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 sm:gap-6 shrink-0">
@@ -324,7 +324,7 @@ export default function ProDashboard() {
                         ? <img src={a.icon} alt={a.symbol} className="h-5 w-5 rounded-full object-contain shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         : <span className="h-5 w-5 rounded-full bg-amber-500/15 text-amber-400 flex items-center justify-center text-[10px] font-bold shrink-0">{a.symbol[0]}</span>
                       }
-                      <span className="font-bold text-xs truncate">{a.symbol}</span>
+                      <span className="font-bold text-xs shrink-0">{a.symbol}</span>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-xs font-mono font-bold">
@@ -351,7 +351,7 @@ export default function ProDashboard() {
               <div className="space-y-1.5">
                 {bots!.items.filter((b: any) => b.status === "running").slice(0, 4).map((b: any) => (
                   <div key={b.id} className="flex items-center justify-between text-xs gap-2">
-                    <span className="font-bold truncate">{b.name ?? b.symbol ?? `Bot #${b.id}`}</span>
+                    <span className="font-bold text-xs flex-1 min-w-0 line-clamp-1">{b.name ?? b.symbol ?? `Bot #${b.id}`}</span>
                     <span className="text-emerald-400 font-mono shrink-0">Running</span>
                   </div>
                 ))}
@@ -370,7 +370,7 @@ export default function ProDashboard() {
               <div className="space-y-2">
                 {notifsResp!.items.slice(0, 5).map((n: any) => (
                   <Link key={n.id} href={n.ctaUrl || "/notifications"} className="block px-2 py-1.5 rounded hover:bg-muted/30">
-                    <div className="text-xs font-bold truncate">{n.title}</div>
+                    <div className="text-xs font-bold line-clamp-1">{n.title}</div>
                     {n.body && <div className="text-[11px] text-muted-foreground line-clamp-1">{n.body}</div>}
                   </Link>
                 ))}

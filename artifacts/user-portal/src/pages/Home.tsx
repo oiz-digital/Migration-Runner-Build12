@@ -427,7 +427,7 @@ function MarketRow({
               <span className="font-bold text-sm shrink-0">{baseAsset(t.symbol)}</span>
               <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
             </div>
-            <div className="text-[11px] text-muted-foreground truncate">{coinName(t.symbol)}</div>
+            <div className="text-[11px] text-muted-foreground line-clamp-1">{coinName(t.symbol)}</div>
           </div>
         </Link>
       </div>
@@ -527,7 +527,7 @@ function MarketCard({
               <span className="font-bold text-sm shrink-0">{baseAsset(t.symbol)}</span>
               <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
             </div>
-            <div className="text-[11px] text-muted-foreground truncate">{coinName(t.symbol)}</div>
+            <div className="text-[11px] text-muted-foreground line-clamp-1">{coinName(t.symbol)}</div>
           </div>
         </div>
         <div className="flex items-end justify-between gap-2 mb-2">
@@ -1527,7 +1527,7 @@ function ChainStat({
         </span>
         {action}
       </div>
-      <div className="font-mono text-sm font-semibold mt-1.5 truncate">{value}</div>
+      <div className="font-mono text-sm font-semibold mt-1.5 line-clamp-1">{value}</div>
     </div>
   );
 }

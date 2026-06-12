@@ -140,7 +140,7 @@ function TraderCard({ trader, rank }: { trader: Trader; rank: number }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="font-bold text-base truncate">{trader.displayName}</div>
+              <div className="font-bold text-sm line-clamp-1">{trader.displayName}</div>
               {trader.bio && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{trader.bio}</p>}
             </div>
             <FollowDialog trader={trader} />

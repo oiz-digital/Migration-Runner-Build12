@@ -136,7 +136,7 @@ export default function SupportTickets() {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold truncate">{selectedTicket.subject}</div>
+            <div className="font-semibold text-sm line-clamp-1">{selectedTicket.subject}</div>
             <div className="flex items-center gap-2 mt-0.5">
               <StatusPill variant={STATUS_VARIANT[selectedTicket.status] ?? "neutral"}>
                 {STATUS_LABEL[selectedTicket.status] ?? selectedTicket.status}
@@ -359,7 +359,7 @@ function TicketRow({ ticket, onClick }: { ticket: Ticket; onClick: () => void })
       className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
     >
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{ticket.subject}</div>
+        <div className="font-medium text-sm line-clamp-1">{ticket.subject}</div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <StatusPill variant={STATUS_VARIANT[ticket.status] ?? "neutral"}>
             {STATUS_LABEL[ticket.status] ?? ticket.status}

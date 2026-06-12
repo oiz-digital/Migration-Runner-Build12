@@ -353,8 +353,8 @@ export default function Web3Page() {
                           <span className="text-xs font-medium">{w.networkName}</span>
                           <StatusPill variant={w.kind === "external" ? "info" : "neutral"}>{w.kind}</StatusPill>
                         </div>
-                        <div className="text-sm font-mono mt-0.5 truncate">{w.label || shortAddr(w.address)}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono truncate">{w.address}</div>
+                        <div className="text-sm font-mono mt-0.5 line-clamp-1">{w.label || shortAddr(w.address)}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono break-all leading-tight">{w.address}</div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <a href={`${w.explorerUrl}/address/${w.address}`} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded hover:bg-muted/40">
@@ -480,7 +480,7 @@ function RowKv({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex justify-between gap-2">
       <span className="text-muted-foreground">{k}</span>
-      <span className="font-medium tabular-nums text-right truncate">{v}</span>
+      <span className="font-medium tabular-nums text-right line-clamp-1 shrink-0">{v}</span>
     </div>
   );
 }

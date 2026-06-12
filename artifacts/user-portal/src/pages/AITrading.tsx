@@ -540,9 +540,9 @@ export default function AITrading() {
                               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: risk.glow, border: `1px solid ${risk.color}30` }}>
                                 <span style={{ color: risk.color }}>{risk.icon}</span>
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium truncate">{sub.planName}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium leading-tight">{sub.planName}</span>
                                   <StatusPill status={sub.status} />
                                 </div>
                                 <div className="text-[11px] text-muted-foreground">{fmtDate(sub.startedAt)} → {sub.expiresAt ? fmtDate(sub.expiresAt) : "stopped"}</div>
@@ -842,12 +842,12 @@ function AiInvoiceDialog({ subId, onClose }: { subId: number | null; onClose: ()
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="rounded-lg border border-border/50 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Billed to</div>
-                <div className="font-medium text-foreground truncate">{inv.user.name}</div>
-                <div className="text-muted-foreground truncate">{inv.user.email}</div>
+                <div className="font-medium text-foreground break-all text-[11px] leading-tight">{inv.user.name}</div>
+                <div className="text-muted-foreground break-all text-[11px] leading-tight">{inv.user.email}</div>
               </div>
               <div className="rounded-lg border border-border/50 p-3">
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Bot</div>
-                <div className="font-medium text-foreground truncate">{inv.bot.planName}</div>
+                <div className="font-medium text-foreground text-[11px] leading-tight">{inv.bot.planName}</div>
                 <div className="text-muted-foreground">
                   {inv.bot.dailyReturnPercent ?? "—"}%/day · #{inv.bot.subscriptionId}
                 </div>

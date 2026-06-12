@@ -404,7 +404,7 @@ export default function Portfolio() {
                 {pieData.map((d, i) => (
                   <div key={i} className="flex items-center gap-2 min-w-0">
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                    <span className="truncate text-foreground font-semibold">{d.name}</span>
+                    <span className="text-foreground font-semibold min-w-0 line-clamp-1">{d.name}</span>
                     <span className="text-muted-foreground ml-auto tabular-nums shrink-0">{d.pct.toFixed(0)}%</span>
                   </div>
                 ))}

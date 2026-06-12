@@ -297,7 +297,7 @@ function Donut({ allocation }: { allocation: Allocation[] }) {
         {segments.map((s, i) => (
           <div key={`${s.symbol}-${i}`} className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-sm flex-shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-            <span className="text-muted-foreground truncate flex-1">{s.symbol}</span>
+            <span className="text-muted-foreground flex-1 min-w-0 line-clamp-1">{s.symbol}</span>
             <span className="font-mono font-bold">{s.pct.toFixed(1)}%</span>
           </div>
         ))}

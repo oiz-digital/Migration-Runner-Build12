@@ -98,7 +98,7 @@ export default function DiscoverPage() {
                   <div className="flex items-center gap-2">
                     {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-7 w-7 rounded-full" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <div className="h-7 w-7 rounded-full bg-muted" />}
                     <div className="min-w-0">
-                      <div className="font-semibold truncate">{t.symbol}</div>
+                      <div className="font-semibold text-sm">{t.symbol}</div>
                       {t.chain && <div className={`text-[10px] uppercase ${CHAIN_LABELS[t.chain]?.color ?? "text-muted-foreground"}`}>{CHAIN_LABELS[t.chain]?.label ?? t.chain}</div>}
                     </div>
                   </div>
@@ -174,8 +174,8 @@ export default function DiscoverPage() {
                         <div className="flex items-center gap-2">
                           {c.logoUrl ? <img src={c.logoUrl} alt="" className="h-7 w-7 rounded-full" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} /> : <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold">{c.symbol[0]}</div>}
                           <div className="min-w-0">
-                            <div className="font-semibold truncate">{c.symbol}</div>
-                            <div className="text-xs text-muted-foreground truncate max-w-[160px]">{c.name}</div>
+                            <div className="font-semibold text-sm">{c.symbol}</div>
+                            <div className="text-xs text-muted-foreground line-clamp-1 max-w-[160px]">{c.name}</div>
                           </div>
                           {c.status === "listed" && <StatusPill variant="success" dot={false}>Listed</StatusPill>}
                         </div>

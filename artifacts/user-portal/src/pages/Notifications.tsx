@@ -343,7 +343,7 @@ function AlertRow({ alert }: { alert: Alert }) {
           <span className="text-xs text-muted-foreground">{alert.condition} ${target.toLocaleString()}</span>
           <StatusPill variant={variant as any}>{alert.status}</StatusPill>
         </div>
-        {alert.note && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{alert.note}</p>}
+        {alert.note && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{alert.note}</p>}
         {alert.triggeredAt && (
           <p className="text-[11px] text-emerald-400 mt-0.5">
             Triggered at ${Number(alert.triggeredPrice).toLocaleString()} · {relTime(alert.triggeredAt)}

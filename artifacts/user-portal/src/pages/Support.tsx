@@ -461,12 +461,12 @@ function Tickets() {
                   data-testid={`ticket-${t.id}`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <div className="font-semibold text-sm truncate">{t.subject}</div>
-                    <Badge variant="outline" className={`text-[9px] flex-shrink-0 ${t.status === "open" ? "border-emerald-500/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
+                    <div className="flex-1 min-w-0 font-semibold text-xs line-clamp-1">{t.subject}</div>
+                    <Badge variant="outline" className={`text-[9px] shrink-0 ${t.status === "open" ? "border-emerald-500/30 text-emerald-300" : "border-border text-muted-foreground"}`}>
                       {t.status}
                     </Badge>
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{t.lastMessage || "No messages"}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-1">{t.lastMessage || "No messages"}</div>
                   <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                     <Clock className="h-2.5 w-2.5" /> {timeAgo(t.lastMessageAt)}
                   </div>
@@ -563,7 +563,7 @@ function ThreadView({ id, onClose }: { id: number; onClose: () => void }) {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
         <Button variant="ghost" size="icon" className="h-7 w-7 lg:hidden" onClick={onClose}><X className="h-4 w-4" /></Button>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{t.subject}</div>
+          <div className="font-semibold text-xs line-clamp-1">{t.subject}</div>
           <div className="text-[10px] text-muted-foreground">Ticket #{t.id} · {timeAgo(t.createdAt)}</div>
         </div>
         <Badge variant="outline" className={`text-[10px] ${t.status === "open" ? "border-emerald-500/30 text-emerald-300" : "border-border text-muted-foreground"}`}>{t.status}</Badge>

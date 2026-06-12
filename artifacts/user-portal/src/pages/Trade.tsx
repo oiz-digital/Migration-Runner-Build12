@@ -235,7 +235,7 @@ function SwitcherRow({ t, active, onPick }: { t: { symbol: string; lastPrice: nu
     >
       <AssetIcon symbol={t.symbol} size={7} />
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-bold truncate">
+        <div className="text-sm font-bold line-clamp-1">
           {baseAsset(t.symbol)}<span className="text-[10px] text-muted-foreground font-normal">/{quoteAsset(t.symbol)}</span>
         </div>
       </div>

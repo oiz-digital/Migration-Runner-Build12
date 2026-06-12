@@ -218,10 +218,10 @@ export default function Kyc() {
           <div className="flex items-center gap-4 sm:w-72 shrink-0">
             <KycAvatar user={user} />
             <div className="min-w-0">
-              <div className="font-semibold text-base truncate" data-testid="account-name">
+              <div className="font-semibold text-sm line-clamp-1" data-testid="account-name">
                 {user?.name || user?.fullName || "—"}
               </div>
-              <div className="text-xs text-muted-foreground truncate">
+              <div className="text-xs text-muted-foreground line-clamp-1">
                 UID: <span className="font-mono">{user?.uid ?? user?.id ?? "—"}</span>
               </div>
               <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
@@ -412,7 +412,7 @@ export default function Kyc() {
                 <div className="flex items-center gap-3 min-w-0">
                   <Badge variant="outline" className="text-[10px]">L{r.level}</Badge>
                   <div className="min-w-0">
-                    <div className="font-medium truncate">{r.fullName || "—"}</div>
+                    <div className="font-medium line-clamp-1">{r.fullName || "—"}</div>
                     <div className="text-xs text-muted-foreground">
                       Submitted {new Date(r.createdAt).toLocaleString()}
                       {r.reviewedAt && ` · Reviewed ${new Date(r.reviewedAt).toLocaleDateString()}`}
@@ -465,7 +465,7 @@ function DetailField({
       <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className={`text-sm truncate ${mono ? "font-mono" : ""}`}>{value}</div>
+        <div className={`text-sm line-clamp-1 ${mono ? "font-mono" : ""}`}>{value}</div>
       </div>
       {trailing && <div className="flex-shrink-0">{trailing}</div>}
     </div>

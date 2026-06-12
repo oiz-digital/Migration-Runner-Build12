@@ -296,8 +296,8 @@ function MoverCard({
               >
                 <AssetIcon symbol={t.symbol} size={7} logoUrl={coinLogos.get(base)} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold truncate">{base}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{t.symbol}</div>
+                  <div className="text-sm font-bold">{base}</div>
+                  <div className="text-[10px] text-muted-foreground line-clamp-1">{t.symbol}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-mono">{fmtPrice(t.lastPrice, t.symbol)}</div>
@@ -843,7 +843,7 @@ export default function Markets() {
                         <span className="text-[10px] text-muted-foreground shrink-0">/{quoteAsset(t.symbol)}</span>
                         {isNew && <Badge className="h-3.5 px-1 text-[8px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shrink-0">NEW</Badge>}
                       </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
+                      <div className="text-[10px] text-muted-foreground line-clamp-1">
                         Vol {isInr(t.symbol) ? fmtCompact(t.quoteVolume || 0, "₹") : fmtCompact(t.quoteVolume || 0) + " " + quoteAsset(t.symbol)}
                       </div>
                     </div>

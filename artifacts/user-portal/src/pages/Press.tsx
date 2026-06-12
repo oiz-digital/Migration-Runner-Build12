@@ -156,7 +156,7 @@ export default function Press() {
                     <span className="font-semibold text-xs text-muted-foreground uppercase tracking-wider w-32 flex-shrink-0">
                       {c.outlet}
                     </span>
-                    <span className="text-sm truncate">{c.title}</span>
+                    <span className="text-sm line-clamp-1 min-w-0">{c.title}</span>
                   </div>
                   <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5 flex-shrink-0">
                     <Calendar className="h-3 w-3" /> {c.date}
