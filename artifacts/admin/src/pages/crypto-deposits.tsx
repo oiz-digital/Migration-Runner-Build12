@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Activity, RefreshCw, PlayCircle, PauseCircle, Search, Zap, ExternalLink, Loader2,
-  CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, Check, X, Coins,
+  CheckCircle2, XCircle, Clock, Wallet, AlertTriangle, Check, X, Coins, ArrowRightLeft, SkipForward,
 } from "lucide-react";
 
 type D = {
@@ -28,6 +28,7 @@ type D = {
   blockNumber: number | null; logIndex: number | null;
   confirmations: number; requiredConfirmations: number;
   status: string; detectedBy: string; createdAt: string; processedAt: string | null;
+  sweepStatus: string | null; sweepTxHash: string | null; sweptAt: string | null;
 };
 type Stats = {
   total: number; pending: number; completed: number; rejected: number;
@@ -299,6 +300,7 @@ export default function CryptoDepositsPage() {
                 <th className="text-left font-medium px-4 py-3">Tx Hash</th>
                 <th className="text-left font-medium px-4 py-3">Confirms</th>
                 <th className="text-left font-medium px-4 py-3">Status</th>
+                <th className="text-left font-medium px-4 py-3">Sweep</th>
                 <th className="text-left font-medium px-4 py-3">Source</th>
                 <th className="text-left font-medium px-4 py-3">Date</th>
                 {isAdmin && <th className="text-right font-medium px-4 py-3 pr-5">Actions</th>}
@@ -306,10 +308,10 @@ export default function CryptoDepositsPage() {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading && Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}><td className="px-4 py-3" colSpan={isAdmin ? 11 : 10}><Skeleton className="h-9 w-full" /></td></tr>
+                <tr key={i}><td className="px-4 py-3" colSpan={isAdmin ? 12 : 11}><Skeleton className="h-9 w-full" /></td></tr>
               ))}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={isAdmin ? 11 : 10} className="px-4 py-3">
+                <tr><td colSpan={isAdmin ? 12 : 11} className="px-4 py-3">
                   <EmptyState icon={Coins} title="No deposits"
                     description={search || tab !== "all" || sourceTab !== "all" ? "Try adjusting your filters." : "Deposits detected by the sweeper will appear here after it runs."} />
                 </td></tr>
@@ -346,6 +348,30 @@ export default function CryptoDepositsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3"><StatusPill status={d.status} /></td>
+                    <td className="px-4 py-3">
+                      {d.sweepStatus ? (
+                        <a
+                          href={d.sweepTxHash && netById.get(d.networkId)?.explorerUrl
+                            ? `${netById.get(d.networkId)!.explorerUrl!.replace(/\/$/, "")}/tx/${d.sweepTxHash}`
+                            : undefined}
+                          target="_blank" rel="noreferrer"
+                          title={d.sweepTxHash ? `Tx: ${d.sweepTxHash}` : undefined}
+                          className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium border inline-flex items-center gap-1",
+                            d.sweepStatus === "swept" && "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+                            d.sweepStatus === "sweeping" && "bg-blue-500/15 text-blue-300 border-blue-500/30 animate-pulse",
+                            d.sweepStatus === "pending" && "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                            d.sweepStatus === "failed" && "bg-red-500/15 text-red-300 border-red-500/30",
+                            d.sweepStatus === "skipped" && "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+                          )}>
+                          {d.sweepStatus === "swept" && <ArrowRightLeft className="w-3 h-3" />}
+                          {d.sweepStatus === "skipped" && <SkipForward className="w-3 h-3" />}
+                          {d.sweepStatus.toUpperCase()}
+                          {d.sweepTxHash && <ExternalLink className="w-2.5 h-2.5 ml-0.5" />}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-[10px]">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium border inline-flex items-center gap-1",
                         d.detectedBy === "sweeper" ? "bg-blue-500/15 text-blue-300 border-blue-500/30" : "bg-muted/40 border-border/60")}>

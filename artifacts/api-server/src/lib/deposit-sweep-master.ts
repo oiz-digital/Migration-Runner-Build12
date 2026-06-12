@@ -22,7 +22,7 @@ import {
   walletAddressesTable,
   coinsTable,
 } from "@workspace/db";
-import { eq, and, isNull, or } from "drizzle-orm";
+import { eq, and, isNull, or, lt } from "drizzle-orm";
 import { decryptSecret } from "./crypto-vault";
 import { isEvmChain } from "./auto-broadcaster";
 import { logger } from "./logger";
@@ -88,6 +88,23 @@ export async function sweepDepositToMaster(depositId: number): Promise<AutoSweep
     const [coin] = await db.select().from(coinsTable)
       .where(eq(coinsTable.id, dep.coinId)).limit(1);
     if (!coin) throw new Error("Coin not found");
+
+    // ── Minimum sweep threshold: skip if deposit value < $1 USD ───────────
+    // Uses coin's current price; if price is unknown (0), sweep anyway to be safe.
+    const coinPrice = Number(coin.currentPrice ?? "0");
+    if (coinPrice > 0) {
+      const usdValue = Number(dep.amount) * coinPrice;
+      if (usdValue < 1.0) {
+        await db.update(cryptoDepositsTable)
+          .set({ sweepStatus: "skipped" })
+          .where(eq(cryptoDepositsTable.id, depositId));
+        logger.info(
+          { depositId, amount: dep.amount, coinSymbol: coin.symbol, usdValue: usdValue.toFixed(6) },
+          "auto-sweep: skipped — deposit value below $1 threshold",
+        );
+        return { depositId, status: "skipped", reason: `Value $${usdValue.toFixed(4)} < $1 minimum` };
+      }
+    }
 
     const [walletAddr] = await db.select().from(walletAddressesTable)
       .where(and(
@@ -192,6 +209,22 @@ export async function sweepDepositToMaster(depositId: number): Promise<AutoSweep
  * Called at the end of each deposit-sweeper tick (leader-only).
  */
 export async function runAutoSweep(): Promise<AutoSweepResult[]> {
+  // ── Stuck sweep recovery ────────────────────────────────────────────────
+  // If a server crashed mid-sweep, entries stay in "sweeping" forever.
+  // Reset any deposit stuck in "sweeping" for > 5 minutes back to "pending".
+  const stuckCutoff = new Date(Date.now() - 5 * 60 * 1000);
+  const stuck = await db
+    .update(cryptoDepositsTable)
+    .set({ sweepStatus: "pending" })
+    .where(and(
+      eq(cryptoDepositsTable.sweepStatus, "sweeping"),
+      lt(cryptoDepositsTable.processedAt, stuckCutoff),
+    ))
+    .returning({ id: cryptoDepositsTable.id });
+  if (stuck.length > 0) {
+    logger.warn({ count: stuck.length }, "auto-sweep: reset stuck sweeping entries to pending");
+  }
+
   const pending = await db.select({ id: cryptoDepositsTable.id })
     .from(cryptoDepositsTable)
     .where(eq(cryptoDepositsTable.sweepStatus, "pending"))
@@ -221,7 +254,7 @@ export async function runAutoSweep(): Promise<AutoSweepResult[]> {
  * Get current auto-sweep queue stats (for admin dashboard).
  */
 export async function getAutoSweepStats(): Promise<{
-  pending: number; sweeping: number; swept: number; failed: number;
+  pending: number; sweeping: number; swept: number; failed: number; skipped: number;
 }> {
   const rows = await db.execute(
     `SELECT sweep_status, COUNT(*)::int AS cnt FROM crypto_deposits WHERE sweep_status IS NOT NULL GROUP BY sweep_status` as any,
@@ -233,5 +266,6 @@ export async function getAutoSweepStats(): Promise<{
     sweeping: byStatus["sweeping"] ?? 0,
     swept: byStatus["swept"] ?? 0,
     failed: byStatus["failed"] ?? 0,
+    skipped: byStatus["skipped"] ?? 0,
   };
 }
