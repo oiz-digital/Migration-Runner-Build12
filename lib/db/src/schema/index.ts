@@ -35,3 +35,5 @@ export * from "./exchange-settings";
 export * from "./fee-config";
 export * from "./activity-events";
 export * from "./wallet-ledger";
+export * from "./conversations";
+export * from "./messages";
