@@ -14,8 +14,8 @@ localPort = 23004
 run = "go run ."
 
 [services.production]
-build = [ "go", "build", "-o", "server", "." ]
-run = [ "./server" ]
+build = "cd artifacts/go-service && go build -o server ."
+run = "./artifacts/go-service/server"
 
 [services.env]
 PORT = "23004"
