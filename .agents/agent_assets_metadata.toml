@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "CnBLpCBMhM8_QfEiOuf_s"
+uri = "file://docs/MOBILE_API_GUIDE.md"
+type = "text"
+title = "Zebvix Mobile API Guide — Complete Reference"
