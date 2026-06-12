@@ -50,7 +50,7 @@ router.post("/price-alerts", requireAuth, async (req: any, res): Promise<void> =
 /* DELETE /api/price-alerts/:id */
 router.delete("/price-alerts/:id", requireAuth, async (req: any, res): Promise<void> => {
   const userId = req.user!.id;
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
   await db.delete(priceAlertsTable).where(and(eq(priceAlertsTable.id, id), eq(priceAlertsTable.userId, userId)));
   res.json({ success: true });
@@ -59,7 +59,7 @@ router.delete("/price-alerts/:id", requireAuth, async (req: any, res): Promise<v
 /* PATCH /api/price-alerts/:id/disable */
 router.patch("/price-alerts/:id/disable", requireAuth, async (req: any, res): Promise<void> => {
   const userId = req.user!.id;
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
   const [row] = await db.update(priceAlertsTable)
     .set({ status: "disabled" })

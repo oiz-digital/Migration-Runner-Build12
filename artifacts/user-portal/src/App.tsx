@@ -90,9 +90,15 @@ function App() {
               <Switch>
                 <Route path="/" component={Home} />
                 <Route path="/markets" component={Markets} />
-                <Route path="/trade/:symbol?" component={Trade} />
-                <Route path="/futures/:symbol?" component={Futures} />
-                <Route path="/options" component={Options} />
+                <Route path="/trade/:symbol?">
+                  {() => <RequireAuth><Trade /></RequireAuth>}
+                </Route>
+                <Route path="/futures/:symbol?">
+                  {() => <RequireAuth><Futures /></RequireAuth>}
+                </Route>
+                <Route path="/options">
+                  {() => <RequireAuth><Options /></RequireAuth>}
+                </Route>
                 <Route path="/web3">{() => <RequireAuth><Web3 /></RequireAuth>}</Route>
                 <Route path="/discover" component={Discover} />
                 
@@ -155,8 +161,12 @@ function App() {
                 <Route path="/contact" component={Contact} />
                 <Route path="/help" component={Help} />
                 <Route path="/status" component={Status} />
-                <Route path="/p2p" component={P2P} />
-                <Route path="/convert" component={Convert} />
+                <Route path="/p2p">
+                  {() => <RequireAuth><P2P /></RequireAuth>}
+                </Route>
+                <Route path="/convert">
+                  {() => <RequireAuth><Convert /></RequireAuth>}
+                </Route>
 
                 <Route path="/dashboard">
                   {() => <RequireAuth><ProDashboard /></RequireAuth>}
@@ -204,7 +214,9 @@ function App() {
                 <Route path="/tools/predictions" component={Predictions} />
                 <Route path="/announcements" component={Announcements} />
                 <Route path="/news" component={News} />
-                <Route path="/leagues" component={Leagues} />
+                <Route path="/leagues">
+                  {() => <RequireAuth><Leagues /></RequireAuth>}
+                </Route>
                 <Route path="/forex" component={Forex} />
                 <Route path="/smartapi">
                   {() => <RequireAuth><SmartAPI /></RequireAuth>}

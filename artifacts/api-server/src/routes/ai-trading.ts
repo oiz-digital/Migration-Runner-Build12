@@ -121,6 +121,10 @@ router.get("/ai-trading/earnings", requireAuth, async (req, res): Promise<void> 
 });
 
 router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void> => {
+  if ((req.user!.kycLevel ?? 0) < 1) {
+    res.status(403).json({ error: "KYC Level 1 required to subscribe to AI trading plans." });
+    return;
+  }
   const { planId, amount, currency, noExpire } = req.body;
   if (!planId || !amount || amount <= 0) { res.status(400).json({ error: "Invalid input" }); return; }
 
@@ -189,7 +193,7 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
 });
 
 router.post("/ai-trading/subscriptions/:id/cancel", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   const userId = req.user!.id;
   const [sub] = await db.select().from(aiTradingSubscriptionsTable)
     .where(and(eq(aiTradingSubscriptionsTable.id, id), eq(aiTradingSubscriptionsTable.userId, userId)));

@@ -520,6 +520,10 @@ router.get("/orders/:id/invoice", requireAuth, async (req, res): Promise<void> =
 
 router.post("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
+  if ((req.user!.kycLevel ?? 0) < 1) {
+    res.status(403).json({ error: "KYC Level 1 required to place orders. Please complete KYC verification." });
+    return;
+  }
   const vipTier = Math.max(0, Math.min(5, req.user!.vipTier ?? 0));
   const parsed = PlaceOrderBody.safeParse(req.body ?? {});
   if (!parsed.success) {

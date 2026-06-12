@@ -1979,6 +1979,9 @@ r.get("/exchange/order", bicryptoAuth, async (req: any, res): Promise<void> => {
 // price?) shape consumed by the shared spot engine.
 r.post("/exchange/order", bicryptoAuth, async (req: any, res): Promise<void> => {
   const userId = req.bcUser.id as number;
+  if ((req.bcUser.kycLevel ?? 0) < 1) {
+    res.status(403).json({ error: "KYC Level 1 required to place orders" }); return;
+  }
   const vipTier = Math.max(0, Math.min(5, Number(req.bcUser.vipTier ?? 0)));
   const body = req.body ?? {};
   const currency = String(body.currency ?? "").toUpperCase();

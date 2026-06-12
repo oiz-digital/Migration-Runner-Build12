@@ -261,6 +261,10 @@ router.get("/inr-withdrawals", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/inr-withdrawals", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
+  if ((req.user!.kycLevel ?? 0) < 1) {
+    res.status(403).json({ error: "KYC Level 1 (PAN) required to withdraw INR." });
+    return;
+  }
   const { bankId, amount, otpId } = req.body ?? {};
   const amt = Number(amount);
   if (!bankId || !Number.isFinite(amt) || amt <= 0) {
@@ -325,6 +329,10 @@ router.get("/crypto-withdrawals", requireAuth, async (req, res): Promise<void> =
 
 router.post("/crypto-withdrawals", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
+  if ((req.user!.kycLevel ?? 0) < 2) {
+    res.status(403).json({ error: "KYC Level 2 required to withdraw crypto. Please complete Aadhaar + selfie verification." });
+    return;
+  }
   const { coinId, networkId, amount, toAddress, memo, otpId } = req.body ?? {};
   const amt = Number(amount);
   if (!coinId || !networkId || !Number.isFinite(amt) || amt <= 0 || !toAddress) {

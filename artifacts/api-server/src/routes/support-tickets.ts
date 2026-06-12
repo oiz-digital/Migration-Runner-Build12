@@ -76,7 +76,7 @@ router.post("/support/tickets", requireAuth, async (req: any, res): Promise<void
 });
 
 router.get("/support/tickets/:id", requireAuth, async (req: any, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   const [ticket] = await db.select().from(supportTicketsTable)
     .where(and(eq(supportTicketsTable.id, id), eq(supportTicketsTable.userId, req.user!.id)));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
@@ -88,7 +88,7 @@ router.get("/support/tickets/:id", requireAuth, async (req: any, res): Promise<v
 });
 
 router.post("/support/tickets/:id/messages", requireAuth, async (req: any, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   const parsed = AddMessageSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Message required" }); return; }
 
@@ -106,7 +106,7 @@ router.post("/support/tickets/:id/messages", requireAuth, async (req: any, res):
 });
 
 router.patch("/support/tickets/:id/close", requireAuth, async (req: any, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   await db.update(supportTicketsTable).set({ status: "closed", resolvedAt: new Date() })
     .where(and(eq(supportTicketsTable.id, id), eq(supportTicketsTable.userId, req.user!.id)));
   res.json({ success: true });
@@ -139,7 +139,7 @@ router.get("/admin/support/tickets", adminAuth, async (req, res): Promise<void> 
 });
 
 router.get("/admin/support/tickets/:id", adminAuth, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, id));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
   const msgs = await db.select().from(ticketMessagesTable)
@@ -148,7 +148,7 @@ router.get("/admin/support/tickets/:id", adminAuth, async (req, res): Promise<vo
 });
 
 router.post("/admin/support/tickets/:id/messages", adminAuth, async (req: any, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
   const parsed = AddMessageSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Message required" }); return; }
 
@@ -166,7 +166,7 @@ router.post("/admin/support/tickets/:id/messages", adminAuth, async (req: any, r
 });
 
 router.patch("/admin/support/tickets/:id", adminAuth, async (req, res): Promise<void> => {
-  const id     = parseInt(req.params.id as string);
+  const id     = parseInt(req.params.id as string, 10);
   const status   = req.body.status as string | undefined;
   const priority = req.body.priority as string | undefined;
 

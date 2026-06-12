@@ -38,14 +38,15 @@ router.post("/admin/ai-trading/plans", requireAdmin, async (req, res): Promise<v
     dailyReturnPercent: String(dailyReturnPercent),
     minInvestment: String(minInvestment),
     maxInvestment: String(maxInvestment),
-    durationDays: parseInt(durationDays),
+    durationDays: parseInt(durationDays, 10),
     riskLevel, isActive,
   }).returning();
   res.status(201).json(serializePlan(plan));
 });
 
 router.patch("/admin/ai-trading/plans/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id) || id <= 0) { res.status(400).json({ error: "Invalid plan ID" }); return; }
   const upd: any = { updatedAt: new Date() };
   for (const k of ["name", "description", "riskLevel", "isActive", "durationDays"]) {
     if (req.body[k] !== undefined) upd[k] = req.body[k];
@@ -60,7 +61,8 @@ router.patch("/admin/ai-trading/plans/:id", requireAdmin, async (req, res): Prom
 });
 
 router.delete("/admin/ai-trading/plans/:id", requireAdmin, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id as string);
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id) || id <= 0) { res.status(400).json({ error: "Invalid plan ID" }); return; }
   await db.update(aiTradingPlansTable).set({ isActive: false })
     .where(eq(aiTradingPlansTable.id, id));
   res.json({ success: true });

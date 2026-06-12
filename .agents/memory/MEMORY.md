@@ -4,3 +4,4 @@
 - [Zebvix CommandDialog accessibility](zebvix-commanddialog-a11y.md) — sr-only DialogTitle fix for both user-portal and admin command.tsx; never use @radix-ui/react-visually-hidden (not installed)
 - [Zebvix trading audit fixes](zebvix-trading-audit.md) — spot+futures audit: limit buy fee buffer, SL/TP engine, VIP futures fees, referral 30%, brand name fix
 - [Zebvix referral config architecture](zebvix-referral-config.md) — unified config in settingsTable key "referral.config"; loadReferralConfig() exported from admin-referrals.ts; two separate settings tables (settingsTable vs exchangeSettingsTable) — engines only read from settingsTable
+- [Zebvix security audit fixes](zebvix-security-audit.md) — full June 2026 audit: auth gaps in App.tsx (/trade /futures /options /p2p /convert /leagues), KYC gates on orders/withdrawals/AI subscribe, parseInt radix fixes

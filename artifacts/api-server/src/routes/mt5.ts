@@ -374,7 +374,7 @@ router.get("/mt5/positions", requireAuth, async (req, res): Promise<void> => {
 // ─── POST /mt5/account/:id/refresh ────────────────────────────────────────────
 // Refresh account balance / equity / margin (simulated tick)
 router.post("/mt5/account/:id/refresh", requireAuth, async (req, res): Promise<void> => {
-  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0]! : req.params.id, 10);
   const userId = uid(req);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid account id" }); return; }
 
