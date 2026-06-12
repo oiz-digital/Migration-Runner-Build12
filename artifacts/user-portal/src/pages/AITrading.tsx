@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -259,7 +260,8 @@ export default function AITrading() {
   const activeSubs = subs.filter(s => s.status === "active");
   const completedSubs = subs.filter(s => s.status === "completed");
   const pastSubs = subs.filter(s => s.status === "completed" || s.status === "cancelled");
-  const [invoiceSubId, setInvoiceSubId] = useState<number | null>(null);
+  const [, navigate] = useLocation();
+  const openInvoice = (id: number) => navigate(`/ai-trading/${id}/invoice`);
   const totalInvested = activeSubs.reduce((s, x) => s + x.investedAmount, 0);
   const totalEarned = subs.reduce((s, x) => s + (x.totalEarned || 0), 0);
   const totalCurrentValue = activeSubs.reduce((s, x) => s + (x.currentValue || x.investedAmount), 0);
@@ -521,7 +523,7 @@ export default function AITrading() {
                       Active Bots ({activeSubs.length})
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {activeSubs.map(sub => <BotCard key={sub.id} sub={sub} onCancel={() => cancelMutation.mutate(sub.id)} cancelling={cancelMutation.isPending} onInvoice={() => setInvoiceSubId(sub.id)} />)}
+                      {activeSubs.map(sub => <BotCard key={sub.id} sub={sub} onCancel={() => cancelMutation.mutate(sub.id)} cancelling={cancelMutation.isPending} onInvoice={() => openInvoice(sub.id)} />)}
                     </div>
                   </div>
                 )}
@@ -556,7 +558,7 @@ export default function AITrading() {
                                 <div className="text-[11px] text-muted-foreground">{roi.toFixed(2)}% ROI · {fmtUSD(sub.investedAmount)} invested</div>
                               </div>
                               <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs"
-                                onClick={() => setInvoiceSubId(sub.id)}>
+                                onClick={() => openInvoice(sub.id)}>
                                 <Receipt className="w-3.5 h-3.5" />
                                 Invoice
                               </Button>
@@ -709,8 +711,6 @@ export default function AITrading() {
         />
       )}
 
-      {/* AI Trading Invoice / Statement */}
-      <AiInvoiceDialog subId={invoiceSubId} onClose={() => setInvoiceSubId(null)} />
     </div>
   );
 }

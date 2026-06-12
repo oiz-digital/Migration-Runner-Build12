@@ -1,88 +1,57 @@
+/**
+ * Trade Invoice — full-colour, printable tax invoice for a filled spot order.
+ * Route: /orders/:id/invoice
+ * Print / Download PDF: window.print() — add "Save as PDF" in the print dialog.
+ * Colours preserved in print via `print-color-adjust: exact`.
+ */
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Loader2, AlertCircle } from "lucide-react";
-
-// Tax-invoice page for a single filled order. Designed to look clean both
-// in the browser and on the printed page (Save as PDF from the print
-// dialog produces a perfectly usable invoice). All numbers come straight
-// from the server's /orders/:id/invoice endpoint so they always match the
-// wallet movements at fill-time, even if the admin later changes the
-// fee/GST/TDS rates.
+import {
+  ArrowLeft, Download, Loader2, AlertCircle,
+  Zap, CheckCircle2, TrendingUp, TrendingDown,
+} from "lucide-react";
 
 interface InvoiceData {
   invoiceNo: string;
   issuedAt: string;
   currency: string;
   brand: {
-    legalName: string;
-    tradingName: string;
-    address: string;
-    gstin: string;
-    pan: string;
-    supportEmail: string;
-    website: string;
+    legalName: string; tradingName: string; address: string;
+    gstin: string; cin: string; pan: string; supportEmail: string; website: string;
   };
   customer: { name: string; email: string; userId: number };
   order: {
-    id: number;
-    symbol: string;
-    base: string;
-    quote: string;
-    side: "buy" | "sell";
-    type: string;
-    status: string;
-    qty: number;
-    filledQty: number;
-    avgPrice: number;
-    placedAt: string;
+    id: number; symbol: string; base: string; quote: string;
+    side: "buy" | "sell"; type: string; status: string;
+    qty: number; filledQty: number; avgPrice: number; placedAt: string;
   };
   breakdown: {
-    grossNotional: number;
-    tradingFee: number;
-    gstPercent: number;
-    gstAmount: number;
-    totalFee: number;
-    tdsPercent: number;
-    tdsAmount: number;
-    netAmount: number;
-    direction: "credit" | "debit";
+    grossNotional: number; tradingFee: number;
+    gstPercent: number; gstAmount: number; totalFee: number;
+    tdsPercent: number; tdsAmount: number; netAmount: number;
+    netInr: number; inrRate: number; direction: "credit" | "debit";
   };
   fills: Array<{
-    id: number;
-    uid: string;
-    price: number;
-    qty: number;
-    subtotal: number;
-    fee: number;
-    tds: number;
-    executedAt: string;
+    id: number; uid: string; price: number; qty: number;
+    subtotal: number; fee: number; tds: number; executedAt: string;
   }>;
 }
 
-const fmtMoney = (n: number, currency: string, dp = 2) => {
-  if (!Number.isFinite(n)) return "—";
-  // INR uses Indian-grouping; everything else uses generic en-US grouping with
-  // the currency code prefixed for clarity (we don't know every quote coin's
-  // intl code, so we just prefix the symbol).
-  if (currency === "INR") {
-    return `₹ ${n.toLocaleString("en-IN", {
-      minimumFractionDigits: dp,
-      maximumFractionDigits: dp,
-    })}`;
-  }
-  return `${n.toLocaleString("en-IN", {
-    minimumFractionDigits: dp,
-    maximumFractionDigits: dp,
-  })} ${currency}`;
-};
-
-const fmtQty = (n: number, dp = 8) =>
+const fmt = (n: number, dp = 4) =>
   Number.isFinite(n)
-    ? n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: dp })
+    ? n.toLocaleString("en-IN", { minimumFractionDigits: dp, maximumFractionDigits: dp })
     : "—";
+
+const fmtInr = (n: number) =>
+  Number.isFinite(n)
+    ? "₹" + n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
 export default function Invoice() {
   const [, params] = useRoute<{ id: string }>("/orders/:id/invoice");
@@ -94,44 +63,37 @@ export default function Invoice() {
     enabled: !!orderId,
   });
 
-  // Set the document title so the saved PDF gets a sensible filename
-  // ("INV-00012345.pdf" instead of "Trade.pdf"). Resets on unmount so the
-  // rest of the app keeps the default title.
   useEffect(() => {
     if (!data?.invoiceNo) return;
     const prev = document.title;
     document.title = data.invoiceNo;
-    return () => {
-      document.title = prev;
-    };
+    return () => { document.title = prev; };
   }, [data?.invoiceNo]);
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-16 max-w-3xl text-center">
-        <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
-        <p className="text-sm text-muted-foreground mt-3">Loading invoice…</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3" style={{ color: "#F59E0B" }} />
+          <p className="text-sm text-muted-foreground">Loading invoice…</p>
+        </div>
       </div>
     );
   }
 
   if (isError || !data) {
-    const msg =
-      (error as { data?: { message?: string }; message?: string } | null)?.data?.message ??
-      (error as { message?: string } | null)?.message ??
-      "Could not load invoice";
+    const msg = (error as any)?.data?.message ?? (error as any)?.message ?? "Could not load invoice";
     return (
       <div className="container mx-auto px-4 py-16 max-w-3xl">
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center">
-          <AlertCircle className="w-6 h-6 mx-auto text-destructive mb-3" />
-          <p className="font-semibold text-destructive">{msg}</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            An invoice is generated only after at least one fill has been recorded for the order.
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-8 text-center">
+          <AlertCircle className="w-8 h-8 mx-auto text-destructive mb-3" />
+          <p className="font-semibold text-destructive text-lg">{msg}</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            An invoice is generated only after at least one fill has been recorded.
           </p>
           <Link href="/orders">
-            <Button variant="outline" size="sm" className="mt-4">
-              <ArrowLeft className="w-3.5 h-3.5 mr-2" />
-              Back to orders
+            <Button variant="outline" size="sm" className="mt-5">
+              <ArrowLeft className="w-3.5 h-3.5 mr-2" /> Back to orders
             </Button>
           </Link>
         </div>
@@ -140,231 +102,261 @@ export default function Invoice() {
   }
 
   const { brand, customer, order, breakdown, fills, invoiceNo, issuedAt, currency } = data;
-  const isSell = order.side === "sell";
-  const directionLabel = isSell ? "Net amount credited" : "Net amount debited";
+  const isSell   = order.side === "sell";
+  const isBuy    = order.side === "buy";
+  const isFilled = order.status === "filled";
 
   return (
-    <div className="bg-muted/20 min-h-screen py-6 print:bg-white print:py-0">
-      {/* Top action bar — hidden when printing */}
-      <div className="container mx-auto px-4 max-w-3xl flex items-center justify-between mb-4 print:hidden">
+    <div
+      className="min-h-screen py-6 print:py-0"
+      style={{ background: "linear-gradient(135deg,#0f172a 0%,#1e293b 100%)" }}
+    >
+      {/* ── Action bar (hidden on print) ── */}
+      <div className="container mx-auto px-4 max-w-3xl mb-5 flex items-center justify-between print:hidden">
         <Link href="/orders">
-          <Button variant="outline" size="sm" data-testid="btn-invoice-back">
-            <ArrowLeft className="w-3.5 h-3.5 mr-2" />
-            Back to orders
+          <Button variant="outline" size="sm" className="border-white/20 text-white/80 hover:text-white hover:border-white/40 bg-white/5">
+            <ArrowLeft className="w-3.5 h-3.5 mr-2" /> Back to orders
           </Button>
         </Link>
         <Button
           size="sm"
           onClick={() => window.print()}
-          data-testid="btn-invoice-print"
+          style={{ background: "#F59E0B", color: "#0f172a" }}
+          className="font-semibold hover:opacity-90"
         >
-          <Printer className="w-3.5 h-3.5 mr-2" />
-          Print / Save as PDF
+          <Download className="w-3.5 h-3.5 mr-2" />
+          Download PDF
         </Button>
       </div>
 
-      {/* Invoice paper */}
+      {/* ── Invoice card ── */}
       <div className="container mx-auto px-4 max-w-3xl">
         <div
-          className="bg-white text-slate-900 rounded-2xl shadow-sm border border-slate-200 print:rounded-none print:shadow-none print:border-0 print:max-w-none"
+          className="rounded-2xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
           data-testid="invoice-paper"
         >
-          {/* Header */}
-          <div className="px-8 py-6 border-b border-slate-200 flex items-start justify-between">
+          {/* Amber top accent bar */}
+          <div style={{ height: 6, background: "linear-gradient(90deg,#F59E0B,#D97706,#B45309)" }} />
+
+          {/* ── Dark header ── */}
+          <div
+            style={{ background: "#0f172a" }}
+            className="px-8 py-6 flex items-start justify-between"
+          >
+            {/* Brand */}
             <div>
-              <p className="text-2xl font-extrabold tracking-tight text-slate-900">
-                {brand.tradingName}
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center font-extrabold text-sm"
+                  style={{ background: "#F59E0B", color: "#0f172a" }}
+                >
+                  Z
+                </div>
+                <span className="text-xl font-extrabold tracking-tight" style={{ color: "#F59E0B" }}>
+                  {brand.tradingName}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">{brand.legalName}</p>
+              <p className="text-[11px] text-slate-500 leading-relaxed mt-1 max-w-xs">{brand.address}</p>
+              <p className="text-[10px] text-slate-500 mt-1.5 font-mono">
+                GSTIN: {brand.gstin} · CIN: {brand.cin}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">{brand.legalName}</p>
-              <p className="text-xs text-slate-500">{brand.address}</p>
-              <p className="text-xs text-slate-500 mt-1">
-                GSTIN: <span className="font-mono">{brand.gstin}</span> &middot; PAN:{" "}
-                <span className="font-mono">{brand.pan}</span>
-              </p>
+              <p className="text-[10px] text-slate-500 font-mono">PAN: {brand.pan}</p>
             </div>
+
+            {/* Invoice meta */}
             <div className="text-right">
-              <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold">
+              <p className="text-[10px] uppercase tracking-[0.15em] font-semibold" style={{ color: "#F59E0B" }}>
                 Tax Invoice
               </p>
-              <p className="text-lg font-bold mt-0.5" data-testid="invoice-no">
-                {invoiceNo}
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Issued: {new Date(issuedAt).toLocaleString("en-IN")}
-              </p>
-              <p className="text-[10px] text-slate-400 mt-1">
-                {brand.website} &middot; {brand.supportEmail}
-              </p>
-            </div>
-          </div>
+              <p className="text-2xl font-extrabold mt-1 text-white tabular-nums">{invoiceNo}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Issued: {fmtDate(issuedAt)}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{brand.website} · {brand.supportEmail}</p>
 
-          {/* Bill-to + Order summary */}
-          <div className="px-8 py-5 grid grid-cols-2 gap-6 border-b border-slate-200">
-            <div>
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
-                Bill to
-              </p>
-              <p className="font-semibold text-sm mt-1">{customer.name || customer.email}</p>
-              <p className="text-xs text-slate-500">{customer.email}</p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Customer ID: #{customer.userId}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">
-                Order
-              </p>
-              <p className="font-semibold text-sm mt-1 font-mono">#{order.id} &middot; {order.symbol}</p>
-              <p className="text-xs">
-                <span
-                  className={
-                    isSell
-                      ? "inline-flex items-center px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-semibold uppercase tracking-wide text-[10px]"
-                      : "inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold uppercase tracking-wide text-[10px]"
-                  }
-                >
-                  {order.side}
-                </span>{" "}
-                <span className="text-slate-500 uppercase text-[11px]">{order.type}</span>
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Placed: {new Date(order.placedAt).toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
-
-          {/* Fills table */}
-          <div className="px-8 py-5 border-b border-slate-200">
-            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-2">
-              Trade fills ({fills.length})
-            </p>
-            <table className="w-full text-xs">
-              <thead className="border-b border-slate-200 text-slate-500">
-                <tr>
-                  <th className="text-left py-2 font-medium">Time</th>
-                  <th className="text-right py-2 font-medium">Price ({order.quote})</th>
-                  <th className="text-right py-2 font-medium">Qty ({order.base})</th>
-                  <th className="text-right py-2 font-medium">Subtotal ({order.quote})</th>
-                </tr>
-              </thead>
-              <tbody className="font-mono tabular-nums">
-                {fills.map(f => (
-                  <tr key={f.id} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2 text-slate-600 font-sans">
-                      {new Date(f.executedAt).toLocaleString("en-IN", {
-                        dateStyle: "short",
-                        timeStyle: "medium",
-                      })}
-                    </td>
-                    <td className="text-right py-2">{fmtQty(f.price, 4)}</td>
-                    <td className="text-right py-2">{fmtQty(f.qty, 8)}</td>
-                    <td className="text-right py-2">{fmtQty(f.subtotal, 4)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t border-slate-200">
-                  <td className="py-2 text-slate-500 font-medium">VWAP &amp; Total</td>
-                  <td className="text-right py-2 font-mono tabular-nums">
-                    {fmtQty(order.avgPrice, 4)}
-                  </td>
-                  <td className="text-right py-2 font-mono tabular-nums">
-                    {fmtQty(order.filledQty, 8)}
-                  </td>
-                  <td className="text-right py-2 font-mono tabular-nums font-semibold">
-                    {fmtQty(breakdown.grossNotional, 4)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* Money breakdown */}
-          <div className="px-8 py-5 border-b border-slate-200">
-            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-3">
-              Tax breakdown
-            </p>
-            <div className="space-y-2 text-sm">
-              <Row label="Gross trade value" value={fmtMoney(breakdown.grossNotional, currency, 4)} />
-              <Row
-                label="Trading fee (excl. GST)"
-                value={`- ${fmtMoney(breakdown.tradingFee, currency, 4)}`}
-                muted
-              />
-              <Row
-                label={`GST @ ${breakdown.gstPercent}%`}
-                value={`- ${fmtMoney(breakdown.gstAmount, currency, 4)}`}
-                muted
-              />
-              {isSell && (
-                <Row
-                  label={`TDS @ ${breakdown.tdsPercent}% (sec 194S)`}
-                  value={`- ${fmtMoney(breakdown.tdsAmount, currency, 4)}`}
-                  muted
-                  testid="invoice-tds-row"
-                />
-              )}
-              <div className="border-t border-slate-200 pt-3 mt-3 flex items-center justify-between">
-                <span className="font-bold text-slate-900">{directionLabel}</span>
-                <span
-                  className={
-                    "font-bold text-lg tabular-nums " +
-                    (isSell ? "text-emerald-700" : "text-slate-900")
-                  }
-                  data-testid="invoice-net"
-                >
-                  {fmtMoney(breakdown.netAmount, currency, 4)}
-                </span>
+              {/* Status chip */}
+              <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold"
+                style={isFilled
+                  ? { background: "rgba(16,185,129,0.15)", color: "#10B981", border: "1px solid rgba(16,185,129,0.3)" }
+                  : { background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }
+                }
+              >
+                <CheckCircle2 style={{ width: 10, height: 10 }} />
+                {order.status.replace("_", " ").toUpperCase()}
               </div>
             </div>
           </div>
 
-          {/* Footer notes */}
-          <div className="px-8 py-5 text-[11px] text-slate-500 leading-relaxed">
-            <p>
-              <span className="font-semibold text-slate-700">Note:</span> TDS is deducted at
-              source on the proceeds of every spot sell as per Section 194S of the Income
-              Tax Act and deposited against your PAN. GST is charged on the trading-fee
-              component only, not on the trade value itself.
-            </p>
-            <p className="mt-2">
-              For any disputes please contact{" "}
-              <span className="font-mono text-slate-700">{brand.supportEmail}</span> within
-              7 days of issue, quoting invoice no <strong>{invoiceNo}</strong>.
-            </p>
-            <p className="mt-3 text-center text-[10px] text-slate-400">
-              This is a computer-generated invoice and does not require a signature.
-            </p>
+          {/* ── White body ── */}
+          <div className="bg-white">
+
+            {/* Bill-to + Order summary */}
+            <div className="px-8 py-5 grid grid-cols-2 gap-6" style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.12em] font-bold mb-2" style={{ color: "#F59E0B" }}>
+                  Bill To
+                </p>
+                <p className="font-bold text-slate-800 text-sm">{customer.name || customer.email}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{customer.email}</p>
+                <p className="text-[11px] text-slate-400 mt-1">Customer ID: #{customer.userId}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-[0.12em] font-bold mb-2" style={{ color: "#F59E0B" }}>
+                  Order Details
+                </p>
+                <p className="font-bold text-slate-800 text-sm font-mono">
+                  #{order.id} · <span className="tracking-wide">{order.symbol}</span>
+                </p>
+                <div className="flex items-center justify-end gap-2 mt-1.5">
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide"
+                    style={isBuy
+                      ? { background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC" }
+                      : { background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5" }
+                    }
+                  >
+                    {isBuy ? <TrendingUp style={{ width: 10, height: 10 }} /> : <TrendingDown style={{ width: 10, height: 10 }} />}
+                    {order.side}
+                  </span>
+                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide">{order.type}</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">Placed: {fmtDate(order.placedAt)}</p>
+              </div>
+            </div>
+
+            {/* Fills table */}
+            <div className="px-8 py-5" style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <p className="text-[10px] uppercase tracking-[0.12em] font-bold mb-3" style={{ color: "#F59E0B" }}>
+                Trade Fills ({fills.length})
+              </p>
+              {fills.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No fill detail available — summary above.</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+                      <th className="text-left py-2 font-semibold text-slate-500 text-[11px]">Time</th>
+                      <th className="text-right py-2 font-semibold text-slate-500 text-[11px]">Price ({order.quote})</th>
+                      <th className="text-right py-2 font-semibold text-slate-500 text-[11px]">Qty ({order.base})</th>
+                      <th className="text-right py-2 font-semibold text-slate-500 text-[11px]">Subtotal ({order.quote})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono tabular-nums">
+                    {fills.map((f, i) => (
+                      <tr key={f.id} style={{ background: i % 2 === 0 ? "#f8fafc" : "white", borderBottom: "1px solid #f1f5f9" }}>
+                        <td className="py-2 text-slate-500 font-sans text-[11px]">{fmtDate(f.executedAt)}</td>
+                        <td className="text-right py-2 text-slate-700">{fmt(f.price, 4)}</td>
+                        <td className="text-right py-2 text-slate-700">{fmt(f.qty, 8)}</td>
+                        <td className="text-right py-2 text-slate-700">{fmt(f.subtotal, 4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid #e2e8f0", background: "#f8fafc" }}>
+                      <td className="py-2.5 text-slate-600 font-semibold text-[11px]">VWAP &amp; Total</td>
+                      <td className="text-right py-2.5 font-mono tabular-nums font-semibold text-slate-700">{fmt(order.avgPrice, 4)}</td>
+                      <td className="text-right py-2.5 font-mono tabular-nums font-semibold text-slate-700">{fmt(order.filledQty, 8)}</td>
+                      <td className="text-right py-2.5 font-mono tabular-nums font-semibold text-slate-700">{fmt(breakdown.grossNotional, 4)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+
+            {/* Tax breakdown */}
+            <div className="px-8 py-5" style={{ borderBottom: "1px solid #e2e8f0" }}>
+              <p className="text-[10px] uppercase tracking-[0.12em] font-bold mb-4" style={{ color: "#F59E0B" }}>
+                Tax Breakdown
+              </p>
+              <div className="space-y-2.5">
+                <BRow label="Gross trade value" value={`${fmt(breakdown.grossNotional, 4)} ${currency}`} />
+                <BRow label="Trading fee (excl. GST)" value={`− ${fmt(breakdown.tradingFee, 4)} ${currency}`} muted />
+                <BRow label={`GST @ ${breakdown.gstPercent}% on fee`} value={`− ${fmt(breakdown.gstAmount, 4)} ${currency}`} muted />
+                {isSell && (
+                  <BRow
+                    label={`TDS @ ${breakdown.tdsPercent}% (Sec 194S)`}
+                    value={`− ${fmt(breakdown.tdsAmount, 4)} ${currency}`}
+                    muted
+                  />
+                )}
+
+                {/* Net amount total */}
+                <div
+                  className="mt-4 pt-4 px-4 py-4 rounded-xl flex items-center justify-between"
+                  style={{
+                    background: isSell ? "#F0FDF4" : "#FFF7ED",
+                    border: isSell ? "1.5px solid #86EFAC" : "1.5px solid #FCD34D",
+                  }}
+                >
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.12em] font-bold text-slate-500">
+                      {isSell ? "Net Amount Credited" : "Net Amount Debited"}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      ≈ {fmtInr(breakdown.netInr)} at 1 USDT ≈ ₹{breakdown.inrRate.toFixed(2)}
+                    </p>
+                  </div>
+                  <p
+                    className="text-2xl font-extrabold tabular-nums"
+                    style={{ color: isSell ? "#15803D" : "#B45309" }}
+                  >
+                    {fmt(breakdown.netAmount, 4)} {currency}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer notes */}
+            <div className="px-8 py-5">
+              <div
+                className="rounded-xl p-4 text-[11px] leading-relaxed"
+                style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+              >
+                <div className="flex items-start gap-2">
+                  <Zap className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: "#F59E0B" }} />
+                  <div className="text-slate-500 space-y-1">
+                    <p>
+                      <span className="font-semibold text-slate-700">TDS (Sec 194S):</span> Deducted at 1% on the gross proceeds
+                      of every sell, deposited against your PAN with the government.{" "}
+                      <span className="font-semibold text-slate-700">GST:</span> Charged on the trading-fee component only.
+                    </p>
+                    <p>
+                      For disputes, contact{" "}
+                      <span className="font-mono font-semibold text-slate-700">{brand.supportEmail}</span>{" "}
+                      within 7 days quoting <strong>{invoiceNo}</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-center text-[10px] text-slate-400 mt-4">
+                This is a computer-generated tax invoice and does not require a physical signature. · {brand.website}
+              </p>
+            </div>
           </div>
+
+          {/* Bottom amber accent bar */}
+          <div style={{ height: 4, background: "linear-gradient(90deg,#B45309,#D97706,#F59E0B)" }} />
         </div>
       </div>
 
-      {/* Print-tuning */}
+      {/* Print styles — preserves background colors and hides action bar */}
       <style>{`
         @media print {
-          @page { size: A4; margin: 12mm; }
+          @page { size: A4; margin: 10mm; }
           body { background: white !important; }
+          * { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
         }
       `}</style>
     </div>
   );
 }
 
-function Row({
-  label,
-  value,
-  muted = false,
-  testid,
-}: {
-  label: string;
-  value: string;
-  muted?: boolean;
-  testid?: string;
-}) {
+function BRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
   return (
-    <div className="flex items-center justify-between" data-testid={testid}>
-      <span className={muted ? "text-slate-500" : "text-slate-700"}>{label}</span>
-      <span className="font-mono tabular-nums text-slate-900">{value}</span>
+    <div className="flex items-center justify-between text-sm">
+      <span style={{ color: muted ? "#94a3b8" : "#475569" }}>{label}</span>
+      <span className="font-mono tabular-nums font-medium" style={{ color: muted ? "#64748b" : "#0f172a" }}>
+        {value}
+      </span>
     </div>
   );
 }

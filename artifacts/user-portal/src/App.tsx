@@ -47,6 +47,7 @@ import Convert from "@/pages/Convert";
 import Notifications from "@/pages/Notifications";
 import Bots from "@/pages/Bots";
 import AITrading from "@/pages/AITrading";
+import AIInvoice from "@/pages/AIInvoice";
 import Ledger from "@/pages/Ledger";
 import Referrals from "@/pages/Referrals";
 import CopyTrading from "@/pages/CopyTrading";
@@ -160,6 +161,9 @@ function App() {
                 </Route>
                 <Route path="/bots">
                   {() => <RequireAuth><Bots /></RequireAuth>}
+                </Route>
+                <Route path="/ai-trading/:id/invoice">
+                  {() => <RequireAuth><AIInvoice /></RequireAuth>}
                 </Route>
                 <Route path="/ai-trading">
                   {() => <RequireAuth><AITrading /></RequireAuth>}
