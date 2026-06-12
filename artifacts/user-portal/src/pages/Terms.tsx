@@ -11,8 +11,8 @@ const SECTIONS: LegalSection[] = [
           agreement between you ("<strong>you</strong>", "<strong>User</strong>")
           and <strong>Zebvix Technologies Private Limited</strong> ("<strong>Zebvix</strong>",
           "<strong>we</strong>", "<strong>us</strong>", "<strong>our</strong>"), a
-          company incorporated under the Companies Act, 2013, registered in
-          Bengaluru, India.
+          company incorporated under the Companies Act, 2013 (CIN: U66190UW2026PTC251591),
+          registered in Muzaffarnagar, Uttar Pradesh, India.
         </p>
         <p>
           By accessing or using the Zebvix mobile application, web platform,
@@ -345,11 +345,11 @@ const SECTIONS: LegalSection[] = [
           these Terms shall be referred to and finally resolved by
           arbitration administered under the Arbitration and Conciliation
           Act, 1996. The seat and venue of arbitration shall be
-          <strong> Bengaluru, India</strong>; the language shall be
+          <strong> Muzaffarnagar, Uttar Pradesh, India</strong>; the language shall be
           English; and the tribunal shall consist of a sole arbitrator
           appointed by mutual agreement, failing which by the rules of
           the Indian Council of Arbitration. Subject to arbitration, the
-          courts at Bengaluru shall have exclusive jurisdiction.
+          courts at Muzaffarnagar shall have exclusive jurisdiction.
         </p>
       </>
     ),
@@ -365,8 +365,9 @@ const SECTIONS: LegalSection[] = [
         </p>
         <p>
           <strong>Grievance Officer</strong><br />
-          Zebvix Technologies Pvt Ltd<br />
-          Bengaluru, Karnataka, India<br />
+          Zebvix Technologies Private Limited<br />
+          105 Vill Subari, Shamli, Jhinjhana, Kairana,<br />
+          Muzaffarnagar — 247773, Uttar Pradesh, India<br />
           Email: <a href="mailto:grievance@zebvix.com">grievance@zebvix.com</a><br />
           Response SLA: 48 hours acknowledgement, 15 days resolution.
         </p>
@@ -388,7 +389,7 @@ export default function Terms() {
       subtitle="The agreement between you and Zebvix Technologies Pvt Ltd that governs your access to and use of the Zebvix Exchange platform."
       effectiveDate="26 April 2026"
       version="3.2"
-      jurisdictionNote="India · Bengaluru jurisdiction"
+      jurisdictionNote="India · Muzaffarnagar, UP jurisdiction"
       sections={SECTIONS}
     />
   );

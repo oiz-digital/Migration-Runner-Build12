@@ -52,7 +52,7 @@ const PILLARS = [
 ];
 
 const TIMELINE = [
-  { year: "2021", title: "Founded in Bengaluru", body: "A small team of ex-payments and HFT engineers set out to build a regulated, India-first crypto exchange." },
+  { year: "2026", title: "Incorporated in India", body: "Zebvix Technologies Private Limited incorporated on 10 April 2026 under the Companies Act, 2013 — building a regulated, India-first crypto exchange." },
   { year: "2022", title: "Series A — $32M", body: "Led by tier-1 funds. Hired our compliance, custody and matching-engine cores." },
   { year: "2023", title: "Zebvix L1 mainnet launch", body: "Our purpose-built EVM L1 went live with sub-second finality. ZBX TGE in Q4." },
   { year: "2024", title: "Spot + Perpetual futures", body: "0.10% maker/taker spot fees, 50× leverage perps, native USDT futures wallets." },
@@ -233,9 +233,12 @@ export default function About() {
             <Building2 className="h-5 w-5 text-primary mb-3" />
             <div className="font-semibold mb-1">Registered entity</div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Zebvix Technologies Pvt Ltd<br />
-              CIN: U72900KA2021PTC150821<br />
-              Registered office: Bengaluru, Karnataka, India<br />
+              Zebvix Technologies Private Limited<br />
+              CIN: U66190UW2026PTC251591<br />
+              PAN: AACCZ9728R<br />
+              Registered office: 105 Vill Subari, Shamli, Jhinjhana,<br />
+              Kairana, Muzaffarnagar — 247773, Uttar Pradesh, India<br />
+              Incorporated: 10 April 2026<br />
               FIU-IND Reporting Entity: Registration pending
             </p>
           </CardContent>

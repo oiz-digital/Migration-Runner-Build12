@@ -25,8 +25,8 @@ const COVERAGE = [
 ];
 
 const FACTS = [
-  { label: "Founded",        value: "2022, Bengaluru" },
-  { label: "Headquarters",   value: "Bengaluru, Karnataka" },
+  { label: "Founded",        value: "2026, India" },
+  { label: "Headquarters",   value: "Muzaffarnagar, Uttar Pradesh" },
   { label: "Mainnet chain",  value: "Zebvix L1 (chain ID 8989 / 0x231d)" },
   { label: "Native token",   value: "ZBX" },
   { label: "Employees",      value: "120+" },
@@ -113,7 +113,7 @@ export default function Press() {
               perpetual futures with up to 125× leverage, on-chain Earn
               products and Zebvix L1 — a high-throughput Layer-1
               blockchain whose native token, ZBX, powers fees and
-              staking. Founded in 2022 and headquartered in Bengaluru,
+              staking. Founded in 2026 and headquartered in Muzaffarnagar, UP,
               Zebvix is a FIU-IND registered Virtual Digital Asset
               service provider."
             </p>

@@ -26,24 +26,14 @@ const DEPARTMENTS = [
 
 const OFFICES = [
   {
-    city: "Bengaluru — Headquarters",
+    city: "Muzaffarnagar — Registered Office",
     lines: [
       "Zebvix Technologies Private Limited",
-      "Level 7, Prestige Atrium",
-      "1 Central Street, Shivaji Nagar",
-      "Bengaluru — 560001, Karnataka, India",
+      "105 Vill Subari, Shamli",
+      "Jhinjhana, Kairana",
+      "Muzaffarnagar — 247773, Uttar Pradesh, India",
     ],
-    cin: "U72900KA2021PTC150821",
-  },
-  {
-    city: "Mumbai",
-    lines: [
-      "Zebvix Technologies Private Limited",
-      "Unit 14B, BKC One",
-      "Bandra Kurla Complex",
-      "Mumbai — 400051, Maharashtra, India",
-    ],
-    cin: "Branch office",
+    cin: "U66190UW2026PTC251591",
   },
 ];
 

@@ -279,8 +279,9 @@ const SECTIONS: LegalSection[] = [
       <>
         <p>
           <strong>Data Protection / Grievance Officer</strong><br />
-          Zebvix Technologies Pvt Ltd<br />
-          Bengaluru, Karnataka, India<br />
+          Zebvix Technologies Private Limited<br />
+          105 Vill Subari, Shamli, Jhinjhana, Kairana,<br />
+          Muzaffarnagar — 247773, Uttar Pradesh, India<br />
           Email: <a href="mailto:grievance@zebvix.com">grievance@zebvix.com</a><br />
           Response SLA: 48 hours acknowledgement, 30 days resolution.
         </p>
