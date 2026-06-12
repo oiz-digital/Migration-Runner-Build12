@@ -63,6 +63,7 @@ import webhooksRouter from "./webhooks";
 import apiAliasesRouter from "./api-aliases";
 import aiChatRouter from "./ai-chat";
 import tradingLeaguesRouter from "./trading-leagues";
+import koinxRouter from "./koinx";
 import { createReadStream, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 
@@ -141,6 +142,7 @@ router.use(webhooksRouter);
 router.use(v1Router);
 router.use(aiChatRouter);
 router.use(tradingLeaguesRouter);
+router.use(koinxRouter);
 
 // ── KYC document file serve ────────────────────────────────────────────────
 // Serves files uploaded via POST /api/upload/kyc-document.

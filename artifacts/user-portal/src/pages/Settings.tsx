@@ -6,6 +6,7 @@ import {
   RefreshCw, Mail, Save, ChevronRight, Trash2, User as UserIcon,
 } from "lucide-react";
 import ApiKeysTab from "@/components/settings/ApiKeysTab";
+import KoinXTab from "@/components/settings/KoinXTab";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { get, post, put, ApiError } from "@/lib/api";
@@ -88,12 +89,15 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="security" className="space-y-4">
-        <TabsList className="grid grid-cols-5 w-full lg:w-auto lg:inline-grid">
+        <TabsList className="grid grid-cols-6 w-full lg:w-auto lg:inline-grid">
           <TabsTrigger value="account" data-testid="tab-account"><UserIcon className="h-4 w-4 mr-1.5" />Account</TabsTrigger>
           <TabsTrigger value="security" data-testid="tab-security"><Shield className="h-4 w-4 mr-1.5" />Security</TabsTrigger>
           <TabsTrigger value="api-keys" data-testid="tab-api-keys"><KeyRound className="h-4 w-4 mr-1.5" />API keys</TabsTrigger>
           <TabsTrigger value="notifications" data-testid="tab-notifications"><Bell className="h-4 w-4 mr-1.5" />Notifications</TabsTrigger>
           <TabsTrigger value="preferences" data-testid="tab-preferences"><Globe className="h-4 w-4 mr-1.5" />Preferences</TabsTrigger>
+          <TabsTrigger value="koinx" data-testid="tab-koinx">
+            <span className="font-bold text-[11px] mr-1.5 leading-none">Kx</span>KoinX
+          </TabsTrigger>
         </TabsList>
 
         {/* ─────────────── ACCOUNT ─────────────── */}
@@ -258,6 +262,11 @@ export default function Settings() {
         {/* ─────────────── PREFERENCES ─────────────── */}
         <TabsContent value="preferences" className="space-y-4 mt-0">
           <PreferencesTab />
+        </TabsContent>
+
+        {/* ─────────────── KOINX ─────────────── */}
+        <TabsContent value="koinx" className="space-y-4 mt-0">
+          <KoinXTab />
         </TabsContent>
       </Tabs>
 
