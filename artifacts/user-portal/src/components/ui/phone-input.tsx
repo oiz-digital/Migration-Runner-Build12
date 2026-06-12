@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
-const COUNTRIES = [
+export const COUNTRIES = [
   { code: "IN", dial: "+91",  flag: "🇮🇳", name: "India" },
   { code: "US", dial: "+1",   flag: "🇺🇸", name: "USA" },
   { code: "GB", dial: "+44",  flag: "🇬🇧", name: "UK" },
@@ -19,7 +19,7 @@ const COUNTRIES = [
   { code: "PH", dial: "+63",  flag: "🇵🇭", name: "Philippines" },
 ];
 
-function parsePhone(val: string): { dial: string; number: string } {
+export function parsePhone(val: string): { dial: string; number: string } {
   const v = (val ?? "").trim();
   const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
   for (const c of sorted) {
@@ -48,7 +48,7 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
       onChange,
       onBlur,
       className,
-      placeholder = "98765 43210",
+      placeholder,
       disabled,
       id,
       "data-testid": testId,
@@ -83,49 +83,69 @@ export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
     };
 
     const country = COUNTRIES.find(c => c.dial === dial) ?? COUNTRIES[0];
+    const defaultPlaceholder = dial === "+91" ? "98765 43210" : "Phone number";
+    const ph = placeholder ?? defaultPlaceholder;
 
     return (
       <div
         className={cn(
-          "flex h-11 w-full rounded-md border border-input bg-background text-sm ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden",
+          "flex h-11 w-full rounded-md border border-input bg-background text-sm",
+          "ring-offset-background focus-within:outline-none focus-within:ring-2",
+          "focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden",
           ariaInvalid && "border-destructive focus-within:ring-destructive",
           disabled && "opacity-50 cursor-not-allowed",
           className
         )}
       >
-        <div className="relative flex items-center border-r border-border/60 bg-muted/30 shrink-0">
+        {/*
+          Country code picker:
+          - A styled visual trigger shows flag + dial code compactly
+          - An invisible native <select> sits on top so mobile gets the OS picker
+          - The OS picker shows full country names from the <option> elements
+        */}
+        <div className="relative shrink-0 border-r border-border/60 bg-muted/30">
+          {/* Visual display — pointer-events:none, purely cosmetic */}
+          <div
+            className="pointer-events-none flex h-full items-center gap-1 pl-2.5 pr-6 select-none whitespace-nowrap"
+            aria-hidden="true"
+          >
+            <span className="text-[17px] leading-none">{country.flag}</span>
+            <span className="text-xs font-semibold tabular-nums">{dial}</span>
+            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          </div>
+
+          {/* Invisible native select covers the visual trigger exactly */}
           <select
             value={dial}
             onChange={handleDial}
             disabled={disabled}
             aria-label="Country calling code"
-            className="appearance-none bg-transparent pl-2.5 pr-6 py-0 h-full text-sm outline-none cursor-pointer text-foreground"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            style={{ WebkitAppearance: "none", MozAppearance: "none" } as React.CSSProperties}
           >
             {COUNTRIES.map(c => (
-              <option key={c.code} value={c.dial}>
-                {c.flag} {c.dial} ({c.name})
+              <option key={`${c.code}-${c.dial}`} value={c.dial}>
+                {c.flag}  {c.dial}  —  {c.name}
               </option>
             ))}
           </select>
-          <div className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-muted-foreground">
-            <span className="text-base leading-none">{country.flag}</span>
-            <ChevronDown className="w-3 h-3" />
-          </div>
         </div>
+
+        {/* Phone number text input */}
         <input
           ref={ref}
           id={id}
           type="tel"
           inputMode="numeric"
           autoComplete="tel-national"
-          placeholder={placeholder}
+          placeholder={ph}
           disabled={disabled}
           value={number}
           onChange={handleNumber}
           onBlur={onBlur}
           data-testid={testId}
           aria-invalid={ariaInvalid}
-          className="flex-1 min-w-0 bg-transparent px-3 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 bg-transparent px-3 py-2 outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed text-sm"
         />
       </div>
     );
