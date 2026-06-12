@@ -30,6 +30,7 @@ import { readSessionCookie, getUserBySession } from "../lib/auth";
 import { logger } from "../lib/logger";
 import { getInrRate } from "../lib/price-service";
 import { getFuturesFeeRates } from "./fees";
+import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
 
 const r: IRouter = Router();
 
@@ -516,6 +517,12 @@ r.post("/futures/order", bicryptoAuth, async (req: any, res: Response): Promise<
   let finalOrder = orderRow;
   if (Array.isArray(match?.trades) && match.trades.length > 0) {
     finalOrder = await applyFills(orderRow, match, pair);
+    // 5-level futures trading-fee referral commission (fire-and-forget)
+    const futuresFeeAmt = parseFloat(finalOrder?.fee ?? "0");
+    if (futuresFeeAmt > 0) {
+      creditTradingFeeReferralChain(u.id, futuresFeeAmt, pair.quoteCoinId, "futures_fee")
+        .catch(() => null);
+    }
   } else if (match?.status) {
     // No fills — just stamp the status (REJECTED / OPEN).
     if (match.status === "REJECTED") {
@@ -1022,7 +1029,13 @@ r.delete("/futures/position", bicryptoAuth, async (req: any, res: Response): Pro
   }
 
   if (Array.isArray(match?.trades) && match.trades.length > 0) {
-    await applyFills(orderRow, match, pair);
+    const closedOrder = await applyFills(orderRow, match, pair);
+    // 5-level futures trading-fee referral commission on close (fire-and-forget)
+    const closeFeeAmt = parseFloat(closedOrder?.fee ?? "0");
+    if (closeFeeAmt > 0) {
+      creditTradingFeeReferralChain(u.id, closeFeeAmt, pair.quoteCoinId, "futures_fee")
+        .catch(() => null);
+    }
   } else {
     // No counterparty available — refund and report.
     await db.transaction(async (tx) => {

@@ -3,6 +3,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { db, earnProductsTable, earnPositionsTable, walletsTable, coinsTable, walletLedgerTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getRawTick, getInrRate } from "../lib/price-service";
+import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
 
 const router: IRouter = Router();
 
@@ -218,9 +219,18 @@ router.post("/earn/positions/:id/redeem", requireAuth, async (req, res): Promise
         });
       }
 
-      return { ...updated, payout, earned, earlyPenalty };
+      return { ...updated, payout, earned, earlyPenalty, _coinId: p.coinId, _netInterest: netInterest };
     });
-    res.json(result);
+
+    // 5-level earn referral commission (fire-and-forget, only on positive yield)
+    if (result._netInterest > 0) {
+      creditTradingFeeReferralChain(userId, result._netInterest, result._coinId, "earn_plan")
+        .catch(() => null);
+    }
+
+    // Strip internal fields before sending response
+    const { _coinId: _c, _netInterest: _n, ...publicResult } = result as any;
+    res.json(publicResult);
   } catch (e: any) {
     if (e?.code) { res.status(e.code).json({ error: e.message }); return; }
     throw e;

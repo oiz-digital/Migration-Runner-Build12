@@ -38,7 +38,7 @@ export const referralsTable = pgTable("referrals", {
   id: serial("id").primaryKey(),
   referrerId: integer("referrer_id").notNull(),
   referredId: integer("referred_id").notNull(),
-  commissionRate: text("commission_rate").notNull().default("20"),
+  commissionRate: text("commission_rate").notNull().default("30"),
   totalEarned: text("total_earned").notNull().default("0"),
   bonusCredited: boolean("bonus_credited").notNull().default(false),
   bonusAmount: text("bonus_amount").default("0"),

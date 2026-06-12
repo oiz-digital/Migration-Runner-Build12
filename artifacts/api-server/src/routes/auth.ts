@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, or, inArray, sql } from "drizzle-orm";
 import { z, type ZodSchema } from "zod";
-import { db, usersTable, loginLogsTable, walletsTable, coinsTable, settingsTable, otpCodesTable } from "@workspace/db";
+import { db, usersTable, loginLogsTable, walletsTable, coinsTable, settingsTable, otpCodesTable, referralsTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -228,6 +228,37 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
     inits.push({ userId: user.id, walletType: "spot", coinId: usdtCoin[0].id, balance: "0" });
   }
   if (inits.length) await db.insert(walletsTable).values(inits);
+
+  // ── Registration bonus: credit referrer 1 USDT when their direct invitee signs up ──
+  // This is fire-and-forget (never blocks signup response).
+  if (referredBy && usdtCoin[0]) {
+    const usdtCoinId = usdtCoin[0].id;
+    (async () => {
+      try {
+        const REGISTRATION_BONUS_USDT = 1.0;
+        // Upsert referrer's USDT spot wallet.
+        const [rw] = await db.select().from(walletsTable)
+          .where(eq(walletsTable.userId, referredBy!))
+          // filter by coinId and walletType in JS to keep query simple
+          .then(rows => rows.filter(r => r.coinId === usdtCoinId && r.walletType === "spot"));
+        if (rw) {
+          await db.update(walletsTable)
+            .set({ balance: sql`${walletsTable.balance} + ${REGISTRATION_BONUS_USDT}`, updatedAt: new Date() })
+            .where(eq(walletsTable.id, rw.id));
+        } else {
+          await db.insert(walletsTable).values({
+            userId: referredBy!, coinId: usdtCoinId, walletType: "spot",
+            balance: String(REGISTRATION_BONUS_USDT), locked: "0",
+          });
+        }
+        await db.insert(referralsTable).values({
+          referrerId: referredBy!, referredId: user.id,
+          bonusCredited: true, bonusAmount: String(REGISTRATION_BONUS_USDT),
+          level: 1, sourceType: "registration",
+        }).catch(() => null);
+      } catch { /* non-critical */ }
+    })();
+  }
 
   // Fire-and-forget welcome email (non-blocking)
   if (user.email) {

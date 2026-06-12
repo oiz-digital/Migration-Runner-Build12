@@ -56,7 +56,7 @@ Deposits: INR via UPI/IMPS through gateway. Crypto via on-chain to your unique \
   deposit address (visible in Wallet → Deposit). Always match the network exactly.
 Trading fees: maker 0.10%, taker 0.10% on Spot. Futures up to 50× leverage. Fees \
   reduced by VIP tier and ZBX holdings.
-Referrals: 20% lifetime commission of friend's trading fees, paid instantly to \
+Referrals: 30% lifetime commission of friend's trading fees, paid instantly to \
   spot wallet. Friend must complete KYC L1 to activate. Tiers Bronze/Silver/Gold.
 Earn: subscribe ZBX/USDT/BTC etc. to flexible or locked products, view APY on \
   the Earn page. Early redeem from a locked product forfeits accrued interest.
@@ -233,7 +233,7 @@ const FAQS = [
     category: "Invite",
     icon: "gift",
     questions: [
-      { q: "How does the referral program work?", a: "Share your referral code or link from the Invite page. When friends sign up and complete KYC, you earn 20% of their trading fees — paid instantly, for life." },
+      { q: "How does the referral program work?", a: "Share your referral code or link from the Invite page. When friends sign up and complete KYC, you earn 30% of their trading fees — paid instantly, for life." },
       { q: "When do referral commissions get paid?", a: "Instantly. Every time your invitee places a trade, your share is credited to your spot wallet in real-time." },
       { q: "Is there a limit on invites or earnings?", a: "No cap. Tiers (Bronze/Silver/Gold) auto-upgrade as your KYC-verified invitee count grows." },
     ],

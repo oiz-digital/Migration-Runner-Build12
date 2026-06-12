@@ -1,10 +1,11 @@
 /**
  * trading-fee-referral.ts
- * Distributes a portion of each spot/futures trade fee to up to 5 levels
+ * Distributes a portion of each spot/futures/earn trade fee to up to 5 levels
  * of the referral chain. Called fire-and-forget after every matched trade.
  *
- * Commission rates (% of the fee collected by the exchange):
- *   Level 1: 30%   Level 2: 15%   Level 3: 8%   Level 4: 4%   Level 5: 2%
+ * Commission rates (% of the fee/profit collected):
+ *   Trading fee  — Level 1: 30%  Level 2: 15%  Level 3: 8%  Level 4: 4%  Level 5: 2%
+ *   Earn reward  — Level 1: 3%   Level 2: 2%   Level 3: 1%  Level 4: 0.5%  Level 5: 0.25%
  */
 
 import {
@@ -13,18 +14,19 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { logger } from "./logger";
 
-const DEFAULT_RATES: Record<number, number> = { 1: 30, 2: 15, 3: 8, 4: 4, 5: 2 };
+const DEFAULT_TRADING_RATES: Record<number, number> = { 1: 30, 2: 15, 3: 8, 4: 4, 5: 2 };
+const EARN_RATES: Record<number, number>             = { 1: 3, 2: 2, 3: 1, 4: 0.5, 5: 0.25 };
 
-async function loadRates(): Promise<Record<number, number>> {
+async function loadTradingRates(): Promise<Record<number, number>> {
   try {
     const [row] = await db.select().from(settingsTable)
       .where(eq(settingsTable.key, "referral.trading_fee_rates")).limit(1);
     if (row?.value) {
       const parsed = JSON.parse(row.value);
-      if (parsed && typeof parsed === "object") return { ...DEFAULT_RATES, ...parsed };
+      if (parsed && typeof parsed === "object") return { ...DEFAULT_TRADING_RATES, ...parsed };
     }
   } catch { /* fallback */ }
-  return DEFAULT_RATES;
+  return DEFAULT_TRADING_RATES;
 }
 
 async function ensureSpotWallet(userId: number, coinId: number): Promise<string | null> {
@@ -43,24 +45,19 @@ async function ensureSpotWallet(userId: number, coinId: number): Promise<string 
 }
 
 /**
- * Walk up to 5 levels of the referral chain and credit each referrer
- * with their tier commission from the `feeAmount` in `quoteCoinId`.
- *
- * @param traderId    — The user who placed the order (taker)
- * @param feeAmount   — Total fee collected in quote currency (already in DB units)
- * @param quoteCoinId — The quote coin's ID (e.g. USDT coin id)
- * @param sourceType  — "trading_fee" | "futures_fee" (for ledger labeling)
+ * Generic 5-level referral chain creditor.
+ * Walks up the referral chain from `originUserId` and credits each ancestor
+ * with `amount * (levelRates[level] / 100)` in `coinId`.
  */
-export async function creditTradingFeeReferralChain(
-  traderId: number,
-  feeAmount: number,
-  quoteCoinId: number,
-  sourceType: "trading_fee" | "futures_fee" = "trading_fee",
+export async function creditReferralChain(
+  originUserId: number,
+  amount: number,
+  coinId: number,
+  sourceType: string,
+  levelRates: Record<number, number>,
 ): Promise<void> {
-  if (!feeAmount || feeAmount <= 0) return;
-
-  const rates = await loadRates();
-  let currentId = traderId;
+  if (!amount || amount <= 0) return;
+  let currentId = originUserId;
 
   for (let level = 1; level <= 5; level++) {
     const [user] = await db
@@ -71,36 +68,49 @@ export async function creditTradingFeeReferralChain(
 
     if (!user?.referredBy) break;
 
-    const pct = rates[level] ?? 0;
-    const commission = parseFloat((feeAmount * pct / 100).toFixed(8));
+    const pct = levelRates[level] ?? 0;
+    const commission = parseFloat((amount * pct / 100).toFixed(8));
     if (commission < 0.000001) { currentId = user.referredBy; continue; }
 
-    // Credit the referrer's spot wallet
-    const walletId = await ensureSpotWallet(user.referredBy, quoteCoinId);
+    const walletId = await ensureSpotWallet(user.referredBy, coinId);
     if (walletId) {
       await db.update(walletsTable)
-        .set({
-          balance: sql`${walletsTable.balance} + ${commission}`,
-          updatedAt: new Date(),
-        })
+        .set({ balance: sql`${walletsTable.balance} + ${commission}`, updatedAt: new Date() })
         .where(eq(walletsTable.id, Number(walletId)));
     }
 
-    // Insert referral record
     await db.insert(referralsTable).values({
-      referrerId:    user.referredBy,
-      referredId:    traderId,
-      bonusCredited: true,
-      bonusAmount:   String(commission),
-      level,
-      sourceType,
-    }).catch(() => null); // Ignore unique-constraint duplicates gracefully
+      referrerId: user.referredBy, referredId: originUserId,
+      bonusCredited: true, bonusAmount: String(commission),
+      level, sourceType,
+    }).catch(() => null);
 
     logger.debug(
-      { referrerId: user.referredBy, level, commission, traderId, sourceType },
-      "trading-fee-referral: commission credited",
+      { referrerId: user.referredBy, level, commission, originUserId, sourceType },
+      "referral-chain: commission credited",
     );
 
     currentId = user.referredBy;
   }
+}
+
+/**
+ * Walk up to 5 levels of the referral chain and credit each referrer
+ * with their tier commission from the `feeAmount` in `quoteCoinId`.
+ *
+ * @param traderId    — The user who placed the order (taker)
+ * @param feeAmount   — Total fee collected in quote currency (already in DB units)
+ * @param quoteCoinId — The quote coin's ID (e.g. USDT coin id)
+ * @param sourceType  — "trading_fee" | "futures_fee" | "earn_plan"
+ */
+export async function creditTradingFeeReferralChain(
+  traderId: number,
+  feeAmount: number,
+  quoteCoinId: number,
+  sourceType: "trading_fee" | "futures_fee" | "earn_plan" = "trading_fee",
+): Promise<void> {
+  const rates = sourceType === "earn_plan"
+    ? EARN_RATES
+    : await loadTradingRates();
+  return creditReferralChain(traderId, feeAmount, quoteCoinId, sourceType, rates);
 }
