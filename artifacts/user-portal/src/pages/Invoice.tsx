@@ -4,7 +4,7 @@
  * Print / Download PDF: window.print() — add "Save as PDF" in the print dialog.
  * Colours preserved in print via `print-color-adjust: exact`.
  */
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
@@ -56,6 +56,8 @@ const fmtDate = (iso: string) =>
 export default function Invoice() {
   const [, params] = useRoute<{ id: string }>("/orders/:id/invoice");
   const orderId = params?.id;
+  const invoiceRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery<InvoiceData>({
     queryKey: ["invoice", orderId],
@@ -69,6 +71,28 @@ export default function Invoice() {
     document.title = data.invoiceNo;
     return () => { document.title = prev; };
   }, [data?.invoiceNo]);
+
+  const downloadPdf = async () => {
+    if (!invoiceRef.current || !data) return;
+    setDownloading(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+      const canvas = await html2canvas(invoiceRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#0f172a",
+      });
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [imgW / 2, imgH / 2] });
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW / 2, imgH / 2);
+      pdf.save(`${data.invoiceNo}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -120,18 +144,21 @@ export default function Invoice() {
         </Link>
         <Button
           size="sm"
-          onClick={() => window.print()}
+          onClick={downloadPdf}
+          disabled={downloading}
           style={{ background: "#F59E0B", color: "#0f172a" }}
-          className="font-semibold hover:opacity-90"
+          className="font-semibold hover:opacity-90 disabled:opacity-70"
         >
-          <Download className="w-3.5 h-3.5 mr-2" />
-          Download PDF
+          {downloading
+            ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Generating…</>
+            : <><Download className="w-3.5 h-3.5 mr-2" />Download PDF</>}
         </Button>
       </div>
 
       {/* ── Invoice card ── */}
       <div className="container mx-auto px-4 max-w-3xl">
         <div
+          ref={invoiceRef}
           className="rounded-2xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
           data-testid="invoice-paper"
         >

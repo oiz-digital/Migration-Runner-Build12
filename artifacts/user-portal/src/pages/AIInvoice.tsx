@@ -4,7 +4,7 @@
  * Shows: principal invested, gross profit, TDS, net profit, ROI, payout.
  * Download PDF: window.print() → "Save as PDF" in the browser print dialog.
  */
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
@@ -66,6 +66,8 @@ const RISK_STYLE: Record<string, React.CSSProperties> = {
 export default function AIInvoice() {
   const [, params] = useRoute<{ id: string }>("/ai-trading/:id/invoice");
   const subId = params?.id;
+  const invoiceRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const { data: inv, isLoading, isError, error } = useQuery<AIInvoiceData>({
     queryKey: ["ai-invoice", subId],
@@ -79,6 +81,28 @@ export default function AIInvoice() {
     document.title = inv.invoiceNo;
     return () => { document.title = prev; };
   }, [inv?.invoiceNo]);
+
+  const downloadPdf = async () => {
+    if (!invoiceRef.current || !inv) return;
+    setDownloading(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const { jsPDF } = await import("jspdf");
+      const canvas = await html2canvas(invoiceRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#0f172a",
+      });
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [imgW / 2, imgH / 2] });
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW / 2, imgH / 2);
+      pdf.save(`${inv.invoiceNo}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -128,18 +152,20 @@ export default function AIInvoice() {
         </Link>
         <Button
           size="sm"
-          onClick={() => window.print()}
+          onClick={downloadPdf}
+          disabled={downloading}
           style={{ background: "#8B5CF6", color: "white" }}
-          className="font-semibold hover:opacity-90"
+          className="font-semibold hover:opacity-90 disabled:opacity-70"
         >
-          <Download className="w-3.5 h-3.5 mr-2" />
-          Download PDF
+          {downloading
+            ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Generating…</>
+            : <><Download className="w-3.5 h-3.5 mr-2" />Download PDF</>}
         </Button>
       </div>
 
       {/* ── Invoice card ── */}
       <div className="container mx-auto px-4 max-w-3xl">
-        <div className="rounded-2xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none" data-testid="ai-invoice-paper">
+        <div ref={invoiceRef} className="rounded-2xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none" data-testid="ai-invoice-paper">
 
           {/* Violet top accent bar */}
           <div style={{ height: 6, background: "linear-gradient(90deg,#6D28D9,#7C3AED,#8B5CF6,#A78BFA)" }} />
