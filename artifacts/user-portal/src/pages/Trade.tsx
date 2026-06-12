@@ -375,6 +375,34 @@ export default function Trade() {
     return Array.from(s).sort((a, b) => b.length - a.length);
   }, [pairsData]);
 
+  // ─── Pair ID (needed for DB-backed recent trades) ───────────────
+  const pairId = useMemo(() => {
+    const p = (pairsData || []).find((x: any) => x.baseSymbol === base && x.quoteSymbol === quote);
+    return p?.id as number | undefined;
+  }, [pairsData, base, quote]);
+
+  // ─── DB-backed recent trades (fallback when Redis / WS is empty) ──
+  // Polls every 15s so newly executed trades always appear even when
+  // the matching engine's Redis list is stale or empty.
+  const { data: dbTradesRaw } = useQuery<any[]>({
+    queryKey: ["recent-trades-db", pairId],
+    queryFn: () => get(`/recent-trades?pairId=${pairId}&limit=25`),
+    enabled: !!pairId,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
+  const dbTrades = useMemo(() => {
+    const arr: any[] = Array.isArray(dbTradesRaw) ? dbTradesRaw : [];
+    return arr.map((r: any) => ({
+      price: Number(r.price),
+      qty: Number(r.qty),
+      side: (String(r.side || "buy").toLowerCase() === "sell" ? "sell" : "buy") as "buy" | "sell",
+      isBuyerMaker: String(r.side || "").toLowerCase() === "sell",
+      ts: Number(r.ts ?? r.createdAt ? new Date(r.createdAt).getTime() : Date.now()),
+    })).filter((t) => t.price > 0);
+  }, [dbTradesRaw]);
+
   // ─── Wallet + balances ────────────────────────────
   // 5s polling + window-focus refetch keeps the buy/sell "Available"
   // strip live without us needing to invalidate from every interaction.
@@ -881,7 +909,9 @@ export default function Trade() {
                 </button>
               </div>
               <span className="text-[10px] text-muted-foreground">
-                {tradeFeed === "market" ? `${trades.length} prints` : `${myTrades.length} fills`}
+                {tradeFeed === "market"
+                  ? `${(trades.length > 0 ? trades : dbTrades).length} prints`
+                  : `${myTrades.length} fills`}
               </span>
             </div>
             <div className="flex-1 overflow-auto px-2 py-1 text-xs font-mono">
@@ -890,14 +920,17 @@ export default function Trade() {
                 <span className="text-right">Amount ({base})</span>
                 <span className="text-right">Time</span>
               </div>
-              {(tradeFeed === "market" ? trades : myTrades).map((t, i) => (
-                <div key={i} className="grid grid-cols-3 py-[2px] px-1">
+              {(tradeFeed === "market"
+                ? (trades.length > 0 ? trades : dbTrades)
+                : myTrades
+              ).map((t, i) => (
+                <div key={i} className="grid grid-cols-3 py-[2px] px-1 hover:bg-muted/20 transition-colors rounded">
                   <span className={`tabular-nums ${t.side === "buy" ? "text-success" : "text-destructive"}`}>{fmtNum(t.price, quote === "INR" ? 2 : 4)}</span>
                   <span className="text-right tabular-nums">{fmtNum(t.qty, 4)}</span>
                   <span className="text-right text-muted-foreground">{new Date(t.ts).toLocaleTimeString([], { hour12: false })}</span>
                 </div>
               ))}
-              {tradeFeed === "market" && trades.length === 0 && (
+              {tradeFeed === "market" && trades.length === 0 && dbTrades.length === 0 && (
                 <div className="py-6 text-center text-muted-foreground text-xs">No recent trades</div>
               )}
               {tradeFeed === "mine" && myTrades.length === 0 && (

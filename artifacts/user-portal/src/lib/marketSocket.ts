@@ -307,6 +307,28 @@ export function useOrderbook(symbol?: string, limit = 50) {
 
 export function useRecentTrades(symbol?: string, max = 50) {
   const [trades, setTrades] = useState<NormalizedTrade[]>([]);
+
+  // Seed from REST API on mount / symbol change so trades are always visible
+  useEffect(() => {
+    setTrades([]);
+    if (!symbol) return;
+    const [base, quote] = symbol.split("/");
+    if (!base || !quote) return;
+    let cancelled = false;
+    fetch(`/api/exchange/trades/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: any) => {
+        if (cancelled) return;
+        const arr: any[] = Array.isArray(data) ? data
+          : Array.isArray(data?.trades) ? data.trades : [];
+        const norm = arr.map(normalizeTrade).filter(Boolean) as NormalizedTrade[];
+        if (norm.length > 0) setTrades(norm.slice(0, max));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [symbol, max]);
+
+  // WS subscription merges live prints on top
   useEffect(() => {
     if (!symbol || !marketSocket) return;
     return marketSocket.subscribe({ type: "trades", symbol }, (data: NormalizedTrade[]) => {
@@ -317,6 +339,7 @@ export function useRecentTrades(symbol?: string, max = 50) {
       });
     });
   }, [symbol, max]);
+
   return trades;
 }
 
