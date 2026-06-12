@@ -1499,8 +1499,13 @@ router.post("/admin/banks/:id/suggest-reject-reasons", supportPlus, async (req, 
 });
 
 // INR deposits/withdrawals approval
-router.get("/admin/inr-deposits", supportPlus, async (_req, res): Promise<void> => {
-  res.json(await db.select().from(inrDepositsTable).orderBy(desc(inrDepositsTable.createdAt)).limit(500));
+router.get("/admin/inr-deposits", supportPlus, async (req, res): Promise<void> => {
+  const status = typeof req.query.status === "string" ? req.query.status : null;
+  const q = db.select().from(inrDepositsTable);
+  const rows = status
+    ? await q.where(eq(inrDepositsTable.status, status)).orderBy(desc(inrDepositsTable.createdAt)).limit(500)
+    : await q.orderBy(desc(inrDepositsTable.createdAt)).limit(500);
+  res.json(rows);
 });
 router.patch("/admin/inr-deposits/:id", adminOnly, async (req, res): Promise<void> => {
   const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
@@ -1558,8 +1563,13 @@ router.patch("/admin/inr-deposits/:id", adminOnly, async (req, res): Promise<voi
   }
 });
 
-router.get("/admin/inr-withdrawals", supportPlus, async (_req, res): Promise<void> => {
-  res.json(await db.select().from(inrWithdrawalsTable).orderBy(desc(inrWithdrawalsTable.createdAt)).limit(500));
+router.get("/admin/inr-withdrawals", supportPlus, async (req, res): Promise<void> => {
+  const status = typeof req.query.status === "string" ? req.query.status : null;
+  const q = db.select().from(inrWithdrawalsTable);
+  const rows = status
+    ? await q.where(eq(inrWithdrawalsTable.status, status)).orderBy(desc(inrWithdrawalsTable.createdAt)).limit(500)
+    : await q.orderBy(desc(inrWithdrawalsTable.createdAt)).limit(500);
+  res.json(rows);
 });
 router.patch("/admin/inr-withdrawals/:id", adminOnly, async (req, res): Promise<void> => {
   const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);

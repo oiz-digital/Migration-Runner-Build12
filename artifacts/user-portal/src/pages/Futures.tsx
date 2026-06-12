@@ -338,7 +338,7 @@ export default function Futures() {
       ? Number(collateralWallet.available)
       : collateralWallet.free != null
         ? Number(collateralWallet.free)
-        : Math.max(0, Number(collateralWallet.balance ?? 0) - Number(collateralWallet.inOrder ?? collateralWallet.locked ?? 0))
+        : Math.max(0, Number(collateralWallet.balance ?? 0))
     : 0;
 
   // ─── Positions (this symbol) ─────────────────

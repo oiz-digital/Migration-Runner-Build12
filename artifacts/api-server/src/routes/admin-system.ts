@@ -218,16 +218,20 @@ router.put("/admin/inr-transactions/:id", adminAuth, async (req, res): Promise<v
   const { status, adminNote } = req.body as { status?: string; adminNote?: string };
   if (!status) { res.status(400).json({ error: "status required" }); return; }
 
-  const [tx] = await db.select().from(inrTransactionsTable).where(eq(inrTransactionsTable.id, id));
-  if (!tx) { res.status(404).json({ error: "Transaction not found" }); return; }
+  // All reads + writes inside one transaction with FOR UPDATE to prevent double-credit
+  // (two admins clicking approve simultaneously would otherwise both pass the status check)
+  await db.transaction(async (t) => {
+    const [tx] = await t.select().from(inrTransactionsTable)
+      .where(eq(inrTransactionsTable.id, id)).for("update").limit(1);
+    if (!tx) { const e: any = new Error("Transaction not found"); e.code = 404; throw e; }
 
-  if (status === "completed" && tx.type === "deposit" && tx.status !== "completed") {
-    const amountInr = parseFloat(tx.amountInr);
-    await db.transaction(async (t) => {
+    if (status === "completed" && tx.type === "deposit" && tx.status !== "completed") {
+      const amountInr = parseFloat(tx.amountInr);
       const [coin] = await t.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, "INR")).limit(1);
       if (coin) {
         const [w] = await t.select().from(walletsTable)
-          .where(and(eq(walletsTable.userId, tx.userId), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "inr"))).limit(1);
+          .where(and(eq(walletsTable.userId, tx.userId), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "inr")))
+          .for("update").limit(1);
         if (w) {
           await t.update(walletsTable).set({
             balance: sql`${walletsTable.balance} + ${amountInr}`, updatedAt: new Date(),
@@ -238,31 +242,35 @@ router.put("/admin/inr-transactions/:id", adminAuth, async (req, res): Promise<v
       }
       await t.update(inrTransactionsTable).set({ status: "completed", adminNote: adminNote ?? null, updatedAt: new Date() })
         .where(eq(inrTransactionsTable.id, id));
-    });
-  } else if (status === "rejected" && tx.type === "withdrawal" && tx.status === "pending") {
-    const amountInr = parseFloat(tx.amountInr);
-    await db.transaction(async (t) => {
+
+    } else if (status === "rejected" && tx.type === "withdrawal" && tx.status === "pending") {
+      const amountInr = parseFloat(tx.amountInr);
       const [coin] = await t.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, "INR")).limit(1);
       if (coin) {
         const [w] = await t.select().from(walletsTable)
-          .where(and(eq(walletsTable.userId, tx.userId), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "inr"))).limit(1);
+          .where(and(eq(walletsTable.userId, tx.userId), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "inr")))
+          .for("update").limit(1);
         if (w) {
           await t.update(walletsTable).set({
             balance: sql`${walletsTable.balance} + ${amountInr}`,
-            locked:  sql`${walletsTable.locked}  - ${amountInr}`,
+            locked:  sql`GREATEST(0, ${walletsTable.locked} - ${amountInr})`,
             updatedAt: new Date(),
           }).where(eq(walletsTable.id, w.id));
         }
       }
       await t.update(inrTransactionsTable).set({ status: "rejected", adminNote: adminNote ?? null, updatedAt: new Date() })
         .where(eq(inrTransactionsTable.id, id));
-    });
-  } else {
-    await db.update(inrTransactionsTable).set({ status: status as any, adminNote: adminNote ?? null, updatedAt: new Date() })
-      .where(eq(inrTransactionsTable.id, id));
-  }
 
-  res.json({ ok: true, id, status });
+    } else {
+      await t.update(inrTransactionsTable).set({ status: status as any, adminNote: adminNote ?? null, updatedAt: new Date() })
+        .where(eq(inrTransactionsTable.id, id));
+    }
+  }).catch((e: any) => {
+    if (e?.code === 404) { res.status(404).json({ error: e.message }); return; }
+    throw e;
+  });
+
+  if (!res.headersSent) res.json({ ok: true, id, status });
 });
 
 export default router;

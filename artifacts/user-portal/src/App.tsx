@@ -90,7 +90,7 @@ function App() {
                 <Route path="/trade/:symbol?" component={Trade} />
                 <Route path="/futures/:symbol?" component={Futures} />
                 <Route path="/options" component={Options} />
-                <Route path="/web3" component={Web3} />
+                <Route path="/web3">{() => <RequireAuth><Web3 /></RequireAuth>}</Route>
                 <Route path="/discover" component={Discover} />
                 
                 <Route path="/wallet">
