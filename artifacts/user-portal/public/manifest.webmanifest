@@ -1,0 +1,32 @@
+{
+  "name": "Zebvix Exchange",
+  "short_name": "Zebvix",
+  "description": "Trade, earn and grow with Zebvix — India's premium crypto exchange.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0e14",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEyOCIgZmlsbD0iI2Y1OWUwYiIvPjx0ZXh0IHg9IjUwJSIgeT0iNjUlIiBmb250LXNpemU9IjMyMCIgZm9udC1mYW1pbHk9IkFyaWFsIEJsYWNrIiBmaWxsPSIjMDAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXdlaWdodD0iOTAwIj5aPC90ZXh0Pjwvc3ZnPg==",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxOTIgMTkyIj48cmVjdCB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgcng9IjQ4IiBmaWxsPSIjZjU5ZTBiIi8+PHRleHQgeD0iNTAlIiB5PSI2NSUiIGZvbnQtc2l6ZT0iMTIwIiBmb250LWZhbWlseT0iQXJpYWwgQmxhY2siIGZpbGw9IiMwMDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtd2VpZ2h0PSI5MDAiPlo8L3RleHQ+PC9zdmc+",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Trade", "url": "/trade", "description": "Spot trading" },
+    { "name": "Wallet", "url": "/wallet", "description": "Your balances" },
+    { "name": "Bots", "url": "/bots", "description": "Trading bots" },
+    { "name": "Notifications", "url": "/notifications", "description": "Inbox" }
+  ]
+}

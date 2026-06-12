@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: p2p
+    description: P2P trading — offers, orders, payment methods, chat, disputes
+  - name: p2p-admin
+    description: Admin moderation endpoints for the P2P marketplace
 paths:
   /healthz:
     get:
@@ -24,13 +28,719 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── P2P: payment methods ────────────────────────────────────────────
+  /p2p/payment-methods:
+    get:
+      operationId: listP2pPaymentMethods
+      tags: [p2p]
+      summary: List the authenticated user's saved P2P payment methods
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pPaymentMethod" }
+    post:
+      operationId: createP2pPaymentMethod
+      tags: [p2p]
+      summary: Add a payment method (UPI / IMPS / bank / wallet)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pPaymentMethodInput" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pPaymentMethod" }
+
+  /p2p/payment-methods/{id}:
+    delete:
+      operationId: deleteP2pPaymentMethod
+      tags: [p2p]
+      summary: Soft-delete (deactivate) a payment method
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Deactivated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  # ─── P2P: offers (ads) ───────────────────────────────────────────────
+  /p2p/offers:
+    get:
+      operationId: listP2pOffers
+      tags: [p2p]
+      summary: Browse the public offer book
+      parameters:
+        - in: query
+          name: side
+          required: false
+          schema: { type: string, enum: [buy, sell], default: sell }
+          description: "buy = merchant wants to buy crypto from you; sell = merchant sells crypto to you"
+        - in: query
+          name: coin
+          required: false
+          schema: { type: string }
+          description: Coin SYMBOL (e.g. BTC, USDT) — case insensitive, server uppercases
+        - in: query
+          name: fiat
+          required: false
+          schema: { type: string, default: INR }
+        - in: query
+          name: method
+          required: false
+          schema: { type: string, enum: [upi, imps, neft, bank, paytm, phonepe, gpay] }
+          description: Filter to offers accepting this payment method type
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pOffer" }
+    post:
+      operationId: createP2pOffer
+      tags: [p2p]
+      summary: Post a new merchant offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pOfferInput" }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOffer" }
+
+  /p2p/offers/mine:
+    get:
+      operationId: listMyP2pOffers
+      tags: [p2p]
+      summary: List offers owned by the authenticated user (any status)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pOffer" }
+
+  /p2p/offers/{id}:
+    get:
+      operationId: getP2pOffer
+      tags: [p2p]
+      summary: Fetch a single offer (auth required, hides PII)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOffer" }
+    patch:
+      operationId: updateP2pOffer
+      tags: [p2p]
+      summary: Update one of your own offers (price, status, limits, terms)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pOfferPatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOffer" }
+    delete:
+      operationId: deleteP2pOffer
+      tags: [p2p]
+      summary: Soft-delete a merchant's own offer (status → closed)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Closed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OkResponse" }
+
+  /p2p/offers/{id}/seller-methods:
+    get:
+      operationId: listP2pOfferSellerMethods
+      tags: [p2p]
+      summary: For SELL offers, list the merchant's payment method ids/types/labels (no PII)
+      description: |
+        Returns method id + type + label only (no account number) so the buyer
+        can pick which of the merchant's saved methods to use when opening
+        the order. Always returns an empty array for BUY offers.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pSellerMethod" }
+
+  # ─── P2P: orders ─────────────────────────────────────────────────────
+  /p2p/orders:
+    get:
+      operationId: listP2pOrders
+      tags: [p2p]
+      summary: List all orders the authenticated user is party to (buyer or seller)
+      parameters:
+        - in: query
+          name: role
+          required: false
+          schema: { type: string, enum: [buyer, seller, all], default: all }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, pending, paid, released, cancelled, disputed, expired], default: all }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pOrder" }
+    post:
+      operationId: openP2pOrder
+      tags: [p2p]
+      summary: Open a new order against an existing offer (locks seller's escrow)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pOrderInput" }
+      responses:
+        "200":
+          description: Opened
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}:
+    get:
+      operationId: getP2pOrder
+      tags: [p2p]
+      summary: Get a single order (must be a party or admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}/mark-paid:
+    post:
+      operationId: markP2pOrderPaid
+      tags: [p2p]
+      summary: Buyer marks the fiat as transferred (optional UTR / reference)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pMarkPaidInput" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}/release:
+    post:
+      operationId: releaseP2pOrder
+      tags: [p2p]
+      summary: Seller releases escrow → crypto credited to buyer
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Released
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}/cancel:
+    post:
+      operationId: cancelP2pOrder
+      tags: [p2p]
+      summary: Cancel a pending order (refunds seller's escrow)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}/dispute:
+    post:
+      operationId: openP2pDispute
+      tags: [p2p]
+      summary: Open a dispute on a pending or paid order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pDisputeInput" }
+      responses:
+        "200":
+          description: Disputed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
+  /p2p/orders/{id}/messages:
+    get:
+      operationId: listP2pMessages
+      tags: [p2p]
+      summary: List chat messages on an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pMessage" }
+    post:
+      operationId: postP2pMessage
+      tags: [p2p]
+      summary: Post a chat message to an order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pMessageInput" }
+      responses:
+        "200":
+          description: Posted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pMessage" }
+
+  # ─── P2P admin / moderation ──────────────────────────────────────────
+  /admin/p2p/stats:
+    get:
+      operationId: getP2pAdminStats
+      tags: [p2p-admin]
+      summary: Marketplace counters for the admin dashboard
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pAdminStats" }
+
+  /admin/p2p/offers:
+    get:
+      operationId: listP2pAdminOffers
+      tags: [p2p-admin]
+      summary: List all offers (any merchant) for moderation
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, online, offline, suspended, closed], default: all }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pOffer" }
+
+  /admin/p2p/offers/{id}:
+    patch:
+      operationId: updateP2pAdminOffer
+      tags: [p2p-admin]
+      summary: Admin status change (suspend / restore / take offline / close)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pAdminOfferPatch" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOffer" }
+
+  /admin/p2p/orders:
+    get:
+      operationId: listP2pAdminOrders
+      tags: [p2p-admin]
+      summary: List all orders across the marketplace for moderation
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, pending, paid, released, cancelled, disputed, expired], default: all }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pOrder" }
+
+  /admin/p2p/disputes:
+    get:
+      operationId: listP2pAdminDisputes
+      tags: [p2p-admin]
+      summary: All currently-disputed orders, oldest first
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/P2pAdminDispute" }
+
+  /admin/p2p/disputes/{id}/resolve:
+    post:
+      operationId: resolveP2pDispute
+      tags: [p2p-admin]
+      summary: Resolve a dispute by releasing to buyer or refunding to seller
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/P2pResolveDisputeInput" }
+      responses:
+        "200":
+          description: Resolved — returns the updated order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/P2pOrder" }
+
 components:
   schemas:
     HealthStatus:
       type: object
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
+      required: [status]
 
+    OkResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+
+    Coin:
+      type: object
+      properties:
+        id: { type: integer }
+        symbol: { type: string }
+        name: { type: string }
+      required: [id, symbol, name]
+
+    Merchant:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        handle: { type: string }
+        kycLevel: { type: integer }
+        vipTier: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, name, handle, kycLevel, vipTier, createdAt]
+
+    P2pPaymentMethod:
+      type: object
+      properties:
+        id: { type: integer }
+        method: { type: string, enum: [upi, imps, neft, bank, paytm, phonepe, gpay] }
+        label: { type: string }
+        account: { type: string }
+        ifsc: { type: string, nullable: true }
+        holderName: { type: string, nullable: true }
+        active: { type: boolean }
+      required: [id, method, label, account, active]
+
+    P2pPaymentMethodInput:
+      type: object
+      required: [method, label, account]
+      properties:
+        method: { type: string, enum: [upi, imps, neft, bank, paytm, phonepe, gpay] }
+        label: { type: string, minLength: 1, maxLength: 60 }
+        account: { type: string, minLength: 1, maxLength: 120 }
+        ifsc: { type: string, maxLength: 20 }
+        holderName: { type: string, maxLength: 80 }
+
+    P2pSellerMethod:
+      type: object
+      description: Privacy-preserving view of a seller's payment method (no account number).
+      properties:
+        id: { type: integer }
+        method: { type: string, enum: [upi, imps, neft, bank, paytm, phonepe, gpay] }
+        label: { type: string }
+      required: [id, method, label]
+
+    P2pOffer:
+      type: object
+      properties:
+        id: { type: integer }
+        uid: { type: string }
+        userId: { type: integer }
+        side: { type: string, enum: [buy, sell] }
+        fiat: { type: string }
+        price: { type: number }
+        totalQty: { type: number }
+        availableQty: { type: number }
+        minFiat: { type: number }
+        maxFiat: { type: number }
+        paymentMethods:
+          type: array
+          items: { type: string }
+        payWindowMins: { type: integer }
+        terms: { type: string, nullable: true }
+        status: { type: string, enum: [online, offline, closed, suspended] }
+        minKycLevel: { type: integer }
+        minTrades: { type: integer }
+        coin:
+          oneOf:
+            - $ref: "#/components/schemas/Coin"
+            - type: "null"
+        merchant: { $ref: "#/components/schemas/Merchant" }
+        createdAt: { type: string, format: date-time }
+      required: [id, uid, userId, side, fiat, price, totalQty, availableQty, minFiat, maxFiat, paymentMethods, payWindowMins, status, minKycLevel, minTrades, merchant, createdAt]
+
+    P2pOfferInput:
+      type: object
+      required: [side, coinSymbol, price, totalQty, minFiat, maxFiat, paymentMethods]
+      properties:
+        side: { type: string, enum: [buy, sell] }
+        coinSymbol: { type: string, minLength: 1, maxLength: 20 }
+        fiat: { type: string, minLength: 2, maxLength: 8, default: INR }
+        price: { type: number, exclusiveMinimum: 0 }
+        totalQty: { type: number, exclusiveMinimum: 0 }
+        minFiat: { type: number, exclusiveMinimum: 0 }
+        maxFiat: { type: number, exclusiveMinimum: 0 }
+        paymentMethods:
+          type: array
+          minItems: 1
+          maxItems: 7
+          items: { type: string, enum: [upi, imps, neft, bank, paytm, phonepe, gpay] }
+        payWindowMins: { type: integer, enum: [15], default: 15, description: "Pay window is fixed at 15 minutes in this release." }
+        terms: { type: string, maxLength: 500 }
+        minKycLevel: { type: integer, minimum: 0, maximum: 3, default: 1 }
+        minTrades: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+
+    # User self-edit: only price / limits / terms / status (online↔offline / closed).
+    P2pOfferPatch:
+      type: object
+      properties:
+        status: { type: string, enum: [online, offline, closed] }
+        price: { type: number, exclusiveMinimum: 0 }
+        minFiat: { type: number, exclusiveMinimum: 0 }
+        maxFiat: { type: number, exclusiveMinimum: 0 }
+        terms: { type: string, maxLength: 500 }
+
+    # Admin status change — adds the "suspended" verdict only admins can apply.
+    P2pAdminOfferPatch:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [online, offline, suspended, closed] }
+
+    P2pOrder:
+      type: object
+      properties:
+        id: { type: integer }
+        uid: { type: string }
+        offerId: { type: integer }
+        buyerId: { type: integer }
+        sellerId: { type: integer }
+        fiat: { type: string }
+        price: { type: number }
+        qty: { type: number }
+        fiatAmount: { type: number }
+        paymentMethod: { type: string }
+        paymentAccount: { type: string }
+        paymentLabel: { type: string }
+        paymentIfsc: { type: string, nullable: true }
+        paymentHolderName: { type: string, nullable: true }
+        paymentUtr: { type: string, nullable: true }
+        status: { type: string, enum: [pending, paid, released, cancelled, disputed, expired] }
+        paidAt: { type: string, format: date-time, nullable: true }
+        releasedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        disputeReason: { type: string, nullable: true }
+        disputeOpenedBy: { type: integer, nullable: true }
+        disputeOpenedAt: { type: string, format: date-time, nullable: true }
+        role: { type: string, enum: [buyer, seller, admin] }
+        coin:
+          oneOf:
+            - $ref: "#/components/schemas/Coin"
+            - type: "null"
+        buyer: { $ref: "#/components/schemas/Merchant" }
+        seller: { $ref: "#/components/schemas/Merchant" }
+      required: [id, uid, offerId, buyerId, sellerId, fiat, price, qty, fiatAmount, paymentMethod, paymentAccount, paymentLabel, status, expiresAt, createdAt, role, buyer, seller]
+
+    # The admin disputes endpoint enriches the order with the evidenceUrl
+    # captured at dispute-open time (left-joined from p2p_disputes; null
+    # for legacy disputes opened before migration 008).
+    P2pAdminDispute:
+      allOf:
+        - $ref: "#/components/schemas/P2pOrder"
+        - type: object
+          properties:
+            disputeEvidenceUrl: { type: string, nullable: true }
+
+    # Server accepts EITHER fiatAmount OR qty, exactly one — the other is
+    # derived from the offer's frozen price. We model both as optional in
+    # the schema and document the constraint here; the runtime z.superRefine
+    # rejects "both" or "neither" with a 400.
+    P2pOrderInput:
+      type: object
+      required: [offerId, paymentMethodId]
+      properties:
+        offerId: { type: integer, minimum: 1 }
+        fiatAmount: { type: number, exclusiveMinimum: 0, description: "Provide EITHER fiatAmount OR qty (exactly one)." }
+        qty: { type: number, exclusiveMinimum: 0, description: "Provide EITHER fiatAmount OR qty (exactly one)." }
+        paymentMethodId: { type: integer, minimum: 1 }
+
+    P2pMessage:
+      type: object
+      properties:
+        id: { type: integer }
+        orderId: { type: integer }
+        senderId: { type: integer }
+        senderRole: { type: string, enum: [buyer, seller, admin, system] }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, orderId, senderId, senderRole, body, createdAt]
+
+    P2pMarkPaidInput:
+      type: object
+      properties:
+        utr: { type: string, maxLength: 60 }
+
+    P2pDisputeInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 500 }
+        evidenceUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          pattern: '^https?://'
+          description: Optional http(s) URL to a screenshot or document supporting the claim. Only http and https schemes are accepted; other schemes (e.g. javascript:, data:, file:) are rejected by the server to prevent admin-facing link injection.
+
+    P2pMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 1000 }
+
+    P2pAdminStats:
+      type: object
+      properties:
+        onlineOffers: { type: integer }
+        activeOrders: { type: integer }
+        openDisputes: { type: integer }
+        completedOrders: { type: integer }
+      required: [onlineOffers, activeOrders, openDisputes, completedOrders]
+
+    P2pResolveDisputeInput:
+      type: object
+      required: [action, notes]
+      properties:
+        action: { type: string, enum: [release, refund] }
+        notes:
+          type: string
+          minLength: 10
+          maxLength: 500
+          description: Mandatory written rationale for the resolution. Stored on the dispute and posted as an admin chat message visible to both parties.

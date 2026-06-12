@@ -1,0 +1,1 @@
+- [Zebvix project structure](zebvix-structure.md) — full crypto exchange; user-portal=/user/, admin=/admin/, api-server=/api/
