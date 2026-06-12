@@ -925,130 +925,198 @@ export default function Trade() {
           )}
         </div>
 
-        {/* Order Entry — full-width on mobile, fixed column on desktop */}
-        <div className={`order-2 lg:order-3 w-full ${isSimple ? "lg:max-w-sm lg:mx-auto" : "lg:w-[280px]"} bg-card/40 flex flex-col shrink-0 lg:overflow-y-auto border-t lg:border-t-0 border-border`}>
-          <div className="p-3 sm:p-4 space-y-3">
-            {/* Buy/Sell pill */}
-            <div className="grid grid-cols-2 gap-1 p-1 bg-muted/40 rounded-lg">
+        {/* ── Order Entry Sidebar ─────────────────────────────────── */}
+        <div className={`order-2 lg:order-3 w-full ${isSimple ? "lg:max-w-sm lg:mx-auto" : "lg:w-[288px]"} flex flex-col shrink-0 lg:overflow-y-auto border-t lg:border-t-0 border-border`}
+          style={{ background: "linear-gradient(180deg, hsl(var(--card)/0.7) 0%, hsl(var(--background)/0.5) 100%)" }}>
+          <div className="p-3 space-y-2.5">
+
+            {/* ── Balance widget ─────────────────────────────────── */}
+            <div className={cn(
+              "rounded-xl border px-3 py-2.5 transition-colors",
+              side === "buy"
+                ? "bg-emerald-500/5 border-emerald-500/20"
+                : "bg-rose-500/5 border-rose-500/20",
+            )}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                  {side === "buy" ? `${quote} Balance` : `${base} Balance`}
+                </span>
+                {user ? (
+                  <Link href="/wallet" className="text-[10px] text-primary hover:underline flex items-center gap-0.5 font-semibold">
+                    <WalletIcon className="h-2.5 w-2.5" />Deposit
+                  </Link>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">—</span>
+                )}
+              </div>
+              <div className="flex items-end justify-between gap-2">
+                <span className="font-mono font-bold text-base tabular-nums text-foreground leading-none">
+                  {user
+                    ? (side === "buy" ? fmtBal(availBuy, 2) : fmtBal(availSell, 6))
+                    : "—"}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-mono leading-none pb-0.5">
+                  {side === "buy" ? quote : base}
+                </span>
+              </div>
+              {/* Utilization bar */}
+              {user && total > 0 && (
+                <div className="mt-2">
+                  <div className="h-1 w-full rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-300", side === "buy" ? "bg-emerald-500" : "bg-rose-500")}
+                      style={{ width: `${Math.min(100, (total / Math.max(side === "buy" ? availBuy : availSell * effectivePx, 0.001)) * 100).toFixed(1)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-0.5">
+                    <span className="text-[9px] text-muted-foreground">Using {Math.min(100, (total / Math.max(side === "buy" ? availBuy : availSell * effectivePx, 0.001)) * 100).toFixed(0)}%</span>
+                    <span className="text-[9px] font-mono text-muted-foreground">{fmtNum(total, 2)} {quote}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Buy / Sell toggle ──────────────────────────────── */}
+            <div className="grid grid-cols-2 gap-1 p-1 bg-muted/30 rounded-xl border border-border/60">
               <button
                 type="button"
                 onClick={() => setSide("buy")}
-                className={`relative py-2 rounded-md text-sm font-bold transition-all ${
+                className={cn(
+                  "relative py-2.5 rounded-lg text-sm font-bold transition-all",
                   side === "buy"
-                    ? "bg-gradient-to-b from-emerald-500 to-emerald-600 text-foreground shadow-sm shadow-emerald-500/30"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-gradient-to-b from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-900/40"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                )}
               >
-                <TrendingUp className="h-3.5 w-3.5 inline-block mr-1 -mt-0.5" />
+                <TrendingUp className="h-3.5 w-3.5 inline-block mr-1.5 -mt-0.5" />
                 Buy {base}
-                <span className={`absolute top-0.5 right-1.5 text-[8px] font-mono leading-none ${side === "buy" ? "text-emerald-200/60" : "text-muted-foreground/40"}`}>B</span>
+                <span className={`absolute top-1 right-2 text-[8px] font-mono leading-none ${side === "buy" ? "text-emerald-100/50" : "text-muted-foreground/30"}`}>B</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSide("sell")}
-                className={`relative py-2 rounded-md text-sm font-bold transition-all ${
+                className={cn(
+                  "relative py-2.5 rounded-lg text-sm font-bold transition-all",
                   side === "sell"
-                    ? "bg-gradient-to-b from-rose-500 to-rose-600 text-foreground shadow-sm shadow-rose-500/30"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                    ? "bg-gradient-to-b from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-900/40"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+                )}
               >
-                <TrendingDown className="h-3.5 w-3.5 inline-block mr-1 -mt-0.5" />
+                <TrendingDown className="h-3.5 w-3.5 inline-block mr-1.5 -mt-0.5" />
                 Sell {base}
-                <span className={`absolute top-0.5 right-1.5 text-[8px] font-mono leading-none ${side === "sell" ? "text-rose-200/60" : "text-muted-foreground/40"}`}>S</span>
+                <span className={`absolute top-1 right-2 text-[8px] font-mono leading-none ${side === "sell" ? "text-rose-100/50" : "text-muted-foreground/30"}`}>S</span>
               </button>
             </div>
 
-            {/* Order type */}
-            <div className="flex gap-1 border-b border-border">
+            {/* ── Order type tabs ────────────────────────────────── */}
+            <div className="flex gap-0.5 p-0.5 bg-muted/20 rounded-lg border border-border/40">
               {((isSimple ? ["limit", "market"] : ["limit", "market", "stop"]) as OrderType[]).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => setType(t)}
-                  className={`pb-2 px-2 text-xs font-semibold transition-colors capitalize ${
+                  className={cn(
+                    "flex-1 py-1.5 text-[11px] font-semibold rounded-md transition-all capitalize",
                     type === t
-                      ? "text-primary border-b-2 border-primary -mb-px"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                      ? "bg-card text-foreground shadow-sm border border-border/60"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  {t === "stop" ? "Stop-Limit" : t}
+                  {t === "stop" ? "Stop-Limit" : t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
               ))}
             </div>
 
-            {/* Stop trigger */}
+            {/* ── Stop trigger ───────────────────────────────────── */}
             {type === "stop" && (
               <FieldRow label="Trigger Price" right={
                 <button type="button" className="text-primary text-[10px] font-semibold hover:underline" onClick={() => setStopPrice(String(lastPx || ""))}>use last</button>
               }>
                 <div className="relative">
-                  <Input type="number" inputMode="decimal" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="0.00" className="font-mono pr-12 h-9" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{quote}</span>
+                  <Input type="number" inputMode="decimal" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="0.00"
+                    className="font-mono pr-14 h-10 bg-muted/20 border-border/60 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 text-sm" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">{quote}</span>
                 </div>
               </FieldRow>
             )}
 
-            {/* Price */}
-            {type !== "market" && (
+            {/* ── Price input ────────────────────────────────────── */}
+            {type !== "market" ? (
               <FieldRow label="Price" right={
-                <div className="flex gap-1">
-                  <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground" onClick={() => setPrice(String(bestBid || lastPx))}>Bid</button>
-                  <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground" onClick={() => setPrice(String(lastPx || ""))}>Last</button>
-                  <button type="button" className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground" onClick={() => setPrice(String(bestAsk || lastPx))}>Ask</button>
+                <div className="flex gap-0.5">
+                  {[
+                    { label: "Bid", val: String(bestBid || lastPx), color: "text-emerald-400 hover:text-emerald-300" },
+                    { label: "Last", val: String(lastPx || ""), color: "text-muted-foreground hover:text-foreground" },
+                    { label: "Ask", val: String(bestAsk || lastPx), color: "text-rose-400 hover:text-rose-300" },
+                  ].map(({ label, val, color }) => (
+                    <button key={label} type="button"
+                      className={cn("text-[10px] px-1.5 py-0.5 rounded bg-muted/40 hover:bg-muted/70 font-mono font-semibold transition-colors", color)}
+                      onClick={() => setPrice(val)}>{label}</button>
+                  ))}
                 </div>
               }>
                 <div className="relative">
-                  <Input type="number" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" className="font-mono pr-12 h-9" />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{quote}</span>
+                  <Input type="number" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00"
+                    className="font-mono pr-14 h-10 bg-muted/20 border-border/60 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 text-sm" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">{quote}</span>
                 </div>
               </FieldRow>
+            ) : (
+              <div className="rounded-lg bg-muted/20 border border-border/40 px-3 py-2.5 flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Market Price</span>
+                <span className={cn("font-mono font-bold tabular-nums text-sm", pct >= 0 ? "text-emerald-400" : "text-rose-400")}>{fmtPrice(lastPx, quote)}</span>
+              </div>
             )}
 
-            {/* Amount */}
-            <FieldRow label="Amount">
+            {/* ── Amount input ───────────────────────────────────── */}
+            <FieldRow label={`Amount (${base})`}>
               <div className="relative">
-                <Input type="number" inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setPctSlider([0]); }} placeholder="0.00" className="font-mono pr-12 h-9" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{base}</span>
+                <Input type="number" inputMode="decimal" value={amount}
+                  onChange={(e) => { setAmount(e.target.value); setPctSlider([0]); }}
+                  placeholder="0.00"
+                  className="font-mono pr-14 h-10 bg-muted/20 border-border/60 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 text-sm" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">{base}</span>
               </div>
             </FieldRow>
 
-            {/* Slider */}
-            <div className="px-1">
-              <Slider value={pctSlider} onValueChange={onSliderChange} min={0} max={100} step={1} disabled={!user} className="my-3" />
+            {/* ── Percentage selector ────────────────────────────── */}
+            <div className="space-y-2">
+              <Slider value={pctSlider} onValueChange={onSliderChange} min={0} max={100} step={1} disabled={!user}
+                className={cn("my-1", side === "buy" ? "[&>span]:bg-emerald-500" : "[&>span]:bg-rose-500")} />
               <div className="grid grid-cols-4 gap-1">
-                {[0.25, 0.5, 0.75, 1].map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`text-[11px] py-1 rounded font-semibold transition-colors ${
-                      pctSlider[0] === p * 100
-                        ? "bg-primary/15 text-primary border border-primary/30"
-                        : "bg-muted/30 hover:bg-muted/60 text-muted-foreground hover:text-foreground border border-transparent"
-                    }`}
-                    onClick={() => setPct(p)}
-                  >
-                    {p === 1 ? "100%" : `${p * 100}%`}
-                  </button>
-                ))}
+                {[0.25, 0.5, 0.75, 1].map((p) => {
+                  const active = pctSlider[0] === p * 100;
+                  return (
+                    <button key={p} type="button" onClick={() => setPct(p)}
+                      className={cn(
+                        "py-1.5 rounded-lg text-[11px] font-bold transition-all border",
+                        active && side === "buy"
+                          ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                          : active && side === "sell"
+                          ? "bg-rose-500/20 border-rose-500/50 text-rose-400"
+                          : "bg-muted/20 border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                      )}
+                    >
+                      {p === 1 ? "MAX" : `${p * 100}%`}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Total */}
+            {/* ── Total ──────────────────────────────────────────── */}
             <FieldRow label={side === "buy" ? "Total Spend" : "Total Receive"}>
               <div className="relative">
-                <Input
-                  readOnly
-                  value={total > 0 ? fmtNum(total, 2) : ""}
+                <Input readOnly value={total > 0 ? fmtNum(total, 2) : ""}
                   placeholder="0.00"
-                  className="font-mono pr-12 h-9 bg-muted/20"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{quote}</span>
+                  className="font-mono pr-14 h-10 bg-muted/10 border-border/40 text-sm cursor-default" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-mono">{quote}</span>
               </div>
             </FieldRow>
 
-            {/* Switches (Advanced/Pro only) */}
+            {/* ── Switches ──────────────────────────────────────── */}
             {!isSimple && type !== "market" && (
-              <div className="flex flex-col gap-2 py-1">
+              <div className="flex flex-col gap-1.5 rounded-xl bg-muted/15 border border-border/40 px-3 py-2">
                 {type === "limit" && (
                   <ToggleRow label="Post-only" hint="Maker-only fills (cancel if would take)" checked={postOnly} onCheckedChange={setPostOnly} />
                 )}
@@ -1056,73 +1124,127 @@ export default function Trade() {
               </div>
             )}
 
-            {/* Summary */}
-            <div className="text-[11px] text-muted-foreground space-y-1 border-t border-border pt-3">
-              <SummaryRow label="Available">
-                <span className="tabular-nums font-mono text-foreground">
-                  {user
-                    ? (side === "buy" ? `${fmtBal(availBuy, 2)} ${quote}` : `${fmtBal(availSell, 6)} ${base}`)
-                    : `— ${side === "buy" ? quote : base}`}
-                </span>
-                {user && (
-                  <Link href="/wallet" className="ml-1.5 text-primary hover:underline inline-flex items-center gap-0.5">
-                    <WalletIcon className="h-3 w-3" />Deposit
-                  </Link>
-                )}
-              </SummaryRow>
+            {/* ── Spread bar (Advanced/Pro) ──────────────────────── */}
+            {!isSimple && bestBid > 0 && bestAsk > 0 && (
+              <div className="rounded-xl bg-muted/15 border border-border/40 px-3 py-2">
+                <div className="flex justify-between text-[10px] mb-1.5">
+                  <span className="font-mono text-emerald-400 font-semibold">{fmtPrice(bestBid, quote)}</span>
+                  <span className="text-muted-foreground">Spread {spreadPct.toFixed(3)}%</span>
+                  <span className="font-mono text-rose-400 font-semibold">{fmtPrice(bestAsk, quote)}</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full overflow-hidden flex">
+                  {(() => {
+                    const totalDepth = orderbook.bids.slice(0, 8).reduce((s, [, q]) => s + q, 0)
+                      + orderbook.asks.slice(0, 8).reduce((s, [, q]) => s + q, 0);
+                    const bidDepth = totalDepth > 0
+                      ? orderbook.bids.slice(0, 8).reduce((s, [, q]) => s + q, 0) / totalDepth : 0.5;
+                    return (
+                      <>
+                        <div className="h-full rounded-l-full bg-emerald-500/70 transition-all duration-500" style={{ width: `${bidDepth * 100}%` }} />
+                        <div className="h-full flex-1 rounded-r-full bg-rose-500/70" />
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="flex justify-between mt-0.5 text-[9px] text-muted-foreground">
+                  <span>Bid depth</span>
+                  <span>Ask depth</span>
+                </div>
+              </div>
+            )}
+
+            {/* ── Summary card ──────────────────────────────────── */}
+            <div className="rounded-xl bg-muted/15 border border-border/40 px-3 py-2.5 space-y-1.5 text-[11px]">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Available</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="tabular-nums font-mono text-foreground font-semibold">
+                    {user
+                      ? (side === "buy" ? `${fmtBal(availBuy, 2)} ${quote}` : `${fmtBal(availSell, 6)} ${base}`)
+                      : `— ${side === "buy" ? quote : base}`}
+                  </span>
+                </div>
+              </div>
               {!isSimple && (
-                <SummaryRow label={`Est. Fee · ${postOnly && type === "limit" ? "Maker 0.08%" : "Taker 0.10%"}`}>
-                  <span className="tabular-nums font-mono text-foreground">{fmtNum(fee, 2)} {quote}</span>
-                </SummaryRow>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    Est. Fee
+                    <span className={cn(
+                      "text-[9px] px-1 py-0.5 rounded font-bold",
+                      postOnly && type === "limit"
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+                    )}>
+                      {postOnly && type === "limit" ? "MAKER 0.08%" : "TAKER 0.10%"}
+                    </span>
+                  </span>
+                  <span className="tabular-nums font-mono text-foreground">{fee > 0 ? fmtNum(fee, 2) : "—"} {quote}</span>
+                </div>
               )}
-              <SummaryRow label={side === "buy" ? "Total + Fee" : "You receive"}>
-                <span className="tabular-nums font-mono text-foreground font-semibold">{fmtNum(totalWithFee, 2)} {quote}</span>
-              </SummaryRow>
+              <div className="h-px bg-border/50 my-0.5" />
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-semibold">{side === "buy" ? "Total + Fee" : "You receive"}</span>
+                <span className={cn(
+                  "tabular-nums font-mono font-bold text-sm",
+                  totalWithFee > 0 ? (side === "buy" ? "text-emerald-400" : "text-rose-400") : "text-foreground",
+                )}>
+                  {totalWithFee > 0 ? fmtNum(totalWithFee, 2) : "—"} {quote}
+                </span>
+              </div>
               {isPro && spread > 0 && (
                 <>
-                  <SummaryRow label="Best Bid">
-                    <span className="tabular-nums font-mono text-success">{fmtPrice(bestBid, quote)}</span>
-                  </SummaryRow>
-                  <SummaryRow label="Best Ask">
-                    <span className="tabular-nums font-mono text-destructive">{fmtPrice(bestAsk, quote)}</span>
-                  </SummaryRow>
-                  <SummaryRow label="Spread">
-                    <span className="tabular-nums font-mono text-foreground">{fmtNum(spread, quote === "INR" ? 2 : 4)} ({spreadPct.toFixed(3)}%)</span>
-                  </SummaryRow>
+                  <div className="h-px bg-border/50 my-0.5" />
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Best Bid</span>
+                    <span className="tabular-nums font-mono text-emerald-400">{fmtPrice(bestBid, quote)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Best Ask</span>
+                    <span className="tabular-nums font-mono text-rose-400">{fmtPrice(bestAsk, quote)}</span>
+                  </div>
                 </>
               )}
             </div>
 
-            {/* CTA */}
+            {/* ── CTA button ────────────────────────────────────── */}
             <Button
-              className={`w-full font-bold h-11 text-sm transition-transform active:scale-[0.98] ${
+              className={cn(
+                "w-full font-bold h-12 text-sm transition-all active:scale-[0.98] rounded-xl",
                 side === "buy"
-                  ? "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-foreground shadow-md shadow-emerald-500/30"
-                  : "bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-foreground shadow-md shadow-rose-500/30"
-              }`}
+                  ? "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white shadow-lg shadow-emerald-900/40 border border-emerald-400/30"
+                  : "bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 text-white shadow-lg shadow-rose-900/40 border border-rose-400/30",
+              )}
               onClick={handleOrder}
               disabled={orderMutation.isPending || !user}
             >
-              {!user
-                ? "Log in to Trade"
-                : orderMutation.isPending
-                  ? "Placing…"
-                  : side === "buy"
-                    ? `Buy ${base}`
-                    : `Sell ${base}`}
+              {!user ? (
+                <span className="flex items-center gap-2">
+                  <WalletIcon className="h-4 w-4 opacity-70" />Log in to Trade
+                </span>
+              ) : orderMutation.isPending ? (
+                <span className="flex items-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" />Placing…</span>
+              ) : side === "buy" ? (
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />Buy {base}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4" />Sell {base}
+                </span>
+              )}
             </Button>
 
-            {/* AI Trade button */}
+            {/* ── AI Trade button ───────────────────────────────── */}
             <button
               type="button"
               disabled={!user || !lastPx}
               onClick={() => { setAiOpen(true); generateAiSuggestion(); }}
               className={cn(
-                "w-full h-9 rounded-md text-[12px] font-bold flex items-center justify-center gap-2 transition-all border",
-                "bg-gradient-to-r from-violet-600/20 via-purple-600/20 to-amber-500/20",
-                "border-violet-500/40 hover:border-violet-400/70 text-violet-300 hover:text-violet-200",
-                "hover:from-violet-600/30 hover:via-purple-600/30 hover:to-amber-500/30",
-                "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-violet-500/40",
+                "w-full h-9 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition-all border",
+                "bg-gradient-to-r from-violet-600/15 via-purple-600/15 to-amber-500/15",
+                "border-violet-500/30 hover:border-violet-400/60 text-violet-300 hover:text-violet-200",
+                "hover:from-violet-600/25 hover:via-purple-600/25 hover:to-amber-500/25",
+                "disabled:opacity-35 disabled:cursor-not-allowed",
               )}
             >
               <Brain className="h-3.5 w-3.5 text-amber-400" />
@@ -1130,6 +1252,7 @@ export default function Trade() {
               <Sparkles className="h-3 w-3 text-violet-400" />
             </button>
 
+            {/* ── Auth prompt ───────────────────────────────────── */}
             {!user && (
               <div className="text-[11px] text-center text-muted-foreground">
                 <Link href="/login" className="text-primary font-semibold hover:underline">Log in</Link>
@@ -1139,11 +1262,11 @@ export default function Trade() {
               </div>
             )}
 
-            {/* Pair badge */}
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground border-t border-border pt-3">
-              <Info className="h-3 w-3" />
+            {/* ── Pair info badge ───────────────────────────────── */}
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground border-t border-border/40 pt-2.5">
+              <Info className="h-3 w-3 shrink-0" />
               <span>Spot · Settled in {quote}</span>
-              <Badge variant="outline" className="ml-auto h-4 px-1.5 text-[9px]">ZBX-20</Badge>
+              <Badge variant="outline" className="ml-auto h-4 px-1.5 text-[9px] border-border/60">ZBX-20</Badge>
             </div>
           </div>
         </div>
@@ -1346,7 +1469,7 @@ function Stat({ label, children, tone, className }: { label: string; children: R
 function FieldRow({ label, right, children }: { label: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[11px] text-muted-foreground mb-1 flex justify-between items-center">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 flex justify-between items-center">
         <span>{label}</span>
         {right}
       </div>
@@ -1357,12 +1480,12 @@ function FieldRow({ label, right, children }: { label: string; right?: React.Rea
 
 function ToggleRow({ label, hint, checked, onCheckedChange }: { label: string; hint?: string; checked: boolean; onCheckedChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center justify-between gap-2 cursor-pointer group">
+    <label className="flex items-center justify-between gap-3 cursor-pointer group py-0.5">
       <div className="flex flex-col">
-        <span className="text-xs font-medium">{label}</span>
-        {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
+        <span className="text-xs font-semibold text-foreground/90">{label}</span>
+        {hint && <span className="text-[10px] text-muted-foreground leading-tight mt-0.5">{hint}</span>}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch checked={checked} onCheckedChange={onCheckedChange} className="shrink-0" />
     </label>
   );
 }
