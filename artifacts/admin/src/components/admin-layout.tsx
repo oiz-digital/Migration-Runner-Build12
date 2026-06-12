@@ -120,6 +120,8 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/earn",                    label: "Earn Products",       icon: PiggyBank,   roles: ["support", "admin", "superadmin"] },
       { href: "/ai-trading-plans",        label: "AI Trading Plans",    icon: Bot,         roles: ["admin", "superadmin"] },
+      { href: "/team",                    label: "Team Members",        icon: Users,       roles: ["marketing", "admin", "superadmin"] },
+      { href: "/company-media",           label: "Company Images",      icon: Building2,   roles: ["marketing", "admin", "superadmin"] },
       { href: "/banners",                 label: "Home Banners",        icon: Megaphone,   roles: ["marketing", "admin", "superadmin"] },
       { href: "/promotions",              label: "Promotions",          icon: Trophy,      roles: ["marketing", "admin", "superadmin"] },
       { href: "/announcements",           label: "Announcements",       icon: Bell,        roles: ["marketing", "admin", "superadmin"] },

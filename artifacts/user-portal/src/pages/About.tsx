@@ -16,10 +16,25 @@ import {
   Layers,
   Zap,
   HeartHandshake,
+  Linkedin,
+  Twitter,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { get } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+type TeamMember = {
+  id: number; name: string; title: string; bio: string;
+  avatarUrl: string; linkedinUrl: string; twitterUrl: string;
+  displayOrder: number; isVisible: boolean;
+};
+type CompanyMedia = {
+  id: number; category: string; title: string; caption: string;
+  url: string; displayOrder: number; isActive: boolean;
+};
 
 const STATS = [
   { label: "Registered users", value: "2.4M+" },
@@ -73,6 +88,82 @@ const VALUES = [
   { title: "Performance", body: "Trading should never feel slow. Our L1 + matching engine target 99.99% uptime." },
   { title: "Education", body: "We invest in user education — what crypto is, what the risks are, how to protect yourself." },
 ];
+
+function TeamSection() {
+  const { data: members = [] } = useQuery<TeamMember[]>({
+    queryKey: ["public", "team"],
+    queryFn: () => get<TeamMember[]>("/company/team"),
+    staleTime: 5 * 60 * 1000,
+  });
+  if (members.length === 0) return null;
+  return (
+    <section className="mb-16">
+      <Badge variant="outline" className="mb-3"><Users className="h-3 w-3 mr-1.5" /> The people behind Zebvix</Badge>
+      <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-8">Meet the team</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+        {members.map((m) => (
+          <div key={m.id} className="rounded-xl border border-border bg-card/40 p-5 text-center flex flex-col items-center">
+            <Avatar className="w-16 h-16 mb-3">
+              {m.avatarUrl && <AvatarImage src={m.avatarUrl} alt={m.name} />}
+              <AvatarFallback className="text-base font-bold bg-primary/10 text-primary">
+                {m.name.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="font-semibold text-sm">{m.name}</div>
+            <div className="text-xs text-muted-foreground mt-0.5 mb-2">{m.title}</div>
+            {m.bio && <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-3 mb-3">{m.bio}</p>}
+            <div className="flex items-center gap-2 mt-auto">
+              {m.linkedinUrl && (
+                <a href={m.linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Linkedin className="w-4 h-4" />
+                </a>
+              )}
+              {m.twitterUrl && (
+                <a href={m.twitterUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Twitter className="w-4 h-4" />
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CompanyGallery() {
+  const { data: media = [] } = useQuery<CompanyMedia[]>({
+    queryKey: ["public", "company-media"],
+    queryFn: () => get<CompanyMedia[]>("/company/media"),
+    staleTime: 5 * 60 * 1000,
+  });
+  if (media.length === 0) return null;
+  return (
+    <section className="mb-16">
+      <Badge variant="outline" className="mb-3"><Building2 className="h-3 w-3 mr-1.5" /> Life at Zebvix</Badge>
+      <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mb-8">Our workplace</h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {media.map((m) => (
+          <div key={m.id} className="rounded-xl overflow-hidden border border-border bg-card/30 group">
+            <div className="aspect-video overflow-hidden">
+              <img
+                src={m.url}
+                alt={m.title || m.caption || m.category}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            </div>
+            {(m.title || m.caption) && (
+              <div className="px-3 py-2">
+                {m.title && <div className="text-xs font-medium">{m.title}</div>}
+                {m.caption && <div className="text-xs text-muted-foreground mt-0.5">{m.caption}</div>}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function About() {
   return (
@@ -256,6 +347,12 @@ export default function About() {
           </CardContent>
         </Card>
       </section>
+
+      {/* ── Team ─────────────────────────────────────────────── */}
+      <TeamSection />
+
+      {/* ── Company Gallery ──────────────────────────────────── */}
+      <CompanyGallery />
 
       {/* ── CTA ──────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-8 md:p-12 text-center">

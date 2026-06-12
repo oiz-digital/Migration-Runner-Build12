@@ -209,3 +209,34 @@ export const broadcastNotificationsTable = pgTable("broadcast_notifications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 export type BroadcastNotification = typeof broadcastNotificationsTable.$inferSelect;
+
+// ── Team Members ──────────────────────────────────────────────────────────────
+export const teamMembersTable = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  title: text("title").notNull().default(""),
+  bio: text("bio").notNull().default(""),
+  avatarUrl: text("avatar_url").notNull().default(""),
+  linkedinUrl: text("linkedin_url").notNull().default(""),
+  twitterUrl: text("twitter_url").notNull().default(""),
+  displayOrder: integer("display_order").notNull().default(0),
+  isVisible: boolean("is_visible").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+export type TeamMember = typeof teamMembersTable.$inferSelect;
+
+// ── Company Media ─────────────────────────────────────────────────────────────
+export const companyMediaTable = pgTable("company_media", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull().default("general"),
+  title: text("title").notNull().default(""),
+  caption: text("caption").notNull().default(""),
+  url: text("url").notNull(),
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  updatedBy: integer("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+export type CompanyMedia = typeof companyMediaTable.$inferSelect;
