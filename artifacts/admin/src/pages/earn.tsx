@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CoinSelect } from "@/components/ui/coin-select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -726,12 +727,14 @@ function ProductDialog({
           <FormSection title="Basics" icon={Coins}>
             <Grid2>
               <Field label="Coin *">
-                <Select value={draft.coinId ? String(draft.coinId) : ""} onValueChange={(c) => set("coinId", Number(c))} disabled={!isCreate}>
-                  <SelectTrigger data-testid="dialog-coin"><SelectValue placeholder="Select coin" /></SelectTrigger>
-                  <SelectContent>
-                    {coins.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.symbol}{c.name ? ` — ${c.name}` : ""}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <CoinSelect
+                  coins={coins}
+                  value={draft.coinId ? String(draft.coinId) : ""}
+                  onValueChange={(c) => set("coinId", Number(c))}
+                  placeholder="Select coin"
+                  disabled={!isCreate}
+                  data-testid="dialog-coin"
+                />
               </Field>
               <Field label="Type *">
                 <Select value={draft.type ?? "simple"} onValueChange={(t) => set("type", t)}>

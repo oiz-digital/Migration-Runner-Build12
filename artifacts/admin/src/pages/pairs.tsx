@@ -20,6 +20,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CoinSelect } from "@/components/ui/coin-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -381,16 +382,22 @@ function PairFormDialog({
         <div className="max-h-[68vh] overflow-y-auto pr-1 space-y-4">
           <FormSection icon={Tag} title="Identity">
             <Field label="Base coin *">
-              <Select value={v.baseCoinId ? String(v.baseCoinId) : ""} onValueChange={(c) => set("baseCoinId", Number(c))}>
-                <SelectTrigger data-testid="select-base-coin"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{coins.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.symbol}</SelectItem>)}</SelectContent>
-              </Select>
+              <CoinSelect
+                coins={coins}
+                value={v.baseCoinId ? String(v.baseCoinId) : ""}
+                onValueChange={(c) => set("baseCoinId", Number(c))}
+                placeholder="Select base coin"
+                data-testid="select-base-coin"
+              />
             </Field>
             <Field label="Quote coin *">
-              <Select value={v.quoteCoinId ? String(v.quoteCoinId) : ""} onValueChange={(c) => set("quoteCoinId", Number(c))}>
-                <SelectTrigger data-testid="select-quote-coin"><SelectValue placeholder="Select" /></SelectTrigger>
-                <SelectContent>{coins.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.symbol}</SelectItem>)}</SelectContent>
-              </Select>
+              <CoinSelect
+                coins={coins}
+                value={v.quoteCoinId ? String(v.quoteCoinId) : ""}
+                onValueChange={(c) => set("quoteCoinId", Number(c))}
+                placeholder="Select quote coin"
+                data-testid="select-quote-coin"
+              />
             </Field>
             <Field label="Description" full>
               <Textarea rows={2} value={v.description ?? ""} onChange={(e) => set("description", e.target.value)} placeholder="Optional pair description shown to users" />

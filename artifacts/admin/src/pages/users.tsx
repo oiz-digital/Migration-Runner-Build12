@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CoinSelect } from "@/components/ui/coin-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -1016,14 +1017,14 @@ function FundDialog({ user, onClose, onSuccess }: { user: User | null; onClose: 
 
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Coin</label>
-              <Select value={coinId} onValueChange={setCoinId}>
-                <SelectTrigger><SelectValue placeholder="Select coin" /></SelectTrigger>
-                <SelectContent>
-                  {coins.filter((c) => c.status === "active").map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>{c.symbol} — {c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CoinSelect
+                coins={coins}
+                value={coinId}
+                onValueChange={setCoinId}
+                placeholder="Select coin"
+                activeOnly
+                data-testid="select-fund-coin"
+              />
             </div>
 
             <div>
