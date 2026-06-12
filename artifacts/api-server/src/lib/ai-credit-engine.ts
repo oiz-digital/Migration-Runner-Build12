@@ -1,163 +1,384 @@
-import { db, aiTradingPlansTable, aiTradingSubscriptionsTable, aiTradingEarningsTable, walletsTable, walletLedgerTable, coinsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+/**
+ * ai-credit-engine.ts  v2
+ *
+ * Professional AI trading simulation with realistic win/loss distribution.
+ *
+ * Rules:
+ *  - Effective daily return = min(plan.dailyReturnPercent, MAX_DAILY_PCT) → hard cap 1.3 %
+ *  - Actual daily varies in [dayFloor × effectiveDailyPct, effectiveDailyPct]
+ *  - Risk-based loss entry frequency:
+ *      low    → ~2  loss ticks / day, small debits
+ *      medium → ~4  loss ticks / day, moderate debits
+ *      high   → ~7  loss ticks / day, significant debits (wins compensate)
+ *  - Win multipliers are sized so EXPECTED net/day ≈ effectiveDailyPct
+ *  - Daily cap enforced via DB sum → wins stop once daily budget is consumed
+ *  - Each entry carries a trade-style note visible in the earnings log
+ *  - Deterministic per (userId, subId, tickKey) — safe to restart
+ */
+
+import {
+  db,
+  aiTradingPlansTable,
+  aiTradingSubscriptionsTable,
+  aiTradingEarningsTable,
+  walletsTable,
+  walletLedgerTable,
+  coinsTable,
+} from "@workspace/db";
+import { eq, and, gte, sum } from "drizzle-orm";
 import { logger } from "./logger";
 import { isLeader } from "./leader";
 import { creditReferralChain } from "./trading-fee-referral";
 import { loadReferralConfig } from "../routes/admin-referrals";
 
-const TICK_MS = 60 * 60 * 1000; // 1 hour
+// ─── Constants ────────────────────────────────────────────────────────────────
+/** Absolute daily return cap — no plan ever earns more than this per day */
+const MAX_DAILY_PCT = 1.3;
 
-/* ── Daily variance — deterministic per (userId, subId, dayKey) ─────────── */
-function getDayVariance(userId: number, subId: number, dayKey: number): number {
-  const seed = ((userId * 31337 + subId * 7919 + dayKey * 1009) % 10000) / 10000;
-  const variance = 0.6 + seed * 0.9; // 0.60 – 1.50 multiplier
-  return variance;
+/** Engine fires every hour */
+const TICK_MS = 60 * 60 * 1000;
+
+// ─── Risk profiles ────────────────────────────────────────────────────────────
+interface RiskProfile {
+  /** Fraction of ticks that are losses (0–1); engine runs ~24 ticks/day */
+  lossTickRate: number;
+  /** Loss multiplier range [min, max] — both values are negative */
+  lossRange:    [number, number];
+  /** Win multiplier range [min, max] — both values are positive */
+  winRange:     [number, number];
+  /** Minimum daily target as fraction of effectiveDailyPct */
+  dayFloor:     number;
 }
 
-/* ── Wallet helpers ─────────────────────────────────────────────────────── */
+/**
+ * Win ranges are set so expected(net per tick) ≈ baseTick × 1.0
+ *
+ * high example:  0.71 × 1.90 − 0.29 × 0.775 ≈ 1.12 × base
+ * The excess is clipped by the daily cap, keeping net ≤ effectiveDailyPct.
+ */
+const RISK_PROFILES: Record<string, RiskProfile> = {
+  low: {
+    lossTickRate: 0.08,           // ≈ 2 losses / day
+    lossRange:    [-0.15, -0.40], // small debits: 15–40 % of base tick
+    winRange:     [1.00,   1.25], // steady, predictable wins
+    dayFloor:     0.90,           // day always ≥ 90 % of target
+  },
+  medium: {
+    lossTickRate: 0.17,           // ≈ 4 losses / day
+    lossRange:    [-0.30, -0.65], // moderate debits
+    winRange:     [1.20,   1.70], // higher wins to offset losses
+    dayFloor:     0.83,
+  },
+  high: {
+    lossTickRate: 0.29,           // ≈ 7 losses / day
+    lossRange:    [-0.45, -1.10], // significant debits
+    winRange:     [1.60,   2.20], // large wins; daily cap keeps net ≤ 1.3 %
+    dayFloor:     0.75,
+  },
+};
+
+// ─── Deterministic hash ───────────────────────────────────────────────────────
+/** Returns a float in [0, 1) — deterministic for given integer seeds */
+function phash(a: number, b: number, c: number): number {
+  let x = ((a * 31337 + b * 7919 + c * 1009) & 0x7fffffff) >>> 0;
+  x ^= x << 13;
+  x ^= x >>> 7;
+  x ^= x << 17;
+  return (x >>> 0) / 0x100000000;
+}
+
+// ─── Trade note pools ─────────────────────────────────────────────────────────
+const WIN_NOTES = [
+  "BTC/USDT Long — MA crossover breakout",
+  "ETH/USDT Short — RSI reversal captured",
+  "SOL/USDT Long — momentum continuation",
+  "BNB/USDT Long — range breakout scalp",
+  "BTC/USDT Short — bear flag target hit",
+  "XRP/USDT Long — support bounce entry",
+  "ETH/USDT Long — VWAP reclaim",
+  "BTC/USDT Long — volume spike signal",
+  "SOL/USDT Short — resistance rejection",
+  "DOGE/USDT Long — trend follow entry",
+  "ADA/USDT Long — accumulation zone buy",
+  "MATIC/USDT Short — trend reversal play",
+];
+
+const LOSS_NOTES = [
+  "BTC/USDT Long — stop-loss triggered",
+  "ETH/USDT Long — support break, SL hit",
+  "SOL/USDT Short — spike stopped out",
+  "BNB/USDT Long — SL hit at structure",
+  "BTC/USDT Short — reversal stopped out",
+  "XRP/USDT Long — failed breakout, SL",
+  "ETH/USDT Short — news spike stopped out",
+  "BTC/USDT Long — false breakout, SL hit",
+];
+
+function pickNote(isLoss: boolean, subId: number, tickKey: number): string {
+  const pool = isLoss ? LOSS_NOTES : WIN_NOTES;
+  const idx  = Math.floor(phash(subId, tickKey, 42) * pool.length);
+  return pool[Math.min(idx, pool.length - 1)];
+}
+
+// ─── Wallet helpers ───────────────────────────────────────────────────────────
 async function getUsdtCoinId(): Promise<number | null> {
-  const [coin] = await db.select({ id: coinsTable.id }).from(coinsTable)
-    .where(eq(coinsTable.symbol, "USDT")).limit(1);
-  return coin?.id ?? null;
+  const [c] = await db
+    .select({ id: coinsTable.id })
+    .from(coinsTable)
+    .where(eq(coinsTable.symbol, "USDT"))
+    .limit(1);
+  return c?.id ?? null;
 }
 
 async function getSpotWallet(userId: number, coinId: number) {
-  const [w] = await db.select().from(walletsTable)
-    .where(and(eq(walletsTable.userId, userId), eq(walletsTable.walletType, "spot"), eq(walletsTable.coinId, coinId)))
+  const [w] = await db
+    .select()
+    .from(walletsTable)
+    .where(
+      and(
+        eq(walletsTable.userId, userId),
+        eq(walletsTable.walletType, "spot"),
+        eq(walletsTable.coinId, coinId),
+      ),
+    )
     .limit(1);
-  return w;
+  return w ?? null;
 }
 
-async function updateWalletBalance(walletId: number, balance: string) {
-  await db.update(walletsTable).set({ balance, updatedAt: new Date() })
-    .where(eq(walletsTable.id, walletId));
-}
-
-/* ── Referral commission chain (admin-configurable rates) ───────────────── */
-async function creditAIReferralChain(userId: number, creditAmount: number): Promise<void> {
+// ─── Referral ─────────────────────────────────────────────────────────────────
+async function creditAIReferralChain(userId: number, amount: number): Promise<void> {
   const usdtCoinId = await getUsdtCoinId();
   if (!usdtCoinId) return;
-
-  const config = await loadReferralConfig();
-  if (!config.enabled) return;
-
-  await creditReferralChain(userId, creditAmount, usdtCoinId, "ai_trading", config.ai);
+  const cfg = await loadReferralConfig();
+  if (!cfg.enabled) return;
+  await creditReferralChain(userId, amount, usdtCoinId, "ai_trading", cfg.ai);
 }
 
-/* ── Main tick ──────────────────────────────────────────────────────────── */
+// ─── Daily earned (positive credits only, since midnight UTC) ─────────────────
+async function getTodayPositiveEarned(subId: number, dayKey: number): Promise<number> {
+  const dayStart = new Date(dayKey * 86_400_000); // UTC midnight
+  const [row] = await db
+    .select({ total: sum(aiTradingEarningsTable.amountUsdt) })
+    .from(aiTradingEarningsTable)
+    .where(
+      and(
+        eq(aiTradingEarningsTable.subscriptionId, subId),
+        gte(aiTradingEarningsTable.creditedAt, dayStart),
+      ),
+    );
+  // Only count positive credits toward the daily cap
+  return Math.max(0, parseFloat(row?.total ?? "0"));
+}
+
+// ─── Main tick ────────────────────────────────────────────────────────────────
 async function creditTick(): Promise<void> {
   if (!isLeader()) return;
 
-  const now    = new Date();
-  const dayKey = Math.floor(now.getTime() / 86400000);
+  const now = new Date();
+  // Unique integer per hour — deterministic seed for this tick
+  const tickKey = Math.floor(now.getTime() / TICK_MS);
+  const dayKey  = Math.floor(now.getTime() / 86_400_000);
 
   const usdtCoinId = await getUsdtCoinId();
-  if (!usdtCoinId) { logger.warn("ai-credit: USDT coin not found, skipping tick"); return; }
+  if (!usdtCoinId) {
+    logger.warn("ai-credit: USDT coin not found, skipping tick");
+    return;
+  }
 
-  const activeSubs = await db.select().from(aiTradingSubscriptionsTable)
+  const activeSubs = await db
+    .select()
+    .from(aiTradingSubscriptionsTable)
     .where(eq(aiTradingSubscriptionsTable.status, "active"));
 
   for (const sub of activeSubs) {
     try {
-      const [plan] = await db.select().from(aiTradingPlansTable)
+      const [plan] = await db
+        .select()
+        .from(aiTradingPlansTable)
         .where(eq(aiTradingPlansTable.id, sub.planId));
       if (!plan) continue;
 
       const invested     = parseFloat(sub.investedAmount);
-      const dailyPct     = parseFloat(plan.dailyReturnPercent);
-      const hourlyRate   = dailyPct / 100 / 24;
+      const planDailyPct = parseFloat(plan.dailyReturnPercent);
+
+      // ── Hard cap: never above MAX_DAILY_PCT regardless of plan setting ──
+      const effectiveDailyPct = Math.min(planDailyPct, MAX_DAILY_PCT);
+
       const lastCredited = sub.lastCreditedAt ?? sub.startedAt;
       const elapsedMs    = now.getTime() - new Date(lastCredited).getTime();
       const elapsedHours = elapsedMs / (1000 * 60 * 60);
-
       if (elapsedHours < 0.5) continue;
 
-      const baseCredit   = invested * hourlyRate * elapsedHours;
-      const variance     = getDayVariance(sub.userId, sub.id, dayKey);
-      const rawCredit    = parseFloat((baseCredit * variance).toFixed(8));
-      const totalEarned  = parseFloat(sub.totalEarned ?? "0");
-      const credit       = rawCredit < 0 ? Math.max(rawCredit, -(totalEarned * 0.15)) : rawCredit;
+      // ── Risk profile ─────────────────────────────────────────────────────
+      const riskKey = (plan.riskLevel ?? "medium").toLowerCase();
+      const profile  = RISK_PROFILES[riskKey] ?? RISK_PROFILES["medium"]!;
 
-      if (Math.abs(credit) < 0.00000001) continue;
+      // ── Day-level multiplier: [dayFloor, 1.0] × effectiveDailyPct ───────
+      // Seeded per (user, sub, day) → same day always targets same amount
+      const daySeed = phash(sub.userId, sub.id, dayKey);
+      const dayMul  = profile.dayFloor + daySeed * (1.0 - profile.dayFloor);
 
-      const wallet     = await getSpotWallet(sub.userId, usdtCoinId);
-      const prevFree   = parseFloat(wallet?.balance ?? "0");
-      const newFree    = Math.max(0, prevFree + credit);
+      // ── Base credit for this elapsed period ──────────────────────────────
+      // = proportional share of today's target for elapsedHours
+      const baseTick = invested * (effectiveDailyPct / 100 / 24) * elapsedHours * dayMul;
 
-      if (wallet) {
-        await updateWalletBalance(wallet.id, String(newFree));
+      // ── Win or loss decision — deterministic per tick ────────────────────
+      const lossSeed = phash(sub.userId, sub.id, tickKey * 3);
+      const isLoss   = lossSeed < profile.lossTickRate;
+
+      // ── Tick multiplier ───────────────────────────────────────────────────
+      const sizeSeed = phash(sub.userId, sub.id, tickKey * 7 + 1);
+      let multiplier: number;
+      if (isLoss) {
+        const [lo, hi] = profile.lossRange;
+        multiplier = lo + sizeSeed * (hi - lo); // negative
+      } else {
+        const [lo, hi] = profile.winRange;
+        multiplier = lo + sizeSeed * (hi - lo); // positive
       }
 
+      let credit = parseFloat((baseTick * multiplier).toFixed(8));
+
+      // ── Daily cap: wins stop once daily budget is consumed ───────────────
+      if (credit > 0) {
+        const todayEarned = await getTodayPositiveEarned(sub.id, dayKey);
+        const maxDay      = invested * effectiveDailyPct / 100;
+        const remaining   = maxDay - todayEarned;
+        if (remaining <= 1e-8) continue; // daily budget fully consumed
+        credit = Math.min(credit, remaining);
+      }
+
+      // ── Floor: loss cannot wipe out more than 20 % of lifetime earned ───
+      const totalEarned = parseFloat(sub.totalEarned ?? "0");
+      if (credit < 0) {
+        credit = Math.max(credit, -(totalEarned * 0.20));
+      }
+
+      if (Math.abs(credit) < 0.000001) continue;
+
+      // ── Apply to wallet ───────────────────────────────────────────────────
+      const wallet   = await getSpotWallet(sub.userId, usdtCoinId);
+      const prevFree = parseFloat(wallet?.balance ?? "0");
+      const newFree  = Math.max(0, prevFree + credit);
+
+      if (wallet) {
+        await db
+          .update(walletsTable)
+          .set({ balance: String(newFree), updatedAt: new Date() })
+          .where(eq(walletsTable.id, wallet.id));
+      }
+
+      // ── Earnings record (note embedded in planName for UI display) ───────
+      const note = pickNote(isLoss, sub.id, tickKey);
       await db.insert(aiTradingEarningsTable).values({
         userId:         sub.userId,
         subscriptionId: sub.id,
-        planName:       plan.name,
+        planName:       `${plan.name} — ${note}`,
         amountUsdt:     String(credit),
         creditedAt:     now,
       });
 
-      // Write to unified wallet ledger
-      await db.insert(walletLedgerTable).values({
-        userId:        sub.userId,
-        coinId:        usdtCoinId,
-        walletType:    "spot",
-        type:          "ai_earning",
-        amount:        String(credit),
-        balanceBefore: String(prevFree),
-        balanceAfter:  String(newFree),
-        refType:       "ai_trading_subscription",
-        refId:         String(sub.id),
-        note:          `AI plan: ${plan.name}`,
-        createdAt:     now,
-      }).catch(err => logger.warn({ err: err?.message }, "ai-credit: ledger write failed"));
+      // ── Wallet ledger ─────────────────────────────────────────────────────
+      await db
+        .insert(walletLedgerTable)
+        .values({
+          userId:        sub.userId,
+          coinId:        usdtCoinId,
+          walletType:    "spot",
+          type:          "ai_earning",
+          amount:        String(credit),
+          balanceBefore: String(prevFree),
+          balanceAfter:  String(newFree),
+          refType:       "ai_trading_subscription",
+          refId:         String(sub.id),
+          note,
+          createdAt:     now,
+        })
+        .catch(err =>
+          logger.warn({ err: (err as Error)?.message }, "ai-credit: ledger write failed"),
+        );
 
+      // ── Referral commission only on profitable ticks ─────────────────────
       if (credit > 0) {
         await creditAIReferralChain(sub.userId, credit).catch(err =>
-          logger.warn({ err: err?.message, subId: sub.id }, "ai-credit: referral chain error"),
+          logger.warn({ err: (err as Error)?.message, subId: sub.id }, "ai-credit: referral error"),
         );
       }
 
-      const newTotalEarned = parseFloat((totalEarned + credit).toFixed(8));
-      // No-expire bots (expiresAt == null) run indefinitely until manually stopped.
-      const isExpired      = sub.expiresAt != null && now >= new Date(sub.expiresAt);
+      // ── Update subscription totals ────────────────────────────────────────
+      const newTotal  = parseFloat((totalEarned + credit).toFixed(8));
+      const isExpired = sub.expiresAt != null && now >= new Date(sub.expiresAt);
 
-      await db.update(aiTradingSubscriptionsTable).set({
-        totalEarned:    String(newTotalEarned),
-        lastCreditedAt: now,
-        ...(isExpired ? { status: "completed" } : {}),
-      }).where(eq(aiTradingSubscriptionsTable.id, sub.id));
+      await db
+        .update(aiTradingSubscriptionsTable)
+        .set({
+          totalEarned:    String(newTotal),
+          lastCreditedAt: now,
+          ...(isExpired ? { status: "completed" } : {}),
+        })
+        .where(eq(aiTradingSubscriptionsTable.id, sub.id));
 
+      // ── Return principal on plan expiry ───────────────────────────────────
       if (isExpired) {
         const w2 = await getSpotWallet(sub.userId, usdtCoinId);
         if (w2) {
-          await db.update(walletsTable).set({
-            balance: String(parseFloat(w2.balance ?? "0") + invested),
-            locked:  String(Math.max(0, parseFloat(w2.locked ?? "0") - invested)),
-            updatedAt: new Date(),
-          }).where(eq(walletsTable.id, w2.id));
+          await db
+            .update(walletsTable)
+            .set({
+              balance:   String(parseFloat(w2.balance ?? "0") + invested),
+              locked:    String(Math.max(0, parseFloat(w2.locked ?? "0") - invested)),
+              updatedAt: new Date(),
+            })
+            .where(eq(walletsTable.id, w2.id));
         }
-        logger.info({ subId: sub.id, userId: sub.userId }, "ai-credit: subscription completed, principal returned");
+        logger.info(
+          { subId: sub.id, userId: sub.userId },
+          "ai-credit: subscription completed, principal returned",
+        );
       }
 
-      const tag = credit >= 0 ? "+" : "";
+      const sign = credit >= 0 ? "+" : "";
       logger.info(
-        { subId: sub.id, userId: sub.userId, credit: `${tag}${credit.toFixed(6)}`, variance: variance.toFixed(3), planName: plan.name },
-        credit >= 0 ? "ai-credit: profit credited" : "ai-credit: loss day — small debit",
+        {
+          subId:     sub.id,
+          userId:    sub.userId,
+          credit:    `${sign}${credit.toFixed(6)} USDT`,
+          risk:      riskKey,
+          isLoss,
+          effectiveCap: `${effectiveDailyPct}% (plan ${planDailyPct}%)`,
+          note,
+        },
+        isLoss ? "ai-credit: loss entry" : "ai-credit: profit entry",
       );
     } catch (err: unknown) {
-      logger.warn({ subId: sub.id, err: (err as Error)?.message }, "ai-credit: tick error on subscription");
+      logger.warn(
+        { subId: sub.id, err: (err as Error)?.message },
+        "ai-credit: tick error on subscription",
+      );
     }
   }
 }
 
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 export function startAICreditEngine(): void {
-  setTimeout(() => {
-    creditTick().catch(err => logger.warn({ err: err?.message }, "ai-credit: initial tick failed"));
-  }, 10_000);
+  // Small delay on first start to let DB connections settle
+  setTimeout(
+    () =>
+      creditTick().catch(err =>
+        logger.warn({ err: (err as Error)?.message }, "ai-credit: initial tick failed"),
+      ),
+    10_000,
+  );
 
-  setInterval(() => {
-    creditTick().catch(err => logger.warn({ err: err?.message }, "ai-credit: tick failed"));
-  }, TICK_MS);
+  setInterval(
+    () =>
+      creditTick().catch(err =>
+        logger.warn({ err: (err as Error)?.message }, "ai-credit: tick failed"),
+      ),
+    TICK_MS,
+  );
 
-  logger.info("ai-credit-engine: initialized (1h interval, daily variance, 5-level referral commissions)");
+  logger.info(
+    "ai-credit-engine: v2 started — hourly ticks, max 1.3 %/day cap, risk-based losses, deterministic",
+  );
 }
