@@ -178,18 +178,6 @@ const SECTIONS: {
     ],
   },
   {
-    label: "Referral Commission",
-    icon: BarChart3,
-    description: "Per-level AI trading referral commission percentages",
-    keys: [
-      { key: "referral_l1_ai_percent", label: "Level 1 Commission %", type: "number" },
-      { key: "referral_l2_ai_percent", label: "Level 2 Commission %", type: "number" },
-      { key: "referral_l3_ai_percent", label: "Level 3 Commission %", type: "number" },
-      { key: "referral_l4_ai_percent", label: "Level 4 Commission %", type: "number" },
-      { key: "referral_l5_ai_percent", label: "Level 5 Commission %", type: "number" },
-    ],
-  },
-  {
     label: "Social Media",
     icon: Share2,
     description: "Platform social media profile links",
@@ -525,6 +513,200 @@ function GeoRestrictionsSection() {
   );
 }
 
+// ─── Referral Settings Section ────────────────────────────────────────────────
+interface ReferralConfig {
+  enabled: boolean;
+  registrationBonus: number;
+  trading: Record<string, number>;
+  ai:      Record<string, number>;
+  earn:    Record<string, number>;
+}
+
+const DEFAULT_REFERRAL: ReferralConfig = {
+  enabled: true, registrationBonus: 1.0,
+  trading: { "1": 30, "2": 15, "3": 8, "4": 4, "5": 2 },
+  ai:      { "1": 5,  "2": 3,  "3": 2, "4": 1, "5": 0.5 },
+  earn:    { "1": 3,  "2": 2,  "3": 1, "4": 0.5, "5": 0.25 },
+};
+
+const LEVELS = [1, 2, 3, 4, 5] as const;
+
+function ReferralSettingsSection() {
+  const qc = useQueryClient();
+  const [collapsed, setCollapsed] = useState(false);
+  const [draft, setDraft] = useState<ReferralConfig | null>(null);
+
+  const { data: server } = useQuery<ReferralConfig>({
+    queryKey: ["referral-settings"],
+    queryFn: () => get<ReferralConfig>("/admin/referral-settings"),
+    staleTime: 30_000,
+  });
+
+  const cfg   = draft ?? server ?? DEFAULT_REFERRAL;
+  const dirty = draft !== null;
+
+  const saveMut = useMutation({
+    mutationFn: (c: ReferralConfig) => put<unknown>("/admin/referral-settings", c),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["referral-settings"] });
+      setDraft(null);
+      toast.success("Referral settings saved");
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Save failed"),
+  });
+
+  const setTop = (k: keyof ReferralConfig, v: unknown) =>
+    setDraft(d => ({ ...(d ?? server ?? DEFAULT_REFERRAL), [k]: v }));
+
+  const setLevel = (type: "trading" | "ai" | "earn", level: number, v: number) =>
+    setDraft(d => {
+      const base = d ?? server ?? DEFAULT_REFERRAL;
+      return { ...base, [type]: { ...base[type], [String(level)]: v } };
+    });
+
+  const numInput = (
+    type: "trading" | "ai" | "earn",
+    level: number,
+  ) => (
+    <Input
+      type="number"
+      min={0} max={100} step={0.1}
+      className="h-8 w-20 text-xs text-right"
+      value={cfg[type][String(level)] ?? 0}
+      onChange={e => setLevel(type, level, parseFloat(e.target.value) || 0)}
+    />
+  );
+
+  return (
+    <div className={cn(
+      "rounded-xl border bg-card/50 overflow-hidden transition-all",
+      dirty ? "border-amber-500/40" : "border-border",
+    )}>
+      <button
+        onClick={() => setCollapsed(p => !p)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-9 h-9 rounded-lg flex items-center justify-center border",
+            dirty ? "bg-amber-500/15 border-amber-500/30" : "bg-muted/40 border-border",
+          )}>
+            <BarChart3 className={cn("w-4 h-4", dirty ? "text-amber-400" : "text-muted-foreground")} />
+          </div>
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground">Referral Commission</span>
+              {dirty && (
+                <Badge className="h-4 px-1.5 text-[9px] bg-amber-500/20 text-amber-400 border-amber-500/30">unsaved</Badge>
+              )}
+              {!cfg.enabled && (
+                <Badge className="h-4 px-1.5 text-[9px] bg-rose-500/20 text-rose-400 border-rose-500/30">disabled</Badge>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              5-level commission for Spot, Futures, AI Trading, Earn rewards — admin-configurable rates
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {!collapsed && dirty && (
+            <Button
+              variant="default" size="sm" className="h-7 px-2.5 text-xs"
+              onClick={e => { e.stopPropagation(); saveMut.mutate(cfg); }}
+              disabled={saveMut.isPending}
+            >
+              {saveMut.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Save className="w-3 h-3 mr-1" />Save</>}
+            </Button>
+          )}
+          {collapsed ? <ChevronRight className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-border/60 px-5 py-5 space-y-6">
+          {/* Global toggle + registration bonus */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+              <Switch
+                checked={cfg.enabled}
+                onCheckedChange={v => setTop("enabled", v)}
+              />
+              <div>
+                <Label className="text-sm font-medium">Referral System Active</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  When off, zero commissions are paid for any trade/AI/earn event
+                </p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-3">
+              <Label className="text-sm font-medium">Registration Bonus (USDT)</Label>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                One-time USDT credited to direct referrer when their invitee signs up
+              </p>
+              <Input
+                type="number" min={0} max={1000} step={0.01}
+                className="h-8 w-32 text-xs"
+                value={cfg.registrationBonus}
+                onChange={e => setTop("registrationBonus", parseFloat(e.target.value) || 0)}
+              />
+            </div>
+          </div>
+
+          {/* Commission rate tables */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border/60">
+                  <th className="text-left py-2 pr-4 font-semibold text-muted-foreground w-16">Level</th>
+                  <th className="text-right px-4 py-2 font-semibold text-muted-foreground">
+                    Spot + Futures<br/>
+                    <span className="font-normal opacity-70">% of trade fee</span>
+                  </th>
+                  <th className="text-right px-4 py-2 font-semibold text-muted-foreground">
+                    AI Trading<br/>
+                    <span className="font-normal opacity-70">% of AI profit</span>
+                  </th>
+                  <th className="text-right pl-4 py-2 font-semibold text-muted-foreground">
+                    Earn Rewards<br/>
+                    <span className="font-normal opacity-70">% of interest</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {LEVELS.map(l => (
+                  <tr key={l} className="border-b border-border/30 hover:bg-muted/10">
+                    <td className="py-2 pr-4">
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-muted/40 border border-border/60 font-bold text-foreground">
+                        {l}
+                      </span>
+                    </td>
+                    <td className="text-right px-4 py-2">{numInput("trading", l)}</td>
+                    <td className="text-right px-4 py-2">{numInput("ai", l)}</td>
+                    <td className="text-right pl-4 py-2">{numInput("earn", l)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <Button
+              onClick={() => saveMut.mutate(cfg)}
+              disabled={!dirty || saveMut.isPending}
+              size="sm"
+            >
+              {saveMut.isPending
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+                : <><Save className="w-3.5 h-3.5 mr-1.5" />Save Referral Settings</>
+              }
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ExchangeSettings() {
   const qc = useQueryClient();
@@ -813,6 +995,9 @@ export default function ExchangeSettings() {
 
           {/* Geo Restrictions — separate section using site.geo via settingsTable */}
           <GeoRestrictionsSection />
+
+          {/* Referral Commission — admin-configurable per-level rates via /admin/referral-settings */}
+          <ReferralSettingsSection />
         </div>
       )}
     </div>

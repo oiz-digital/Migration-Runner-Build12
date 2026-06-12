@@ -40,7 +40,6 @@ const FEE_KEYS = [
   { key: "tds.percent",          label: "TDS on Sell",          hint: "TDS deducted on sell value (India 1%)",        def: "1",    icon: Percent },
   { key: "futures.fee_percent",  label: "Futures Trading Fee",  hint: "Charged on position open + close (% of notional)", def: "0.05", icon: TrendingUp },
   { key: "futures.gst_percent",  label: "GST on Futures Fee",   hint: "GST applied on futures fee (India 18%)",       def: "18",   icon: Percent },
-  { key: "referral.commission",  label: "Referral Commission",  hint: "% of referee's trading fee paid back to referrer", def: "20", icon: Users },
 ];
 
 export default function SettingsPage() {

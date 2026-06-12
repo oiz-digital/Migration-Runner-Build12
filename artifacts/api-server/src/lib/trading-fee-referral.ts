@@ -1,36 +1,24 @@
 /**
  * trading-fee-referral.ts
- * Distributes a portion of each spot/futures/earn trade fee to up to 5 levels
+ * Distributes a portion of each spot/futures/earn fee to up to 5 levels
  * of the referral chain. Called fire-and-forget after every matched trade.
  *
- * Commission rates (% of the fee/profit collected):
- *   Trading fee  — Level 1: 30%  Level 2: 15%  Level 3: 8%  Level 4: 4%  Level 5: 2%
- *   Earn reward  — Level 1: 3%   Level 2: 2%   Level 3: 1%  Level 4: 0.5%  Level 5: 0.25%
+ * Commission rates are admin-configurable via PUT /api/admin/referral-settings.
+ * Defaults (% of fee):
+ *   Trading/Futures — L1:30  L2:15  L3:8  L4:4  L5:2
+ *   Earn            — L1:3   L2:2   L3:1  L4:0.5 L5:0.25
+ *   AI              — L1:5   L2:3   L3:2  L4:1   L5:0.5
  */
 
 import {
-  db, usersTable, walletsTable, referralsTable, settingsTable,
+  db, usersTable, walletsTable, referralsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { logger } from "./logger";
-
-const DEFAULT_TRADING_RATES: Record<number, number> = { 1: 30, 2: 15, 3: 8, 4: 4, 5: 2 };
-const EARN_RATES: Record<number, number>             = { 1: 3, 2: 2, 3: 1, 4: 0.5, 5: 0.25 };
-
-async function loadTradingRates(): Promise<Record<number, number>> {
-  try {
-    const [row] = await db.select().from(settingsTable)
-      .where(eq(settingsTable.key, "referral.trading_fee_rates")).limit(1);
-    if (row?.value) {
-      const parsed = JSON.parse(row.value);
-      if (parsed && typeof parsed === "object") return { ...DEFAULT_TRADING_RATES, ...parsed };
-    }
-  } catch { /* fallback */ }
-  return DEFAULT_TRADING_RATES;
-}
+import { loadReferralConfig } from "../routes/admin-referrals";
 
 async function ensureSpotWallet(userId: number, coinId: number): Promise<string | null> {
-  const [w] = await db.select({ id: walletsTable.id, balance: walletsTable.balance })
+  const [w] = await db.select({ id: walletsTable.id })
     .from(walletsTable)
     .where(and(
       eq(walletsTable.userId, userId),
@@ -46,15 +34,14 @@ async function ensureSpotWallet(userId: number, coinId: number): Promise<string 
 
 /**
  * Generic 5-level referral chain creditor.
- * Walks up the referral chain from `originUserId` and credits each ancestor
- * with `amount * (levelRates[level] / 100)` in `coinId`.
+ * Walks up the referral chain from `originUserId` and credits each ancestor.
  */
 export async function creditReferralChain(
   originUserId: number,
   amount: number,
   coinId: number,
   sourceType: string,
-  levelRates: Record<number, number>,
+  levelRates: Record<string, number>,
 ): Promise<void> {
   if (!amount || amount <= 0) return;
   let currentId = originUserId;
@@ -68,7 +55,7 @@ export async function creditReferralChain(
 
     if (!user?.referredBy) break;
 
-    const pct = levelRates[level] ?? 0;
+    const pct = Number(levelRates[String(level)] ?? levelRates[level] ?? 0);
     const commission = parseFloat((amount * pct / 100).toFixed(8));
     if (commission < 0.000001) { currentId = user.referredBy; continue; }
 
@@ -95,12 +82,11 @@ export async function creditReferralChain(
 }
 
 /**
- * Walk up to 5 levels of the referral chain and credit each referrer
- * with their tier commission from the `feeAmount` in `quoteCoinId`.
+ * Walk up to 5 levels of the referral chain and credit each referrer.
  *
- * @param traderId    — The user who placed the order (taker)
- * @param feeAmount   — Total fee collected in quote currency (already in DB units)
- * @param quoteCoinId — The quote coin's ID (e.g. USDT coin id)
+ * @param traderId    — The user who generated the fee
+ * @param feeAmount   — Total fee/profit in quote currency
+ * @param quoteCoinId — Coin ID to credit (e.g. USDT)
  * @param sourceType  — "trading_fee" | "futures_fee" | "earn_plan"
  */
 export async function creditTradingFeeReferralChain(
@@ -109,8 +95,9 @@ export async function creditTradingFeeReferralChain(
   quoteCoinId: number,
   sourceType: "trading_fee" | "futures_fee" | "earn_plan" = "trading_fee",
 ): Promise<void> {
-  const rates = sourceType === "earn_plan"
-    ? EARN_RATES
-    : await loadTradingRates();
+  const config = await loadReferralConfig();
+  if (!config.enabled) return; // Admin can disable referral globally
+
+  const rates = sourceType === "earn_plan" ? config.earn : config.trading;
   return creditReferralChain(traderId, feeAmount, quoteCoinId, sourceType, rates);
 }

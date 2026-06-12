@@ -1,11 +1,11 @@
-import { db, aiTradingPlansTable, aiTradingSubscriptionsTable, aiTradingEarningsTable, referralsTable, walletsTable, walletLedgerTable, coinsTable, usersTable } from "@workspace/db";
+import { db, aiTradingPlansTable, aiTradingSubscriptionsTable, aiTradingEarningsTable, walletsTable, walletLedgerTable, coinsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger";
 import { isLeader } from "./leader";
+import { creditReferralChain } from "./trading-fee-referral";
+import { loadReferralConfig } from "../routes/admin-referrals";
 
 const TICK_MS = 60 * 60 * 1000; // 1 hour
-
-const AI_REFERRAL_PERCENT: Record<number, number> = { 1: 5, 2: 3, 3: 2, 4: 1, 5: 0.5 };
 
 /* ── Daily variance — deterministic per (userId, subId, dayKey) ─────────── */
 function getDayVariance(userId: number, subId: number, dayKey: number): number {
@@ -33,39 +33,15 @@ async function updateWalletBalance(walletId: number, balance: string) {
     .where(eq(walletsTable.id, walletId));
 }
 
-/* ── Referral commission chain ──────────────────────────────────────────── */
+/* ── Referral commission chain (admin-configurable rates) ───────────────── */
 async function creditAIReferralChain(userId: number, creditAmount: number): Promise<void> {
   const usdtCoinId = await getUsdtCoinId();
   if (!usdtCoinId) return;
 
-  let currentId = userId;
-  for (let level = 1; level <= 5; level++) {
-    const [parentUser] = await db.select({ id: usersTable.id, referredBy: usersTable.referredBy })
-      .from(usersTable).where(eq(usersTable.id, currentId)).limit(1);
-    if (!parentUser?.referredBy) break;
+  const config = await loadReferralConfig();
+  if (!config.enabled) return;
 
-    const pct        = AI_REFERRAL_PERCENT[level] ?? 0;
-    const commission = parseFloat((creditAmount * pct / 100).toFixed(8));
-    if (commission <= 0) { currentId = parentUser.referredBy; continue; }
-
-    await db.insert(referralsTable).values({
-      referrerId:    parentUser.referredBy,
-      referredId:    userId,
-      bonusCredited: true,
-      bonusAmount:   String(commission),
-      level,
-      sourceType:    "ai_trading",
-    }).catch(() => null);
-
-    const wallet = await getSpotWallet(parentUser.referredBy, usdtCoinId);
-    if (wallet) {
-      const newBalance = String(parseFloat(wallet.balance ?? "0") + commission);
-      await updateWalletBalance(wallet.id, newBalance);
-    }
-
-    logger.debug({ referrerId: parentUser.referredBy, level, commission, userId }, "ai-credit: referral commission credited");
-    currentId = parentUser.referredBy;
-  }
+  await creditReferralChain(userId, creditAmount, usdtCoinId, "ai_trading", config.ai);
 }
 
 /* ── Main tick ──────────────────────────────────────────────────────────── */
