@@ -968,40 +968,72 @@ export function PriceChart({ symbol }: { symbol: string }) {
       )}
 
       {/* ── Chart canvas + pane labels ────────────────────────── */}
-      <div className="flex-1 min-h-[280px] relative">
+      <div className="flex-1 min-h-[280px] relative overflow-hidden">
         <div ref={containerRef} className="absolute inset-0" />
-        {/* RSI pane label */}
-        {indicators.rsi && (
-          <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5"
-            style={{ bottom: indicators.macd && indicators.stoch ? "45%" : indicators.macd || indicators.stoch ? "33%" : "2%" }}>
-            <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded"
-              style={{ backgroundColor: "rgba(251,146,60,0.15)", color: "#fb923c", border: "1px solid rgba(251,146,60,0.3)" }}>
-              RSI 14
-            </span>
-            <span className="text-[9px] font-mono text-muted-foreground">70 overbought · 30 oversold</span>
-          </div>
-        )}
-        {/* MACD pane label */}
-        {indicators.macd && (
-          <div className="absolute left-2 pointer-events-none z-10 flex items-center gap-1.5"
-            style={{ bottom: indicators.stoch ? "22%" : "1%" }}>
-            <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded"
-              style={{ backgroundColor: "rgba(96,165,250,0.15)", color: "#60a5fa", border: "1px solid rgba(96,165,250,0.3)" }}>
-              MACD
-            </span>
-            <span className="text-[9px] font-mono text-muted-foreground hidden sm:inline">12/26/9  MACD Signal Hist</span>
-          </div>
-        )}
-        {/* Stoch pane label */}
-        {indicators.stoch && (
-          <div className="absolute left-2 bottom-[1%] pointer-events-none z-10 flex items-center gap-1.5">
-            <span className="text-[9px] font-mono font-bold px-1 py-0.5 rounded"
-              style={{ backgroundColor: "rgba(74,222,128,0.15)", color: "#4ade80", border: "1px solid rgba(74,222,128,0.3)" }}>
-              STOCH
-            </span>
-            <span className="text-[9px] font-mono text-muted-foreground hidden sm:inline">14/3  %K %D  80/20</span>
-          </div>
-        )}
+        {(() => {
+          // Compute where each sub-pane starts (% from top of chart area).
+          // Main pane occupies the top portion; sub-panes divide the rest equally.
+          const N = (indicators.rsi ? 1 : 0) + (indicators.macd ? 1 : 0) + (indicators.stoch ? 1 : 0);
+          if (N === 0) return null;
+          const mainH = N === 1 ? 66 : N === 2 ? 58 : 52;   // main-pane % height
+          const subH  = (100 - mainH) / N;                    // each sub-pane % height
+          let idx = 0;
+          const paneTop: Record<string, number> = {};
+          if (indicators.rsi)   { paneTop.rsi   = mainH + idx * subH; idx++; }
+          if (indicators.macd)  { paneTop.macd  = mainH + idx * subH; idx++; }
+          if (indicators.stoch) { paneTop.stoch = mainH + idx * subH; }
+
+          const PaneLabel = ({
+            top, color, bg, label, detail,
+          }: { top: number; color: string; bg: string; label: string; detail: string }) => (
+            <div
+              className="absolute left-2 z-10 pointer-events-none flex items-center gap-1.5"
+              style={{ top: `calc(${top}% + 5px)` }}
+            >
+              <span
+                className="text-[9px] font-mono font-bold px-1.5 py-[3px] rounded-[4px] leading-none"
+                style={{ backgroundColor: bg, color, border: `1px solid ${color}40` }}
+              >
+                {label}
+              </span>
+              <span className="text-[9px] font-mono text-muted-foreground/70 hidden sm:inline leading-none">
+                {detail}
+              </span>
+            </div>
+          );
+
+          return (
+            <>
+              {indicators.rsi && (
+                <PaneLabel
+                  top={paneTop.rsi!}
+                  color="#fb923c"
+                  bg="rgba(251,146,60,0.12)"
+                  label="RSI 14"
+                  detail="70 overbought · 30 oversold"
+                />
+              )}
+              {indicators.macd && (
+                <PaneLabel
+                  top={paneTop.macd!}
+                  color="#60a5fa"
+                  bg="rgba(96,165,250,0.12)"
+                  label="MACD 12·26·9"
+                  detail="MACD · Signal · Hist"
+                />
+              )}
+              {indicators.stoch && (
+                <PaneLabel
+                  top={paneTop.stoch!}
+                  color="#4ade80"
+                  bg="rgba(74,222,128,0.12)"
+                  label="STOCH 14·3"
+                  detail="%K · %D · 80/20"
+                />
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );
