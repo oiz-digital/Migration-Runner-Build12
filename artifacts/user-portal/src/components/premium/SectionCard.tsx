@@ -31,12 +31,12 @@ export function SectionCard({
             )}
             <div className="min-w-0">
               {title && (
-                <h3 className="text-sm font-semibold text-foreground truncate">
+                <h3 className="text-sm font-semibold text-foreground line-clamp-1">
                   {title}
                 </h3>
               )}
               {description && (
-                <p className="text-xs text-muted-foreground truncate">{description}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">{description}</p>
               )}
             </div>
           </div>

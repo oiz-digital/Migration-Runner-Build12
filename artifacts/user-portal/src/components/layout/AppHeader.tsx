@@ -841,8 +841,8 @@ export function AppHeader() {
                 <DropdownMenuContent align="end" className="w-60">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-semibold truncate">{user.fullName || "Trader"}</span>
-                      <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                      <span className="text-sm font-semibold line-clamp-1">{user.fullName || "Trader"}</span>
+                      <span className="text-xs text-muted-foreground line-clamp-1">{user.email}</span>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -1097,8 +1097,8 @@ export function AppHeader() {
                         {(user.fullName || user.email || "U").charAt(0).toUpperCase()}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">{user.fullName || "Trader"}</div>
-                        <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                        <div className="text-sm font-semibold line-clamp-1">{user.fullName || "Trader"}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-1">{user.email}</div>
                       </div>
                     </Link>
                     <Button variant="outline" className="w-full" onClick={() => { logout(); setMobileOpen(false); }}>
@@ -1258,7 +1258,7 @@ function NotificationItem({
     <div className="flex items-start gap-2.5">
       <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">{icon}</div>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold truncate">{title}</div>
+        <div className="text-sm font-semibold line-clamp-1">{title}</div>
         <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">{desc}</div>
         <div className="text-[10px] text-muted-foreground mt-0.5">{time}</div>
       </div>

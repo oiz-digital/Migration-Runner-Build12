@@ -50,7 +50,7 @@ export function PremiumStatCard({
           </div>
           <div
             className={cn(
-              "mt-1.5 text-2xl md:text-[28px] font-bold tabular-nums leading-tight truncate",
+              "mt-1.5 text-2xl md:text-[28px] font-bold tabular-nums leading-tight break-all",
               accent || hero ? "gold-text" : "text-foreground",
             )}
           >
@@ -83,7 +83,7 @@ export function PremiumStatCard({
                   {Math.abs(delta).toFixed(1)}%
                 </span>
               )}
-              {hint && <span className="text-muted-foreground truncate">{hint}</span>}
+              {hint && <span className="text-muted-foreground line-clamp-1 flex-1 min-w-0">{hint}</span>}
             </div>
           )}
         </div>
