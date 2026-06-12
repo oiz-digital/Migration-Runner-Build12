@@ -33,7 +33,7 @@ const OFFICES = [
       "1 Central Street, Shivaji Nagar",
       "Bengaluru — 560001, Karnataka, India",
     ],
-    cin: "U66110KA2022PTC123456",
+    cin: "U72900KA2021PTC150821",
   },
   {
     city: "Mumbai",

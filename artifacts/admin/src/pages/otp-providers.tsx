@@ -173,7 +173,7 @@ function ProviderForm({
               placeholder={
                 v.provider === "ninzasms" || v.provider === "ninzasms_whatsapp"
                   ? "15716"
-                  : v.channel === "email" ? "no-reply@cryptox.in" : "ZEBVIX"
+                  : v.channel === "email" ? "no-reply@zebvix.com" : "ZEBVIX"
               }
             />
           </Field>

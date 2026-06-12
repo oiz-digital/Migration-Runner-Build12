@@ -8,7 +8,7 @@ import zebvixMark from "@/assets/zebvix-mark.png";
 
 export default function LoginPage() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("admin@cryptox.in");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

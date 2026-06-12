@@ -236,7 +236,7 @@ export default function About() {
               Zebvix Technologies Pvt Ltd<br />
               CIN: U72900KA2021PTC150821<br />
               Registered office: Bengaluru, Karnataka, India<br />
-              FIU-IND Reporting Entity ID: VA00xxxxxxx
+              FIU-IND Reporting Entity: Registration pending
             </p>
           </CardContent>
         </Card>

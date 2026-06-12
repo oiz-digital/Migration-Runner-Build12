@@ -634,7 +634,7 @@ function EmailConfigDialog({ open, onOpenChange, initial, qc, toast }: any) {
               </Select>
             </FormField>
             <FormField label="From Email" hint="Sender email address">
-              <Input type="email" value={v.fromEmail || ""} onChange={(e) => set("fromEmail", e.target.value)} placeholder="no-reply@cryptox.in" />
+              <Input type="email" value={v.fromEmail || ""} onChange={(e) => set("fromEmail", e.target.value)} placeholder="no-reply@zebvix.com" />
             </FormField>
             <FormField label="From Name">
               <Input value={v.fromName || ""} onChange={(e) => set("fromName", e.target.value)} placeholder="Zebvix" />
@@ -677,7 +677,7 @@ function EmailConfigDialog({ open, onOpenChange, initial, qc, toast }: any) {
                   <Button type="button" size="icon" variant="outline" onClick={() => setShowKey(s => !s)}>{showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</Button>
                 </div>
               </FormField>
-              {v.provider === "mailgun" && <FormField label="Domain" hint="e.g. mail.cryptox.in"><Input value={v.domain || ""} onChange={(e) => set("domain", e.target.value)} placeholder="mail.cryptox.in" /></FormField>}
+              {v.provider === "mailgun" && <FormField label="Domain" hint="e.g. mail.zebvix.com"><Input value={v.domain || ""} onChange={(e) => set("domain", e.target.value)} placeholder="mail.zebvix.com" /></FormField>}
               {v.provider === "aws_ses" && <FormField label="Region"><Select value={v.region || "us-east-1"} onValueChange={(r) => set("region", r)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["us-east-1","us-west-2","eu-west-1","ap-south-1"].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></FormField>}
             </Section>
           )}

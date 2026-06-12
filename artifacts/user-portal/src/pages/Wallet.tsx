@@ -1618,7 +1618,7 @@ function DepositDialog({
                   <AlertCircle className="h-3.5 w-3.5" /> UPI / IMPS / NEFT
                 </div>
                 <div className="text-[11px] text-amber-300/80 space-y-1">
-                  <div>UPI ID: <span className="font-mono font-medium text-amber-200">deposit@cryptox</span></div>
+                  <div>UPI ID: <span className="font-mono font-medium text-amber-200">deposit@zebvix</span></div>
                   <div className="mt-1.5">Add your <strong className="text-amber-200">User ID</strong> in the payment note. Deposits are credited within 30 minutes after bank confirmation.</div>
                 </div>
               </div>
