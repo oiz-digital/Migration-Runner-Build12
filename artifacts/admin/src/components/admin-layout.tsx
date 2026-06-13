@@ -7,7 +7,7 @@ import {
   KeyRound, LogOut, Menu, Percent, Bot, ArrowDownUp, Wallet2, TrendingUp, Sigma, Globe2, Radar,
   Megaphone, Trophy, Database, Server, Search, Command as CommandIcon, Crown,
   ChevronRight, ChevronsUpDown, User as UserIcon, Bell, Code2, Cpu, History, Smartphone,
-  Globe, Building2, Gem, Moon, Sun, type LucideIcon,
+  Globe, Building2, Gem, Moon, Sun, ToggleLeft, type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
@@ -144,6 +144,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/integrations",     label: "API Integrations",  icon: Globe2,       roles: ["admin", "superadmin"] },
       { href: "/otp-providers",    label: "OTP Providers",     icon: KeyRound,     roles: ["admin", "superadmin"] },
       { href: "/settings",         label: "Settings",          icon: SettingsIcon, roles: ["admin", "superadmin"] },
+      { href: "/features",          label: "Feature Flags",     icon: ToggleLeft,   roles: ["admin", "superadmin"] },
       { href: "/exchange-settings",label: "Exchange Settings", icon: SettingsIcon, roles: ["admin", "superadmin"] },
       { href: "/backend-status",   label: "Backend Status",    icon: Server,       roles: ["support", "finance", "compliance", "admin", "superadmin"] },
       { href: "/system-status",    label: "System Status",     icon: Server,       roles: ["support", "finance", "compliance", "admin", "superadmin"] },

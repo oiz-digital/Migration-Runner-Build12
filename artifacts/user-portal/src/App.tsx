@@ -6,6 +6,8 @@ import { AuthProvider, RequireAuth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider } from "@/lib/theme";
+import { useFeatureFlags, type FeatureKey } from "@/lib/features";
+import type { ReactNode } from "react";
 
 import Home from "@/pages/Home";
 import Markets from "@/pages/Markets";
@@ -72,9 +74,18 @@ import SupportChatWidget from "@/components/SupportChatWidget";
 import PriceAlerts from "@/pages/PriceAlerts";
 import INRPayments from "@/pages/INRPayments";
 import SupportTickets from "@/pages/SupportTickets";
+import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
+
+/** Gates a feature — renders ComingSoon if the flag is off. */
+function FeatureGate({ feature, children }: { feature: FeatureKey; children: ReactNode }) {
+  const { flags, isLoading } = useFeatureFlags();
+  if (isLoading) return null;
+  if (!flags[feature]) return <ComingSoon featureKey={feature} />;
+  return <>{children}</>;
+}
 
 function App() {
   return (
@@ -90,21 +101,30 @@ function App() {
               <Switch>
                 <Route path="/" component={Home} />
                 <Route path="/markets" component={Markets} />
+
+                {/* ── Spot Trading ───────────────────────────────── */}
                 <Route path="/trade/:symbol?">
-                  {() => <RequireAuth><Trade /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="spot_trading"><Trade /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Futures ────────────────────────────────────── */}
                 <Route path="/futures/:symbol?">
-                  {() => <RequireAuth><Futures /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="futures"><Futures /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Options ────────────────────────────────────── */}
                 <Route path="/options">
-                  {() => <RequireAuth><Options /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="options"><Options /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/web3">{() => <RequireAuth><Web3 /></RequireAuth>}</Route>
                 <Route path="/discover" component={Discover} />
-                
+
+                {/* ── Wallet ─────────────────────────────────────── */}
                 <Route path="/wallet">
-                  {() => <RequireAuth><Wallet /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="wallet"><Wallet /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/orders/:id/invoice">
                   {() => <RequireAuth><Invoice /></RequireAuth>}
                 </Route>
@@ -114,9 +134,12 @@ function App() {
                 <Route path="/orders">
                   {() => <RequireAuth><Orders /></RequireAuth>}
                 </Route>
+
+                {/* ── Portfolio ──────────────────────────────────── */}
                 <Route path="/portfolio">
-                  {() => <RequireAuth><Portfolio /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="portfolio"><Portfolio /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/profile">
                   {() => <RequireAuth><Profile /></RequireAuth>}
                 </Route>
@@ -129,23 +152,27 @@ function App() {
                 <Route path="/settings">
                   {() => <RequireAuth><Settings /></RequireAuth>}
                 </Route>
+
+                {/* ── Earn ───────────────────────────────────────── */}
                 <Route path="/earn">
-                  {() => <RequireAuth><Earn /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="earn"><Earn /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Referrals ──────────────────────────────────── */}
                 <Route path="/invite">
-                  {() => <RequireAuth><Invite /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="referrals"><Invite /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/support" component={Support} />
 
+                {/* Legal — always available */}
                 <Route path="/about" component={About} />
-                {/* Canonical short routes (used by footer + all links) */}
                 <Route path="/terms" component={Terms} />
                 <Route path="/privacy" component={Privacy} />
                 <Route path="/aml" component={Aml} />
                 <Route path="/cookies" component={Cookies} />
                 <Route path="/risk" component={Risk} />
                 <Route path="/api-docs" component={ApiDocs} />
-                {/* Legacy /legal/* redirects — kept for SEO / bookmarks */}
                 <Route path="/legal/terms" component={Terms} />
                 <Route path="/legal/privacy" component={Privacy} />
                 <Route path="/legal/aml" component={Aml} />
@@ -159,11 +186,15 @@ function App() {
                 <Route path="/contact" component={Contact} />
                 <Route path="/help" component={Help} />
                 <Route path="/status" component={Status} />
+
+                {/* ── P2P ────────────────────────────────────────── */}
                 <Route path="/p2p">
-                  {() => <RequireAuth><P2P /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="p2p"><P2P /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Convert ────────────────────────────────────── */}
                 <Route path="/convert">
-                  {() => <RequireAuth><Convert /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="convert"><Convert /></FeatureGate></RequireAuth>}
                 </Route>
 
                 <Route path="/dashboard">
@@ -172,9 +203,13 @@ function App() {
                 <Route path="/notifications">
                   {() => <RequireAuth><Notifications /></RequireAuth>}
                 </Route>
+
+                {/* ── Trading Bots ───────────────────────────────── */}
                 <Route path="/bots">
-                  {() => <RequireAuth><Bots /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="trading_bots"><Bots /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── AI Trading ─────────────────────────────────── */}
                 <Route path="/ai-trading/:id/invoice">
                   {() => <RequireAuth><AIInvoice /></RequireAuth>}
                 </Route>
@@ -182,23 +217,33 @@ function App() {
                   {() => <RequireAuth><AIStatement /></RequireAuth>}
                 </Route>
                 <Route path="/ai-trading">
-                  {() => <RequireAuth><AITrading /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="ai_trading"><AITrading /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/ledger">
                   {() => <RequireAuth><Ledger /></RequireAuth>}
                 </Route>
+
+                {/* ── Referrals (detail page) ─────────────────────── */}
                 <Route path="/referrals">
-                  {() => <RequireAuth><Referrals /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="referrals"><Referrals /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Copy Trading ───────────────────────────────── */}
                 <Route path="/copy-trading">
-                  {() => <RequireAuth><CopyTrading /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="copy_trading"><CopyTrading /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── Price Alerts ───────────────────────────────── */}
                 <Route path="/price-alerts">
-                  {() => <RequireAuth><PriceAlerts /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="price_alerts"><PriceAlerts /></FeatureGate></RequireAuth>}
                 </Route>
+
+                {/* ── INR Payments ───────────────────────────────── */}
                 <Route path="/inr">
-                  {() => <RequireAuth><INRPayments /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="inr_payments"><INRPayments /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/support-tickets">
                   {() => <RequireAuth><SupportTickets /></RequireAuth>}
                 </Route>
@@ -212,27 +257,35 @@ function App() {
                 <Route path="/tools/predictions" component={Predictions} />
                 <Route path="/announcements" component={Announcements} />
                 <Route path="/news" component={News} />
+
+                {/* ── Trading Leagues ────────────────────────────── */}
                 <Route path="/leagues">
-                  {() => <RequireAuth><Leagues /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="leagues"><Leagues /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/forex" component={Forex} />
+
+                {/* ── Smart API ──────────────────────────────────── */}
                 <Route path="/smartapi">
-                  {() => <RequireAuth><SmartAPI /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="smart_api"><SmartAPI /></FeatureGate></RequireAuth>}
                 </Route>
+
                 <Route path="/stocks" component={Stocks} />
                 <Route path="/commodities" component={Commodities} />
+
+                {/* ── Broker ─────────────────────────────────────── */}
                 <Route path="/broker/onboarding">
-                  {() => <RequireAuth><BrokerOnboarding /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="broker"><BrokerOnboarding /></FeatureGate></RequireAuth>}
                 </Route>
                 <Route path="/broker/dashboard">
-                  {() => <RequireAuth><BrokerDashboard /></RequireAuth>}
+                  {() => <RequireAuth><FeatureGate feature="broker"><BrokerDashboard /></FeatureGate></RequireAuth>}
                 </Route>
 
                 <Route path="/login" component={Login} />
                 <Route path="/signup" component={Signup} />
                 <Route path="/register">{() => { window.location.replace(import.meta.env.BASE_URL + "signup"); return null; }}</Route>
                 <Route path="/forgot-password" component={ForgotPassword} />
-                
+
                 <Route component={NotFound} />
               </Switch>
             </AppShell>

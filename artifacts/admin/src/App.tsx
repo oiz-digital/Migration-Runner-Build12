@@ -58,6 +58,7 @@ import InstrumentsAdminPage from "@/pages/instruments-admin";
 import BrokerApplicationsPage from "@/pages/broker-applications";
 import AITradingPlansPage from "@/pages/ai-trading-plans";
 import ExchangeSettingsPage from "@/pages/exchange-settings";
+import FeaturesPage from "@/pages/features";
 import WalletManagerPage from "@/pages/wallet-manager";
 import SupportAdminPage from "@/pages/support-admin";
 import SystemStatusPage from "@/pages/system-status";
@@ -168,6 +169,7 @@ function Protected() {
         <Route path="/broker-config" component={BrokerConfigPage} />
         <Route path="/instruments-admin" component={InstrumentsAdminPage} />
         <Route path="/broker-applications" component={BrokerApplicationsPage} />
+        <Route path="/features" component={FeaturesPage} />
         <Route path="/exchange-settings" component={ExchangeSettingsPage} />
         <Route path="/wallet-manager" component={WalletManagerPage} />
         <Route path="/support-admin" component={SupportAdminPage} />
