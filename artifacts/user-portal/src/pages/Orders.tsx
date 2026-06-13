@@ -428,7 +428,7 @@ export default function Orders() {
                             <StatusPill status={o.status} />
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 py-3 text-right">
+                        <td className="px-3 sm:px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                           {isOpen ? (
                             <Button
                               size="sm"
@@ -440,6 +440,18 @@ export default function Orders() {
                               <X className="w-3 h-3 mr-1" />
                               Cancel
                             </Button>
+                          ) : (["filled", "partially_filled"].includes(String(o.status).toLowerCase()) && !isFutures(o)) ? (
+                            <Link href={`/orders/${o.id}/invoice`}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label={`Download invoice for order ${o.id}`}
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                Invoice
+                              </Button>
+                            </Link>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
