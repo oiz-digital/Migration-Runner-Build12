@@ -108,6 +108,54 @@ uri = "file://attached_assets/features/security-architecture.png"
 type = "image"
 title = "security layers architecture"
 
+[[generated]]
+id = "c9emkmaTFLyZh-DtK24Q6"
+uri = "file://attached_assets/flutter_home.png"
+type = "image"
+title = "flutter trading home dashboard"
+
+[[generated]]
+id = "bGb7F-6m-bpjlhSGaBKbv"
+uri = "file://attached_assets/flutter_trade_chart.png"
+type = "image"
+title = "flutter trading chart screen"
+
+[[generated]]
+id = "wjU_q3-eO2McXuWkTCZvU"
+uri = "file://attached_assets/flutter_orderbook.png"
+type = "image"
+title = "flutter orderbook market depth"
+
+[[generated]]
+id = "a_6UwfeyUBM87FdEQwJH5"
+uri = "file://attached_assets/flutter_wallet.png"
+type = "image"
+title = "flutter crypto wallet portfolio"
+
+[[generated]]
+id = "Xuq2UlghT8MHicFwmaUSl"
+uri = "file://attached_assets/flutter_p2p.png"
+type = "image"
+title = "flutter p2p trading screen"
+
+[[generated]]
+id = "omdZ5L8475FH_AnRj8zip"
+uri = "file://attached_assets/flutter_futures.png"
+type = "image"
+title = "flutter futures trading screen"
+
+[[generated]]
+id = "g8JWacQ1gAyfN5FYRSYqq"
+uri = "file://attached_assets/flutter_markets.png"
+type = "image"
+title = "flutter markets list screen"
+
+[[generated]]
+id = "UKCwi1c3gVn60JkhjQpyc"
+uri = "file://attached_assets/flutter_profile.png"
+type = "image"
+title = "flutter profile kyc screen"
+
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
 uri = "file://docs/MOBILE_API_GUIDE.md"
@@ -233,3 +281,51 @@ id = "RnFsgSxT2EP0meQW6uphg"
 uri = "file://docs/Zebvix-Platform-Brochure.pdf"
 type = "pdf"
 title = "Zebvix Premium Brochure 2026 — Fixed (No Garbled Text)"
+
+[[outputs]]
+id = "kGfQKkGETbiDIf0v55TcW"
+uri = "file://attached_assets/flutter_home.png"
+type = "image"
+title = "🏠 Home Dashboard"
+
+[[outputs]]
+id = "5vkNjv0iZyV49cn4dq_P8"
+uri = "file://attached_assets/flutter_markets.png"
+type = "image"
+title = "📊 Markets List"
+
+[[outputs]]
+id = "yPgYX8OTDEclVIb0FPiZi"
+uri = "file://attached_assets/flutter_trade_chart.png"
+type = "image"
+title = "📈 Trading Chart"
+
+[[outputs]]
+id = "L7txZbHcx2wX_g8gvm6uW"
+uri = "file://attached_assets/flutter_orderbook.png"
+type = "image"
+title = "📋 Order Book"
+
+[[outputs]]
+id = "fnax10v5r7rmxzb_i6wZB"
+uri = "file://attached_assets/flutter_futures.png"
+type = "image"
+title = "⚡ Futures Trading"
+
+[[outputs]]
+id = "W3adIVcGq7qKuXCxZlnmA"
+uri = "file://attached_assets/flutter_p2p.png"
+type = "image"
+title = "🤝 P2P Trading"
+
+[[outputs]]
+id = "1mBt2k8j8NrN3Z5cKwrNE"
+uri = "file://attached_assets/flutter_wallet.png"
+type = "image"
+title = "💼 Wallet & Portfolio"
+
+[[outputs]]
+id = "DhILFD1pbBvp5bMCPqCp4"
+uri = "file://attached_assets/flutter_profile.png"
+type = "image"
+title = "👤 Profile & KYC"
