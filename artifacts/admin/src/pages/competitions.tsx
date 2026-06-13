@@ -31,12 +31,11 @@ type Competition = {
 };
 
 const STANDARD_TIERS = [
-  { rank: "1",      label: "Champion",     prize: "10,000 USDT", extra: "+ Diamond Badge", tone: "amber"   },
-  { rank: "2",      label: "Runner-up",    prize: "5,000 USDT",  extra: "+ Gold Badge",    tone: "zinc"    },
-  { rank: "3",      label: "Third Place",  prize: "3,000 USDT",  extra: "+ Silver Badge",  tone: "orange"  },
-  { rank: "4-10",   label: "Top 10",       prize: "500 USDT",    extra: "+ Bronze Badge",  tone: "orange"  },
-  { rank: "11-50",  label: "Top 50",       prize: "50 USDT",     extra: "+ Participant Badge", tone: "emerald" },
-  { rank: "51-100", label: "Top 100",      prize: "25 USDT",     extra: "+ Participant NFT",   tone: "emerald" },
+  { rank: "1",    label: "Champion",    prize: "500 USDT",  extra: "+ Diamond Badge",   tone: "amber"   },
+  { rank: "2",    label: "Runner-up",   prize: "200 USDT",  extra: "+ Gold Badge",      tone: "zinc"    },
+  { rank: "3",    label: "Third Place", prize: "100 USDT",  extra: "+ Silver Badge",    tone: "orange"  },
+  { rank: "4-10", label: "Top 10",      prize: "20 USDT",   extra: "+ Bronze Badge",    tone: "orange"  },
+  { rank: "11-25",label: "Top 25",      prize: "4 USDT",    extra: "+ Participant NFT", tone: "emerald" },
 ];
 
 const STANDARD_RULES = [
@@ -51,7 +50,7 @@ const STANDARD_RULES = [
 
 const blank = (): Partial<Competition> & { rewardTiers: any[]; rules: string[] } => ({
   title: "", subtitle: "", description: "",
-  prizePool: "25000", prizeUnit: "USDT", topPrize: "10000",
+  prizePool: "1000", prizeUnit: "USDT", topPrize: "500",
   rewardTiers: STANDARD_TIERS,
   rules: STANDARD_RULES,
   heroIcon: "trophy", heroColor: "#fcd535", joinUrl: "/leagues", scoringRule: "volume",
@@ -324,7 +323,7 @@ export default function CompetitionsPage() {
               <Zap className="w-5 h-5 text-amber-400" /> Monthly Auto-Create
             </DialogTitle>
             <DialogDescription>
-              Generates a "Zebvix Trading Champions" competition for the selected month with the standard <strong>25,000 USDT</strong> prize pool and 6-tier reward structure.
+              Generates a "Zebvix Trading Champions" competition for the selected month with the standard <strong>1,000 USDT</strong> prize pool and 5-tier reward structure.
             </DialogDescription>
           </DialogHeader>
 
@@ -341,7 +340,7 @@ export default function CompetitionsPage() {
                 ))}
                 <div className="col-span-2 border-t border-border/50 pt-1 flex justify-between">
                   <span className="font-semibold">Total Pool</span>
-                  <span className="font-mono font-bold text-amber-400">25,000 USDT</span>
+                  <span className="font-mono font-bold text-amber-400">1,000 USDT</span>
                 </div>
               </div>
             </div>

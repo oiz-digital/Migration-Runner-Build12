@@ -41,12 +41,11 @@ type LeaderRow = {
 type MyRank = { rank: number; volume: string; trades: number; prize: string };
 
 const DEFAULT_TIERS: RewardTier[] = [
-  { rank: "1",      prize: "10,000 USDT", extra: "+ Diamond Badge",      tone: "amber"   },
-  { rank: "2",      prize: "5,000 USDT",  extra: "+ Gold Badge",          tone: "zinc"    },
-  { rank: "3",      prize: "3,000 USDT",  extra: "+ Silver Badge",        tone: "orange"  },
-  { rank: "4-10",   prize: "500 USDT",    extra: "+ Bronze Badge",        tone: "orange"  },
-  { rank: "11-50",  prize: "50 USDT",     extra: "+ Participant Badge",   tone: "emerald" },
-  { rank: "51-100", prize: "25 USDT",     extra: "+ Participant NFT",     tone: "emerald" },
+  { rank: "1",    prize: "500 USDT", extra: "+ Diamond Badge",   tone: "amber"   },
+  { rank: "2",    prize: "200 USDT", extra: "+ Gold Badge",      tone: "zinc"    },
+  { rank: "3",    prize: "100 USDT", extra: "+ Silver Badge",    tone: "orange"  },
+  { rank: "4-10", prize: "20 USDT",  extra: "+ Bronze Badge",    tone: "orange"  },
+  { rank: "11-25",prize: "4 USDT",   extra: "+ Participant NFT", tone: "emerald" },
 ];
 
 function fmtDate(iso?: string | null): string {
@@ -114,7 +113,7 @@ export default function LeaguesPage() {
   const heroDescription = comp?.description ?? "Compete with India's top traders. Highest trading volume wins a share of the prize pool. Spot, Futures & Convert — everything counts.";
   const prizePool       = comp?.prizePool && Number(comp.prizePool) > 0
     ? `${Number(comp.prizePool).toLocaleString("en-IN")} ${comp.prizeUnit || "USDT"}`
-    : "25,000 USDT";
+    : "1,000 USDT";
   const duration  = durationDays(comp?.startsAt, comp?.endsAt);
   const dateRange = comp?.startsAt && comp?.endsAt
     ? `${fmtDate(comp.startsAt)} → ${fmtDate(comp.endsAt)}`

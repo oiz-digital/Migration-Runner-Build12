@@ -252,12 +252,11 @@ router.post("/admin/competitions/monthly", adminOnly, async (req, res): Promise<
   const season = Number(cnt ?? 0) + 1;
 
   const rewardTiers = [
-    { rank: "1",       label: "Champion",        prize: "10,000 USDT", extra: "+ Diamond Badge", tone: "amber"   },
-    { rank: "2",       label: "Runner-up",        prize: "5,000 USDT",  extra: "+ Gold Badge",    tone: "zinc"    },
-    { rank: "3",       label: "Third Place",      prize: "3,000 USDT",  extra: "+ Silver Badge",  tone: "orange"  },
-    { rank: "4-10",    label: "Top 10",           prize: "500 USDT",    extra: "+ Bronze Badge",  tone: "orange"  },
-    { rank: "11-50",   label: "Top 50",           prize: "50 USDT",     extra: "+ Participant Badge", tone: "emerald" },
-    { rank: "51-100",  label: "Top 100",          prize: "25 USDT",     extra: "+ Participant NFT",   tone: "emerald" },
+    { rank: "1",    label: "Champion",    prize: "500 USDT",  extra: "+ Diamond Badge",   tone: "amber"   },
+    { rank: "2",    label: "Runner-up",   prize: "200 USDT",  extra: "+ Gold Badge",      tone: "zinc"    },
+    { rank: "3",    label: "Third Place", prize: "100 USDT",  extra: "+ Silver Badge",    tone: "orange"  },
+    { rank: "4-10", label: "Top 10",      prize: "20 USDT",   extra: "+ Bronze Badge",   tone: "orange"  },
+    { rank: "11-25",label: "Top 25",      prize: "4 USDT",    extra: "+ Participant NFT", tone: "emerald" },
   ];
 
   const rules = [
@@ -273,10 +272,10 @@ router.post("/admin/competitions/monthly", adminOnly, async (req, res): Promise<
   const [row] = await db.insert(competitionsTable).values({
     title:           `Zebvix Trading Champions — ${monthName} ${year}`,
     subtitle:        `Season ${season} · ${monthName} ${year}`,
-    description:     `Compete with India's top traders for ${monthName} ${year}. Highest trading volume wins a share of the ₹25,000 USDT prize pool. Spot, Futures & Convert — everything counts. Top 100 traders win!`,
-    prizePool:       "25000",
+    description:     `Compete with India's top traders for ${monthName} ${year}. Highest trading volume wins a share of the 1,000 USDT prize pool. Spot, Futures & Convert — everything counts. Top 25 traders win!`,
+    prizePool:       "1000",
     prizeUnit:       "USDT",
-    topPrize:        "10000",
+    topPrize:        "500",
     rewardTiersJson: JSON.stringify(rewardTiers),
     rulesJson:       JSON.stringify(rules),
     heroIcon:        "trophy",
