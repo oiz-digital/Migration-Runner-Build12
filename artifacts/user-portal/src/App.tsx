@@ -230,6 +230,7 @@ function App() {
 
                 <Route path="/login" component={Login} />
                 <Route path="/signup" component={Signup} />
+                <Route path="/register">{() => { window.location.replace(import.meta.env.BASE_URL + "signup"); return null; }}</Route>
                 <Route path="/forgot-password" component={ForgotPassword} />
                 
                 <Route component={NotFound} />
