@@ -19,6 +19,7 @@ import { StatusPill } from "@/components/premium/StatusPill";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { SuccessModal, type BotSuccess } from "@/components/SuccessModal";
 
 type Bot = {
   id: number; name: string; botType: "grid" | "dca";
@@ -213,6 +214,7 @@ function CreateBotDialog() {
   const [type, setType] = useState<"grid" | "dca">("grid");
   const [name, setName] = useState("");
   const [pair, setPair] = useState("BTC/USDT");
+  const [botSuccess, setBotSuccess] = useState<BotSuccess | null>(null);
 
   // Grid fields
   const [lower, setLower] = useState("");
@@ -248,15 +250,22 @@ function CreateBotDialog() {
         baseSymbol: base, quoteSymbol: quote, config,
       });
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ["/bots"] });
       setOpen(false); setName(""); setLower(""); setUpper(""); setTotal(""); setAmount(""); setCap("");
-      toast.success("Bot created — start it to begin trading");
+      setBotSuccess({ kind: "bot", botId: res?.id, botName: name || "New Bot", botType: type, pair });
     },
     onError: (e: any) => toast.error(e?.message || "Could not create bot"),
   });
 
   return (
+    <>
+    <SuccessModal
+      open={botSuccess !== null}
+      onClose={() => setBotSuccess(null)}
+      payload={botSuccess}
+      onViewBots={() => setBotSuccess(null)}
+    />
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm"><Plus className="h-3.5 w-3.5 mr-1.5" /> New bot</Button>
@@ -346,6 +355,7 @@ function CreateBotDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

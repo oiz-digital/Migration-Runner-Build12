@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { SuccessModal, type OrderSuccess } from "@/components/SuccessModal";
 import { useAuth } from "@/lib/auth";
 import { PriceChart } from "@/components/PriceChart";
 import { OrderFillsDialog } from "@/components/OrderFillsDialog";
@@ -545,19 +546,37 @@ export default function Trade() {
     }));
   }, [myTradesData]);
 
+  // ─── Success modal state ──────────────────
+  const pendingOrderRef = useRef<{
+    side: "buy" | "sell"; orderType: string; base: string;
+    quote: string; amount: string; price: string;
+  } | null>(null);
+  const [orderSuccess, setOrderSuccess] = useState<OrderSuccess | null>(null);
+
   // ─── Mutations ────────────────────────────
   const orderMutation = useMutation({
     mutationFn: (data: any) => post("/exchange/order", data),
-    onSuccess: () => {
-      toast.success(`${side === "buy" ? "Buy" : "Sell"} order placed`);
+    onSuccess: (res: any) => {
+      const p = pendingOrderRef.current;
+      if (p) {
+        setOrderSuccess({
+          kind: "order",
+          side: p.side,
+          orderType: p.orderType,
+          pair: `${p.base}/${p.quote}`,
+          amount: Number(p.amount).toFixed(6).replace(/\.?0+$/, ""),
+          baseSymbol: p.base,
+          quoteSymbol: p.quote,
+          price: p.orderType !== "market" ? p.price : undefined,
+          orderId: res?.id,
+        });
+      }
       setPrice("");
       setAmount("");
       setStopPrice("");
       setPctSlider([0]);
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
-      // Refresh "Mine" tab too — the order may have filled instantly so a new
-      // trade row should appear in the user's per-pair fills.
       qc.invalidateQueries({ queryKey: ["my-trades"] });
     },
     onError: (err: any) => toast.error(err?.message || "Failed to place order"),
@@ -592,6 +611,7 @@ export default function Trade() {
     if (!(amt > 0)) { toast.error("Enter an amount"); return; }
     if (type !== "market" && !(Number(price) > 0)) { toast.error("Enter a price"); return; }
     if (type === "stop" && !(Number(stopPrice) > 0)) { toast.error("Enter a stop trigger price"); return; }
+    pendingOrderRef.current = { side: side as "buy" | "sell", orderType: type, base, quote, amount, price };
     orderMutation.mutate({
       currency: base,
       pair: quote,
@@ -1317,6 +1337,13 @@ export default function Trade() {
         orderId={fillsOrderId}
         open={fillsOrderId !== null}
         onOpenChange={(o) => !o && setFillsOrderId(null)}
+      />
+
+      <SuccessModal
+        open={orderSuccess !== null}
+        onClose={() => setOrderSuccess(null)}
+        payload={orderSuccess}
+        onViewOrders={() => { window.location.href = window.location.origin + "/user/orders"; }}
       />
 
       {/* ── AI Trade Suggestion Dialog ───────────────────────────── */}

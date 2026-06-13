@@ -71,7 +71,7 @@ export async function downloadElementAsPdf(
   if (isIOS()) {
     // iOS Safari blocks programmatic downloads; open blob URL in new tab so
     // the user can save via the Share sheet → Save to Files.
-    const blobUrl = pdf.output("bloburl") as string;
+    const blobUrl = pdf.output("bloburl") as unknown as string;
     const win = window.open(blobUrl, "_blank");
     if (!win) {
       // Pop-up was blocked — navigate the current tab instead.

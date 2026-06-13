@@ -3,7 +3,7 @@
  * Route: /ai-trading/statement
  * Download PDF via html2canvas + jsPDF.
  */
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { get } from "@/lib/api";

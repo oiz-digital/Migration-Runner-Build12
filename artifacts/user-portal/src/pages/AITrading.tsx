@@ -18,6 +18,7 @@ import { SectionCard } from "@/components/premium/SectionCard";
 import { EmptyState } from "@/components/premium/EmptyState";
 import { StatusPill } from "@/components/premium/StatusPill";
 import { toast } from "sonner";
+import { SuccessModal, type PlanSuccess } from "@/components/SuccessModal";
 import {
   TrendingUp, Bot, DollarSign, Clock, Shield, Zap, Flame,
   ChevronRight, RefreshCw, BarChart2, Cpu, Target, Sparkles,
@@ -224,6 +225,7 @@ export default function AITrading() {
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [filterRisk, setFilterRisk] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"daily" | "apy" | "investors">("daily");
+  const [planSuccess, setPlanSuccess] = useState<PlanSuccess | null>(null);
 
   const plansQ = useQuery<Plan[]>({
     queryKey: ["ai-trading-plans"],
@@ -715,9 +717,19 @@ export default function AITrading() {
           plan={selectedPlan}
           open={subscribeOpen}
           onClose={() => { setSubscribeOpen(false); setSelectedPlan(null); }}
-          onSuccess={() => { qc.invalidateQueries({ queryKey: ["ai-trading-subs"] }); }}
+          onSuccess={(data) => {
+            qc.invalidateQueries({ queryKey: ["ai-trading-subs"] });
+            setPlanSuccess(data);
+          }}
         />
       )}
+
+      <SuccessModal
+        open={planSuccess !== null}
+        onClose={() => setPlanSuccess(null)}
+        payload={planSuccess}
+        onViewBots={() => setPlanSuccess(null)}
+      />
 
     </div>
   );
@@ -1203,7 +1215,7 @@ function BotCard({ sub, onCancel, cancelling, onInvoice }: {
 
 /* ─────────────────────── Subscribe Dialog ───────────────────────────────── */
 function SubscribeDialog({ plan, open, onClose, onSuccess }: {
-  plan: Plan; open: boolean; onClose: () => void; onSuccess: () => void;
+  plan: Plan; open: boolean; onClose: () => void; onSuccess: (data: PlanSuccess) => void;
 }) {
   const [amount, setAmount] = useState(String(plan.minInvestment));
   const [currency, setCurrency] = useState<"USDT" | "INR">("USDT");
@@ -1220,8 +1232,17 @@ function SubscribeDialog({ plan, open, onClose, onSuccess }: {
   const subscribeMutation = useMutation({
     mutationFn: (data: object) => post("/ai-trading/subscribe", data),
     onSuccess: () => {
-      toast.success(`${plan.name} bot activated! Daily earnings start tomorrow.`);
-      onSuccess();
+      const dailyProfit = amtInUsdt * (plan.dailyReturnPercent / 100);
+      onSuccess({
+        kind: "plan",
+        planName: plan.name,
+        riskColor: risk.color,
+        investedUsdt: amtInUsdt,
+        dailyPct: plan.dailyReturnPercent,
+        durationDays: noExpire ? null : plan.durationDays,
+        dailyProfit,
+        expectedProfit: noExpire ? 0 : +(dailyProfit * plan.durationDays).toFixed(4),
+      });
       onClose();
       setAmount(String(plan.minInvestment));
     },
