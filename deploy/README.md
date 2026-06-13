@@ -81,12 +81,52 @@ Nginx (port 80/443 + SSL)
 | File | Purpose |
 |------|---------|
 | `zebvix-setup.sh` | **Main script** — interactive setup + upgrade wizard |
+| `seed.sh` | **Standalone seed script** — populate reference data manually |
 | `create-admin.mjs` | Admin user creation helper (called by setup script) |
 | `build.sh` | Build-only script (skips system install) |
 | `install.sh` | System packages only (called by setup on fresh install) |
 | `pm2.config.cjs` | PM2 process configuration |
 | `nginx.conf` | Nginx reverse proxy + SSL config template |
 | `.env.example` | Environment variable reference |
+
+---
+
+## Database Seeding
+
+The full setup script seeds all reference data automatically on a **fresh install**. Upgrade runs (`--upgrade`) skip seeding to protect live data.
+
+### What gets seeded
+
+| Step | Command | Data populated |
+|------|---------|----------------|
+| 1 | `api-server seed` | 100 coins, networks, 200+ trading pairs |
+| 2 | `scripts seed:admin` | Admin bot wallets for market-making |
+| 3 | `scripts seed:bots` | Market maker bots for all active pairs |
+| 4 | `scripts seed:ai-plans` | 4 AI trading plans (Starter/Growth/Pro/Elite) |
+| 5 | `scripts seed:earn` | 12 earn/staking products (USDT/BTC/ETH/SOL/ZBX) |
+| 6 | `scripts seed:kyc` | KYC level settings (L1/L2/L3 limits per PMLA) |
+
+### Run seeds manually
+
+All seeds use upsert — safe to re-run without duplicating data.
+
+```bash
+# Full seed (all 6 steps)
+bash deploy/seed.sh
+
+# Individual seeds
+pnpm --filter @workspace/api-server run seed          # coins/networks/pairs
+pnpm --filter @workspace/scripts run seed:admin       # admin wallets
+pnpm --filter @workspace/scripts run seed:bots        # market bots
+pnpm --filter @workspace/scripts run seed:ai-plans    # AI trading plans
+pnpm --filter @workspace/scripts run seed:earn        # earn products
+pnpm --filter @workspace/scripts run seed:kyc         # KYC level settings
+
+# Or run all non-coin seeds at once:
+pnpm --filter @workspace/scripts run seed:all
+```
+
+> **Note:** The coin seed must run before the earn seed (earn products reference coin IDs).
 
 ---
 
@@ -102,7 +142,17 @@ sudo bash deploy/install.sh
 sudo -u cryptox bash deploy/build.sh
 ```
 
-### Step 3 — Create admin manually
+### Step 3 — Migrate schema
+```bash
+cd /opt/cryptox && pnpm --filter @workspace/db run migrate
+```
+
+### Step 4 — Seed reference data
+```bash
+bash /opt/cryptox/deploy/seed.sh
+```
+
+### Step 5 — Create admin manually
 ```bash
 DATABASE_URL="postgresql://..." node deploy/create-admin.mjs \
   --email admin@zebvix.com \
@@ -110,13 +160,13 @@ DATABASE_URL="postgresql://..." node deploy/create-admin.mjs \
   --name "Admin"
 ```
 
-### Step 4 — Start PM2
+### Step 6 — Start PM2
 ```bash
 pm2 start deploy/pm2.config.cjs
 pm2 save
 ```
 
-### Step 5 — SSL
+### Step 7 — SSL
 ```bash
 certbot --nginx -d zebvix.com -d www.zebvix.com
 ```
@@ -231,3 +281,6 @@ sudo ufw status
 | SSL not working | `certbot renew --dry-run`, verify DNS A record points to VPS IP |
 | Admin login fails | Re-run: `node deploy/create-admin.mjs --email ... --password ...` |
 | Migration error | Check `/tmp/zbx_db.log` — run `pnpm --filter @workspace/db run push` manually |
+| Seed failed / empty earn page | Run: `bash /opt/cryptox/deploy/seed.sh` — check logs in `/tmp/zbx_seed_*.log` |
+| AI plans not showing | Re-run: `pnpm --filter @workspace/scripts run seed:ai-plans` |
+| KYC settings missing | Re-run: `pnpm --filter @workspace/scripts run seed:kyc` |

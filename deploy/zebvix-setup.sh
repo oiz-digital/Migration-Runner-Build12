@@ -445,6 +445,85 @@ else
   warn "deploy/create-admin.mjs not found — create admin from admin panel"
 fi
 
+# ── Seed reference data (fresh install only) ──────────────────────
+# Upgrade skips seeds — existing live data must not be overwritten.
+# All seeds use upsert so re-running is safe if needed manually.
+if ! $UPGRADE_MODE; then
+  step "STEP 6b/8 — Reference Data Seed"
+  info "Seeding coins, networks, pairs, AI plans, earn products, KYC settings…"
+
+  # 1. Coins / networks / pairs
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/api-server run seed \
+    > /tmp/zbx_seed_coins.log 2>&1) &
+  spinner $! "Seeding coins, networks and trading pairs..."
+  if [[ $? -eq 0 ]]; then
+    ok "Coins/networks/pairs seeded"
+  else
+    warn "Coin seed had issues — check /tmp/zbx_seed_coins.log"
+  fi
+
+  # 2. Admin bot wallets (gives admin unlimited balance for market-making)
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/scripts run seed:admin \
+    > /tmp/zbx_seed_admin.log 2>&1) &
+  spinner $! "Seeding admin wallets for market-making bots..."
+  if [[ $? -eq 0 ]]; then
+    ok "Admin bot wallets seeded"
+  else
+    warn "Admin wallet seed issues — check /tmp/zbx_seed_admin.log"
+  fi
+
+  # 3. Market bots
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/scripts run seed:bots \
+    > /tmp/zbx_seed_bots.log 2>&1) &
+  spinner $! "Seeding market maker bots for all trading pairs..."
+  if [[ $? -eq 0 ]]; then
+    ok "Market maker bots seeded"
+  else
+    warn "Bot seed had issues — check /tmp/zbx_seed_bots.log"
+  fi
+
+  # 4. AI trading plans
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/scripts run seed:ai-plans \
+    > /tmp/zbx_seed_ai.log 2>&1) &
+  spinner $! "Seeding AI trading plans (Starter / Growth / Pro / Elite)..."
+  if [[ $? -eq 0 ]]; then
+    ok "AI trading plans seeded"
+  else
+    warn "AI plans seed had issues — check /tmp/zbx_seed_ai.log"
+  fi
+
+  # 5. Earn / staking products
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/scripts run seed:earn \
+    > /tmp/zbx_seed_earn.log 2>&1) &
+  spinner $! "Seeding earn/staking products (USDT/BTC/ETH/ZBX)..."
+  if [[ $? -eq 0 ]]; then
+    ok "Earn products seeded"
+  else
+    warn "Earn seed had issues — check /tmp/zbx_seed_earn.log"
+  fi
+
+  # 6. KYC level settings
+  (cd "$APP_DIR" && DATABASE_URL="$DATABASE_URL" \
+    pnpm --filter @workspace/scripts run seed:kyc \
+    > /tmp/zbx_seed_kyc.log 2>&1) &
+  spinner $! "Seeding KYC level settings (Level 1 / 2 / 3 limits)..."
+  if [[ $? -eq 0 ]]; then
+    ok "KYC settings seeded"
+  else
+    warn "KYC seed had issues — check /tmp/zbx_seed_kyc.log"
+  fi
+
+  info "All seed logs: /tmp/zbx_seed_*.log"
+else
+  ok "Seed skipped — upgrade mode preserves existing data"
+  info "To re-seed manually: bash $APP_DIR/deploy/seed.sh"
+fi
+
 # ─────────────────────────────────────────────────────────────────
 #  SECTION 7 — NGINX + PM2
 # ─────────────────────────────────────────────────────────────────
