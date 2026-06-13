@@ -391,7 +391,7 @@ ok "Admin panel → artifacts/admin/dist/public/"
 # ── Go matching engine ────────────────────────────────────────────
 info "Building Go matching engine..."
 (cd "$APP_DIR/artifacts/go-service" && \
-  /usr/local/go/bin/go build -o server -ldflags="-s -w" .) > /tmp/zbx_go.log 2>&1 \
+  /usr/local/go/bin/go build -buildvcs=false -o server -ldflags="-s -w" .) > /tmp/zbx_go.log 2>&1 \
   || { echo ""; tail -10 /tmp/zbx_go.log; err "Go build failed"; }
 ok "Go engine → artifacts/go-service/server"
 

@@ -62,7 +62,7 @@ ok "Admin panel built → artifacts/admin/dist/"
 # ── 6. Build Go service (order matching engine) ───────────────
 log "[6/7] Building Go order matching engine..."
 cd "$APP_DIR/artifacts/go-service"
-go build -o server -ldflags="-s -w" .
+go build -buildvcs=false -o server -ldflags="-s -w" .
 cd "$APP_DIR"
 ok "Go service built → artifacts/go-service/server"
 
