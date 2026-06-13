@@ -217,6 +217,10 @@ export default function Invoice() {
                   <p className="text-[10px] text-slate-600 font-mono">CIN: <span className="text-slate-400">{brand.cin}</span></p>
                   <p className="text-[10px] text-slate-600 font-mono">PAN: <span className="text-slate-400">{brand.pan}</span></p>
                 </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+                  <p className="text-[10px] text-slate-600 font-mono">✉ <span className="text-slate-400">{brand.supportEmail}</span></p>
+                  <p className="text-[10px] text-slate-600 font-mono">🌐 <span className="text-slate-400">{brand.website}</span></p>
+                </div>
               </div>
 
               {/* Invoice meta + verified seal */}
