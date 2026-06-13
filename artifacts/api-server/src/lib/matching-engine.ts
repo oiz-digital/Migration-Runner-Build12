@@ -117,7 +117,10 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
           const makerRem = Number(maker.qty) - Number(maker.filledQty ?? 0);
           if ((maker.isBot ?? 0) !== 1) {
             if (maker.side === "buy") {
-              const release = makerRem * Number(maker.price);
+              // At placement the buy lock was qty × price × (1 + takerFeeRate).
+              // Self-trade user == taker user, so their VIP tier is the same.
+              const stRates = await getSpotFeeRates(opts?.takerVipTier ?? 0);
+              const release = makerRem * Number(maker.price) * (1 + stRates.taker);
               const w = await ensureWallet(tx, maker.userId, pair.quoteCoinId);
               await tx.update(walletsTable).set({
                 balance: sql`${walletsTable.balance} + ${release}`,
@@ -234,15 +237,19 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             }).where(eq(walletsTable.id, tQuote.id));
           }
           if (!makerIsBot) {
-            // Maker buy: locked quote = makerRem * makerPrice; spend = notional + makerFee; refund leftover lock for this slice = (makerPrice * fillQty) - (notional + makerFee) = -makerFee since tradePrice = makerPrice
-            const makerLockSlice = fillQty * tradePrice;
-            // Negative refund means we need to take fee from balance because we pre-locked exact notional only.
-            // Strategy: reduce locked by makerLockSlice (release), then debit fee from balance.
+            // BUY maker: at order placement the lock was qty × price × (1 + takerFeeRate)
+            // (the placeSpotOrder function always uses the taker rate for the quote lock,
+            // even for limit orders, as a conservative buffer).  Release the full per-fill
+            // slice (tradePrice × (1 + makerRates.taker)) and credit back the difference
+            // between the takerFee buffer and the actual makerFee — mirroring the taker
+            // refund path above and ensuring locked never leaks.
+            const makerQuoteLocked = fillQty * tradePrice * (1 + makerRates.taker);
+            const makerRefund = makerQuoteLocked - notional - makerFee;
             const mQuote = await ensureWallet(tx, maker.userId, pair.quoteCoinId);
             makerQuoteBalBefore = parseFloat(mQuote.balance ?? "0");
             await tx.update(walletsTable).set({
-              locked: sql`${walletsTable.locked} - ${makerLockSlice}`,
-              balance: sql`${walletsTable.balance} - ${makerFee}`,
+              locked: sql`${walletsTable.locked} - ${makerQuoteLocked}`,
+              balance: makerRefund !== 0 ? sql`${walletsTable.balance} + ${makerRefund}` : walletsTable.balance,
               updatedAt: new Date(),
             }).where(eq(walletsTable.id, mQuote.id));
             const mBase = await ensureWallet(tx, maker.userId, pair.baseCoinId);

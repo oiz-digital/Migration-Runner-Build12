@@ -103,6 +103,7 @@ interface ResolvedPair {
   lastPrice: number;
 }
 
+
 // Keep a tiny in-process pair cache (1s TTL) keyed by "BASE/QUOTE" so the
 // hot order path doesn't hit Postgres twice per request just to resolve a
 // symbol. Mark price changes are picked up by lib/pair-stats / futures-engine.
@@ -298,6 +299,10 @@ interface FillCtx {
   leverage: number;
   isMaker: boolean;
   isBot: boolean;
+  /** Pre-computed GST-inclusive, VIP-tier-adjusted fee from applyFills.
+   *  When provided, overrides the pair-level rate so the wallet deduction
+   *  matches the fee stored on the trade record. Bots always receive 0. */
+  feeOverride?: number;
 }
 
 /**
@@ -327,8 +332,16 @@ async function applyFillToPosition(tx: any, ctx: FillCtx): Promise<{
   )).for("update").limit(1);
 
   // Bots skip wallets entirely (synthetic liquidity).
+  // If the caller (applyFills) supplies a pre-computed GST-inclusive, VIP-tier-
+  // adjusted fee, use it directly so the wallet deduction matches the trade
+  // record. Otherwise fall back to the pair-level rate (used by direct fills
+  // and legacy paths that don't have VIP context).
   const feeRate = isMaker ? pair.makerFeeRate : pair.takerFeeRate;
-  const fee = isBot ? 0 : Math.max(0, fillQty * fillPrice * feeRate);
+  const fee = isBot ? 0 : (
+    ctx.feeOverride !== undefined
+      ? ctx.feeOverride
+      : Math.max(0, fillQty * fillPrice * feeRate)
+  );
 
   if (!existing) {
     // Open a brand new position.
@@ -618,7 +631,8 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
         makerFee: String(tradeMakerFee),
       });
 
-      // Apply fill to the taker's position.
+      // Apply fill to the taker's position. Pass the pre-computed GST-inclusive
+      // fee as feeOverride so the wallet deduction exactly matches the trade record.
       const takerCtx: FillCtx = {
         pair, userId: Number(tr.takerUserId),
         fillPrice, fillQty,
@@ -626,6 +640,7 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
         leverage: Number(taker.leverage),
         isMaker: false,
         isBot: Boolean(tr.takerIsBot),
+        feeOverride: Boolean(tr.takerIsBot) ? 0 : tradeTakerFee,
       };
       const takerEffect = await applyFillToPosition(tx, takerCtx);
       lastTakerPosId = takerEffect.positionId;
@@ -657,6 +672,7 @@ async function applyFills(taker: any, match: any, pair: ResolvedPair): Promise<a
         leverage: Number(maker.leverage),
         isMaker: true,
         isBot: Boolean(tr.makerIsBot),
+        feeOverride: Boolean(tr.makerIsBot) ? 0 : tradeMakerFee,
       };
       const makerEffect = await applyFillToPosition(tx, makerCtx);
       // Same symmetric pre-lock release / position re-lock pattern as taker.
