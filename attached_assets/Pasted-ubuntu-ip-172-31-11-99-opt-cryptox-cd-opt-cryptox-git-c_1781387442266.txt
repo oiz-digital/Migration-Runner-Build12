@@ -1,0 +1,48 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox
+git checkout -- artifacts/go-service/server pnpm-lock.yaml
+git pull origin main
+node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('.env','utf8').split('\n');
+const dbUrl = lines.find(l=>l.startsWith('DATABASE_URL=')).split('=').slice(1).join('=').trim().replace(/^\"|\"$/g,'');
+process.env.DATABASE_URL = dbUrl;
+" 2>/dev/null; pnpm --filter @workspace/db run migrate
+remote: Enumerating objects: 48, done.
+remote: Counting objects: 100% (48/48), done.
+remote: Compressing objects: 100% (28/28), done.
+remote: Total 41 (delta 31), reused 23 (delta 13), pack-reused 0 (from 0)
+Unpacking objects: 100% (41/41), 32.93 KiB | 1.10 MiB/s, done.
+From https://github.com/oiz-digital/Migration-Runner-Build12
+ * branch            main       -> FETCH_HEAD
+   d28c7a5..6ed1dec  main       -> origin/main
+Updating d28c7a5..6ed1dec
+Fast-forward
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-DB-gr_1781386805876.txt |    15 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-expor_1781386770871.txt |    20 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-git-c_1781386638431.txt |   517 ++
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781386704188.txt |    42 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781386879097.txt |    43 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387028955.txt |    32 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387077817.txt |    22 +
+ ...buntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387142433.txt |    22 +
+ lib/db/drizzle/0002_natural_vengeance.sql                                   |    53 +
+ lib/db/drizzle/meta/0002_snapshot.json                                      | 12611 ++++++++++++++++++++++++++++++++++
+ lib/db/drizzle/meta/_journal.json                                           |     7 +
+ 11 files changed, 13384 insertions(+)
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-DB-gr_1781386805876.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-expor_1781386770871.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-git-c_1781386638431.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781386704188.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781386879097.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387028955.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387077817.txt
+ create mode 100644 attached_assets/Pasted-ubuntu-ip-172-31-11-99-opt-cryptox-cd-opt-cryptox-node-_1781387142433.txt
+ create mode 100644 lib/db/drizzle/0002_natural_vengeance.sql
+ create mode 100644 lib/db/drizzle/meta/0002_snapshot.json
+
+> @workspace/db@0.0.0 migrate /opt/cryptox/lib/db
+> drizzle-kit migrate --config ./drizzle.config.ts
+
+Reading config file '/opt/cryptox/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] migrations applied successfully!ubuntu@ip-172-31-11-99:/opt/cryptox$
