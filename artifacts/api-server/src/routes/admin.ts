@@ -47,6 +47,7 @@ import { getSweeperStatus, manualScan, sweepAllNetworks, startDepositSweeper, st
 import { sweepDepositToMaster, getAutoSweepStats } from "../lib/deposit-sweep-master";
 import { broadcastWithdrawal, getHotWalletBalance, isEvmChain, BroadcastError } from "../lib/auto-broadcaster";
 import { getAutoWithdrawSchedulerStatus } from "../lib/auto-withdraw-scheduler";
+import { checkAndCreditRegistrationBonus } from "../lib/referral-signup-bonus";
 import { walletAddressesTable } from "@workspace/db";
 import { isVaultPasswordSet, setVaultPassword, verifyVaultPassword } from "../lib/admin-vault";
 import { isMnemonicConfigured, getMnemonicForReveal } from "../lib/hd-wallet";
@@ -929,6 +930,10 @@ router.patch("/admin/kyc/:id", adminOnly, async (req, res): Promise<void> => {
       .where(eq(usersTable.id, rec.userId));
   }
   res.json(rec);
+  // Check referral signup bonus — KYC approval may satisfy the KYC condition
+  if (status === "approved") {
+    checkAndCreditRegistrationBonus(rec.userId).catch(() => null);
+  }
   // Fire-and-forget KYC status email
   const [kycUser] = await db.select().from(usersTable).where(eq(usersTable.id, rec.userId)).limit(1);
   if (kycUser?.email) {
@@ -1545,6 +1550,10 @@ router.patch("/admin/inr-deposits/:id", adminOnly, async (req, res): Promise<voi
       return d;
     });
     res.json(updated);
+    // Check referral signup bonus — deposit may satisfy the deposit condition
+    if (status === "completed" && updated) {
+      checkAndCreditRegistrationBonus(updated.userId).catch(() => null);
+    }
     void logAdminAction(req, { action: `inr_deposit.${status}`, entity: "inr_deposit", entityId: id, payload: { status, notes: notes ?? null } });
     // Fire-and-forget deposit confirmation email
     if (status === "completed" && updated) {
@@ -1876,6 +1885,10 @@ router.patch("/admin/crypto-deposits/:id", adminOnly, async (req, res): Promise<
       return d;
     });
     res.json(updated);
+    // Check referral signup bonus — deposit may satisfy the deposit condition
+    if (status === "completed" && updated) {
+      checkAndCreditRegistrationBonus(updated.userId).catch(() => null);
+    }
   } catch (e: any) {
     if (e?.code) { res.status(e.code).json({ error: e.message }); return; }
     throw e;

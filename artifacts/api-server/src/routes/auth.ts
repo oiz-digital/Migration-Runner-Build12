@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, or, inArray, sql } from "drizzle-orm";
 import { z, type ZodSchema } from "zod";
-import { db, usersTable, loginLogsTable, walletsTable, walletLedgerTable, coinsTable, settingsTable, otpCodesTable, referralsTable } from "@workspace/db";
+import { db, usersTable, loginLogsTable, walletsTable, coinsTable, settingsTable, otpCodesTable, referralsTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -230,60 +230,20 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
   }
   if (inits.length) await db.insert(walletsTable).values(inits);
 
-  // ── Registration bonus: credit referrer 1 USDT when their direct invitee signs up ──
-  // This is fire-and-forget (never blocks signup response).
-  if (referredBy && usdtCoin[0]) {
-    const usdtCoinId = usdtCoin[0].id;
-    (async () => {
-      try {
-        // Use admin-configurable bonus amount (default 1.0 USDT)
-        const refConfig = await loadReferralConfig();
-        if (!refConfig.enabled) return;
-        const REGISTRATION_BONUS_USDT = refConfig.registrationBonus;
-        // Atomic upsert: create the wallet row if absent, otherwise increment
-        // balance. Eliminates the SELECT→INSERT race condition against the
-        // unique (user_id, wallet_type, coin_id) index — safe under concurrent
-        // signups with the same referral code.
-        const [regWallet] = await db.insert(walletsTable)
-          .values({
-            userId: referredBy!, coinId: usdtCoinId, walletType: "spot",
-            balance: String(REGISTRATION_BONUS_USDT), locked: "0",
-          })
-          .onConflictDoUpdate({
-            target: [walletsTable.userId, walletsTable.walletType, walletsTable.coinId],
-            set: {
-              balance: sql`${walletsTable.balance} + ${REGISTRATION_BONUS_USDT}`,
-              updatedAt: new Date(),
-            },
-          })
-          .returning({ balance: walletsTable.balance });
-
-        // Ledger entry — referrer sees this as a transaction in their history
-        if (regWallet) {
-          const balAfter  = regWallet.balance;
-          const balBefore = String(Math.max(0, parseFloat(balAfter) - REGISTRATION_BONUS_USDT));
-          await db.insert(walletLedgerTable).values({
-            userId:        referredBy!,
-            coinId:        usdtCoinId,
-            walletType:    "spot",
-            type:          "referral_bonus",
-            amount:        String(REGISTRATION_BONUS_USDT),
-            balanceBefore: balBefore,
-            balanceAfter:  balAfter,
-            refType:       "referral",
-            refId:         String(user.id),
-            note:          "Registration referral bonus",
-          }).catch(() => null);
-        }
-
-        await db.insert(referralsTable).values({
-          referrerId: referredBy!, referredId: user.id,
-          bonusCredited: true, bonusAmount: String(REGISTRATION_BONUS_USDT),
-          commissionRate: String(REGISTRATION_BONUS_USDT),
-          level: 1, sourceType: "registration",
-        }).catch(() => null);
-      } catch { /* non-critical */ }
-    })();
+  // ── Registration referral: insert a PENDING row — bonus is credited later
+  // only after the referred user completes KYC Level 1 AND makes a qualifying
+  // deposit (≥10 USDT or ≥₹1000 INR). checkAndCreditRegistrationBonus() is
+  // called fire-and-forget from the KYC-approval and deposit-approval routes.
+  if (referredBy) {
+    db.insert(referralsTable).values({
+      referrerId:    referredBy,
+      referredId:    user.id,
+      bonusCredited: false,
+      bonusAmount:   "0",
+      commissionRate: "0",
+      level:         1,
+      sourceType:    "registration",
+    }).catch(() => null);
   }
 
   // Fire-and-forget welcome email (non-blocking)
