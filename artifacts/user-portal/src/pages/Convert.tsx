@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { KycGate } from "@/components/KycGate";
 import { ArrowDownUp, RefreshCw, History, Zap, Clock, Sparkles, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { get, post } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ function useCountdown(target: string | null): { msLeft: number; expired: boolean
 export default function Convert() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   // Coin universe (server-curated). Filter to active+listed and popular order.
   const coinsQ = useQuery<Coin[]>({
@@ -147,7 +149,19 @@ export default function Convert() {
   const exec = useMutation({
     mutationFn: (quoteId: number) => post<{ ok: true; toAmount: number }>("/convert/execute", { quoteId }),
     onSuccess: (r) => {
-      toast.success(`Converted ✓ Got ${fmt(r.toAmount)} ${toCoin}`);
+      setGenericSuccess({
+        kind: "generic",
+        accentColor: "#A78BFA",
+        iconKind: "convert",
+        title: "Converted!",
+        subtitle: `${fromCoin} → ${toCoin}`,
+        rows: [
+          { label: "You Swapped", value: `${fmt(Number(amount || 0), 6).replace(/\.?0+$/, "")} ${fromCoin}` },
+          { label: "You Received", value: `${fmt(r.toAmount, 6).replace(/\.?0+$/, "")} ${toCoin}`, accent: "text-emerald-400" },
+          { label: "Rate", value: `1 ${fromCoin} = ${fmt(r.toAmount / Number(amount || 1), 4)} ${toCoin}`, accent: "text-muted-foreground" },
+        ],
+        primaryLabel: "Done",
+      });
       setAmount(""); setQuote(null);
       qc.invalidateQueries({ queryKey: ["/finance/wallet?perPage=200"] });
       qc.invalidateQueries({ queryKey: ["/convert/history"] });
@@ -426,6 +440,12 @@ export default function Convert() {
           </table>
         </div>
       </SectionCard>
+
+      <SuccessModal
+        open={genericSuccess !== null}
+        onClose={() => setGenericSuccess(null)}
+        payload={genericSuccess}
+      />
     </div>
   );
 }

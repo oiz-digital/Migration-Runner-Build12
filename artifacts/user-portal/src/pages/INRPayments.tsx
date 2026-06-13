@@ -7,6 +7,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { get, post } from "@/lib/api";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,7 @@ export default function INRPayments() {
     bankName: "", accountNumber: "", ifscCode: "", accountHolder: "",
   });
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   const bankDetailsQ = useQuery<BankDetails>({
     queryKey: ["/payments/inr/bank-details"],
@@ -88,7 +90,21 @@ export default function INRPayments() {
   const depositMut = useMutation({
     mutationFn: (body: object) => post("/payments/inr/deposit", body),
     onSuccess: () => {
-      toast.success("Deposit request submitted! We'll credit your account within 30 minutes.");
+      const amt = form.amountInr ? `₹${Number(form.amountInr).toLocaleString("en-IN")}` : "—";
+      setGenericSuccess({
+        kind: "generic",
+        accentColor: "#10B981",
+        iconKind: "inr_deposit",
+        title: "Deposit Submitted!",
+        subtitle: "INR Deposit Request",
+        rows: [
+          { label: "Amount",  value: amt, accent: "text-emerald-400" },
+          { label: "Method",  value: form.method.toUpperCase() },
+          { label: "Status",  value: "Under Review", accent: "text-amber-300" },
+          { label: "ETA",     value: "Within 30 minutes", accent: "text-muted-foreground" },
+        ],
+        primaryLabel: "Got it",
+      });
       qc.invalidateQueries({ queryKey: ["/payments/inr/history"] });
       qc.invalidateQueries({ queryKey: ["/payments/inr/balance"] });
       setForm({ amountInr: "", method: "upi", upiId: "", utrNumber: "", bankName: "", accountNumber: "", ifscCode: "", accountHolder: "" });
@@ -99,7 +115,21 @@ export default function INRPayments() {
   const withdrawMut = useMutation({
     mutationFn: (body: object) => post("/payments/inr/withdraw", body),
     onSuccess: () => {
-      toast.success("Withdrawal request submitted! Processing within 4–6 hours.");
+      const amt = form.amountInr ? `₹${Number(form.amountInr).toLocaleString("en-IN")}` : "—";
+      setGenericSuccess({
+        kind: "generic",
+        accentColor: "#F87171",
+        iconKind: "inr_withdraw",
+        title: "Withdrawal Submitted!",
+        subtitle: "INR Withdrawal Request",
+        rows: [
+          { label: "Amount",  value: amt, accent: "text-rose-400" },
+          { label: "Method",  value: form.method.toUpperCase() },
+          { label: "Status",  value: "Processing", accent: "text-amber-300" },
+          { label: "ETA",     value: "4–6 hours", accent: "text-muted-foreground" },
+        ],
+        primaryLabel: "Got it",
+      });
       qc.invalidateQueries({ queryKey: ["/payments/inr/history"] });
       qc.invalidateQueries({ queryKey: ["/payments/inr/balance"] });
       setForm({ amountInr: "", method: "upi", upiId: "", utrNumber: "", bankName: "", accountNumber: "", ifscCode: "", accountHolder: "" });
@@ -263,6 +293,12 @@ export default function INRPayments() {
           </SectionCard>
         </TabsContent>
       </Tabs>
+
+      <SuccessModal
+        open={genericSuccess !== null}
+        onClose={() => setGenericSuccess(null)}
+        payload={genericSuccess}
+      />
     </div>
   );
 }

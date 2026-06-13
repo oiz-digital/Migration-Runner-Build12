@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import {
   Eye,
   EyeOff,
@@ -234,6 +235,7 @@ export default function Wallet() {
   const [depositOpen, setDepositOpen] = useState<{ currency: string; type: WalletType } | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState<{ currency: string; type: WalletType } | null>(null);
   const [transferOpen, setTransferOpen] = useState<{ currency?: string } | null>(null);
+  const [walletSuccess, setWalletSuccess] = useState<GenericSuccess | null>(null);
 
   const handleWithdraw = (currency: string, type: WalletType) => {
     if ((user?.kycLevel ?? 0) < 2) {
@@ -552,6 +554,7 @@ export default function Wallet() {
           initialType={withdrawOpen.type}
           allItems={items}
           onDone={() => { walletQ.refetch(); qc.invalidateQueries({ queryKey: ["transactions"] }); }}
+          onSuccess={(d) => setWalletSuccess(d)}
         />
       )}
       {transferOpen && (
@@ -561,8 +564,15 @@ export default function Wallet() {
           initialCurrency={transferOpen.currency}
           allItems={items}
           onDone={() => { walletQ.refetch(); qc.invalidateQueries({ queryKey: ["transactions"] }); }}
+          onSuccess={(d) => setWalletSuccess(d)}
         />
       )}
+
+      <SuccessModal
+        open={walletSuccess !== null}
+        onClose={() => setWalletSuccess(null)}
+        payload={walletSuccess}
+      />
     </div>
   );
 }
@@ -1835,9 +1845,9 @@ function DepositDialog({
 // Withdraw dialog
 // ──────────────────────────────────────────────────────────────────
 function WithdrawDialog({
-  open, onClose, initialCurrency, initialType, allItems, onDone,
+  open, onClose, initialCurrency, initialType, allItems, onDone, onSuccess,
 }: {
-  open: boolean; onClose: () => void; initialCurrency: string; initialType: WalletType; allItems: WalletItem[]; onDone: () => void;
+  open: boolean; onClose: () => void; initialCurrency: string; initialType: WalletType; allItems: WalletItem[]; onDone: () => void; onSuccess?: (d: GenericSuccess) => void;
 }) {
   const isFiatInit = initialType === "FIAT" || initialCurrency.toUpperCase() === "INR";
   const [mode, setMode] = useState<"CRYPTO" | "FIAT">(isFiatInit ? "FIAT" : "CRYPTO");
@@ -1938,7 +1948,20 @@ function WithdrawDialog({
       return post("/finance/withdraw/fiat", { bankId: Number(bankId), amount: amt });
     },
     onSuccess: () => {
-      toast.success("Withdrawal submitted — pending admin approval");
+      onSuccess?.({
+        kind: "generic",
+        accentColor: "#F87171",
+        iconKind: "withdraw",
+        title: mode === "CRYPTO" ? "Withdrawal Submitted!" : "Fiat Withdrawal Submitted!",
+        subtitle: `${currency} · Pending Admin Approval`,
+        rows: [
+          { label: "Amount",  value: `${amount} ${currency}`, accent: "text-rose-400" },
+          { label: mode === "CRYPTO" ? "Network" : "Method", value: mode === "CRYPTO" ? (activeNet?.chain || network) : "Bank Transfer" },
+          { label: "Status",  value: "Pending Review", accent: "text-amber-300" },
+          { label: "ETA",     value: "24–48 hours", accent: "text-muted-foreground" },
+        ],
+        primaryLabel: "Got it",
+      });
       onDone();
       onClose();
     },
@@ -2276,9 +2299,9 @@ function AddBankDialog({ open, onClose, onAdded }: { open: boolean; onClose: () 
 // Transfer dialog
 // ──────────────────────────────────────────────────────────────────
 function TransferDialog({
-  open, onClose, initialCurrency, allItems, onDone,
+  open, onClose, initialCurrency, allItems, onDone, onSuccess,
 }: {
-  open: boolean; onClose: () => void; initialCurrency?: string; allItems: WalletItem[]; onDone: () => void;
+  open: boolean; onClose: () => void; initialCurrency?: string; allItems: WalletItem[]; onDone: () => void; onSuccess?: (d: GenericSuccess) => void;
 }) {
   const [from, setFrom] = useState<WalletType>("SPOT");
   const [to, setTo] = useState<WalletType>("FUTURES");
@@ -2321,7 +2344,20 @@ function TransferDialog({
   const submit = useMutation({
     mutationFn: () => post("/finance/transfer", { from, to, currency, amount: amt }),
     onSuccess: () => {
-      toast.success(`Transferred ${amt} ${currency} from ${from} to ${to}`);
+      onSuccess?.({
+        kind: "generic",
+        accentColor: "#38BDF8",
+        iconKind: "transfer",
+        title: "Transfer Complete!",
+        subtitle: `${currency} · ${from} → ${to}`,
+        rows: [
+          { label: "Amount", value: `${amt} ${currency}`, accent: "text-sky-400" },
+          { label: "From",   value: from },
+          { label: "To",     value: to },
+          { label: "Fee",    value: "Free", accent: "text-emerald-400" },
+        ],
+        primaryLabel: "Done",
+      });
       onDone();
       onClose();
     },

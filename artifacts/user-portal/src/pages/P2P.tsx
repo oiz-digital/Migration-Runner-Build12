@@ -51,6 +51,7 @@ import { SectionCard } from "@/components/premium/SectionCard";
 import { EmptyState } from "@/components/premium/EmptyState";
 import { StatusPill } from "@/components/premium/StatusPill";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Link } from "wouter";
 
 type PaymentMethod = {
@@ -651,6 +652,7 @@ function MyAdsTab() {
 
 function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const [adSuccess, setAdSuccess] = useState<GenericSuccess | null>(null);
   const [side, setSide] = useState<"buy" | "sell">("sell");
   const [coinSymbol, setCoinSymbol] = useState("");
   const [price, setPrice] = useState("");
@@ -671,8 +673,21 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: ["/p2p/offers/mine"] });
         qc.invalidateQueries({ queryKey: ["/p2p/offers"] });
-        toast.success("Ad posted — your offer is now live.");
-        onClose();
+        setAdSuccess({
+          kind: "generic",
+          accentColor: "#A78BFA",
+          iconKind: "p2p_ad",
+          title: "Ad Posted!",
+          subtitle: `${coinSymbol} · ${side === "sell" ? "Sell" : "Buy"} Offer`,
+          rows: [
+            { label: "Coin",   value: coinSymbol },
+            { label: "Price",  value: `₹${Number(price).toLocaleString("en-IN")} / ${coinSymbol}`, accent: "text-violet-400" },
+            { label: "Qty",    value: `${totalQty} ${coinSymbol}` },
+            { label: "Limit",  value: `₹${Number(minFiat).toLocaleString("en-IN")} – ₹${Number(maxFiat).toLocaleString("en-IN")}` },
+          ],
+          primaryLabel: "Done",
+          onPrimaryExtra: onClose,
+        });
       },
       onError: (e: unknown) =>
         toast.error(e instanceof Error ? e.message : "Create ad failed"),
@@ -682,8 +697,8 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const valid = !!coinSymbol && Number(price) > 0 && Number(totalQty) > 0
     && Number(minFiat) > 0 && Number(maxFiat) >= Number(minFiat) && methods.length > 0;
 
-  return (
-    <Dialog open onOpenChange={onClose}>
+  return (<>
+    <Dialog open onOpenChange={adSuccess ? undefined : onClose}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="p2p-create-ad-dialog">
         <DialogHeader>
           <DialogTitle>Post a P2P Ad</DialogTitle>
@@ -796,7 +811,13 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+
+    <SuccessModal
+      open={adSuccess !== null}
+      onClose={() => setAdSuccess(null)}
+      payload={adSuccess}
+    />
+  </>);
 }
 
 
@@ -915,6 +936,7 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
   const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState("");
   const [showDispute, setShowDispute] = useState(false);
   const [chatBody, setChatBody] = useState("");
+  const [p2pSuccess, setP2pSuccess] = useState<GenericSuccess | null>(null);
 
   const orderQ = useGetP2pOrder(initial.id, {
     request: COOKIE_REQ,
@@ -941,7 +963,16 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
     request: COOKIE_REQ,
     mutation: {
       onSuccess: () => {
-        toast.success("Marked as paid — seller has been notified.");
+        setP2pSuccess({
+          kind: "generic", accentColor: "#F59E0B", iconKind: "paid",
+          title: "Marked as Paid!", subtitle: `Order #${order.id}`,
+          rows: [
+            { label: "Status",   value: "Awaiting seller release", accent: "text-amber-300" },
+            { label: "Coin",     value: order.coin?.symbol ?? "—" },
+            { label: "INR Amt",  value: `₹${Number(order.fiatAmount).toLocaleString("en-IN")}` },
+          ],
+          primaryLabel: "Got it",
+        });
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
       onError: onActionFail,
@@ -951,7 +982,16 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
     request: COOKIE_REQ,
     mutation: {
       onSuccess: () => {
-        toast.success("Released — crypto sent to buyer.");
+        setP2pSuccess({
+          kind: "generic", accentColor: "#10B981", iconKind: "p2p",
+          title: "Crypto Released!", subtitle: `Order #${order.id} Complete`,
+          rows: [
+            { label: "Status",   value: "Trade Complete ✓", accent: "text-emerald-400" },
+            { label: "Sent",     value: `${order.qty} ${order.coin?.symbol ?? ""}`, accent: "text-emerald-400" },
+            { label: "Received", value: `₹${Number(order.fiatAmount).toLocaleString("en-IN")}` },
+          ],
+          primaryLabel: "Done",
+        });
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
       onError: onActionFail,
@@ -961,7 +1001,16 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
     request: COOKIE_REQ,
     mutation: {
       onSuccess: () => {
-        toast.success("Cancelled — escrow refunded to seller.");
+        setP2pSuccess({
+          kind: "generic", accentColor: "#94A3B8", iconKind: "p2p",
+          title: "Order Cancelled", subtitle: `Order #${order.id}`,
+          rows: [
+            { label: "Status",  value: "Cancelled", accent: "text-muted-foreground" },
+            { label: "Escrow",  value: "Refunded to seller", accent: "text-emerald-400" },
+          ],
+          primaryLabel: "Close",
+          onPrimaryExtra: onClose,
+        });
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
       onError: onActionFail,
@@ -971,7 +1020,15 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
     request: COOKIE_REQ,
     mutation: {
       onSuccess: () => {
-        toast.success("Dispute opened — admin will review shortly.");
+        setP2pSuccess({
+          kind: "generic", accentColor: "#EF4444", iconKind: "dispute",
+          title: "Dispute Opened", subtitle: `Order #${order.id} · Under Review`,
+          rows: [
+            { label: "Status", value: "Under Review", accent: "text-amber-300" },
+            { label: "Action", value: "Admin will review within 24h", accent: "text-muted-foreground" },
+          ],
+          primaryLabel: "Got it",
+        });
         setShowDispute(false);
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
@@ -994,8 +1051,8 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
   const canCancel = (isBuyer || isSeller) && order.status === "pending";
   const canDispute = (isBuyer || isSeller) && (order.status === "pending" || order.status === "paid");
 
-  return (
-    <Dialog open onOpenChange={onClose}>
+  return (<>
+    <Dialog open onOpenChange={p2pSuccess ? undefined : onClose}>
       <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto" data-testid="p2p-order-detail">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1202,7 +1259,13 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
         )}
       </DialogContent>
     </Dialog>
-  );
+
+    <SuccessModal
+      open={p2pSuccess !== null}
+      onClose={() => setP2pSuccess(null)}
+      payload={p2pSuccess}
+    />
+  </>);
 }
 
 function Row({ label, value, mono, bold, accent }: { label: string; value: string; mono?: boolean; bold?: boolean; accent?: boolean }) {

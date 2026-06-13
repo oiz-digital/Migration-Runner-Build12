@@ -28,6 +28,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { SectionCard } from "@/components/premium/SectionCard";
@@ -175,6 +176,7 @@ export default function Earn() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("apy");
   const [subProduct, setSubProduct] = useState<EarnProduct | null>(null);
+  const [earnSuccess, setEarnSuccess] = useState<GenericSuccess | null>(null);
   const [redeemFor, setRedeemFor] = useState<EarnPosition | null>(null);
 
   const products = productsQ.data ?? [];
@@ -444,7 +446,8 @@ export default function Earn() {
       <SubscribeDialog
         product={subProduct}
         onOpenChange={(v) => { if (!v) setSubProduct(null); }}
-        onSuccess={() => {
+        onSuccess={(d) => {
+          setEarnSuccess(d);
           qc.invalidateQueries({ queryKey: ["/earn/positions"] });
           qc.invalidateQueries({ queryKey: ["/earn/products"] });
           qc.invalidateQueries({ queryKey: ["/earn/summary"] });
@@ -456,12 +459,19 @@ export default function Earn() {
         position={redeemFor}
         product={redeemFor ? products.find((p) => p.id === redeemFor.productId) ?? null : null}
         onOpenChange={(v) => { if (!v) setRedeemFor(null); }}
-        onSuccess={() => {
+        onSuccess={(d) => {
+          setEarnSuccess(d);
           qc.invalidateQueries({ queryKey: ["/earn/positions"] });
           qc.invalidateQueries({ queryKey: ["/earn/summary"] });
           qc.invalidateQueries({ queryKey: ["/wallets"] });
           setRedeemFor(null);
         }}
+      />
+
+      <SuccessModal
+        open={earnSuccess !== null}
+        onClose={() => setEarnSuccess(null)}
+        payload={earnSuccess}
       />
     </div>
   );
@@ -663,7 +673,7 @@ function StatusBadge({ status, matured }: { status: string; matured?: boolean })
 // ─── Subscribe Dialog ─────────────────────────────────────────────────────────
 function SubscribeDialog({
   product, onOpenChange, onSuccess,
-}: { product: EarnProduct | null; onOpenChange: (v: boolean) => void; onSuccess: () => void }) {
+}: { product: EarnProduct | null; onOpenChange: (v: boolean) => void; onSuccess: (d: GenericSuccess) => void }) {
   const [amount, setAmount] = useState("");
   const [autoRenew, setAutoRenew] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -705,9 +715,21 @@ function SubscribeDialog({
     setSubmitting(true);
     try {
       await post("/earn/subscribe", { productId: product.id, amount: num, autoRenew });
-      toast.success(`Subscribed! ${fmtNum(num)} ${product.coinSymbol} earning ${fmtPct(apy)} APY.`);
       reset();
-      onSuccess();
+      onSuccess({
+        kind: "generic",
+        accentColor: "#F59E0B",
+        iconKind: "earn",
+        title: "Subscribed!",
+        subtitle: `${product.name} · ${fmtPct(apy)} APY`,
+        rows: [
+          { label: "Amount",        value: `${fmtNum(num, 4)} ${product.coinSymbol}`, accent: "text-emerald-400" },
+          { label: "APY",           value: fmtPct(apy), accent: "text-amber-300" },
+          { label: "Daily Earning", value: `+${fmtNum(projectedDaily, 6)} ${product.coinSymbol}`, accent: "text-emerald-400" },
+          { label: "Duration",      value: isLocked ? `${days} days` : "Flexible ∞" },
+        ],
+        primaryLabel: "View Earn",
+      });
     } catch (e: any) {
       const msg = e instanceof ApiError ? (e.data?.error || e.message) : e?.message;
       toast.error(msg || "Subscribe failed");
@@ -830,7 +852,7 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 // ─── Redeem Dialog ────────────────────────────────────────────────────────────
 function RedeemDialog({
   position, product, onOpenChange, onSuccess,
-}: { position: EarnPosition | null; product: EarnProduct | null; onOpenChange: (v: boolean) => void; onSuccess: () => void }) {
+}: { position: EarnPosition | null; product: EarnProduct | null; onOpenChange: (v: boolean) => void; onSuccess: (d: GenericSuccess) => void }) {
   const [submitting, setSubmitting] = useState(false);
   const isLocked = (product?.durationDays ?? 0) > 0;
   const matured = position?.maturityAt ? new Date(position.maturityAt) <= new Date() : !isLocked;
@@ -847,8 +869,20 @@ function RedeemDialog({
     try {
       await post(`/earn/positions/${position.id}/redeem`, {});
       const sym = position.coinSymbol ?? product?.coinSymbol ?? "";
-      toast.success(`Redeemed — ${fmtNum(expectedReturn, 6)} ${sym} returned to your spot wallet.`);
-      onSuccess();
+      onSuccess({
+        kind: "generic",
+        accentColor: "#10B981",
+        iconKind: "redeem",
+        title: "Redeemed!",
+        subtitle: `${sym} returned to Spot Wallet`,
+        rows: [
+          { label: "Principal",    value: `${fmtNum(amount, 4)} ${sym}` },
+          { label: "Earned",       value: `+${fmtNum(earned, 6)} ${sym}`, accent: "text-emerald-400" },
+          ...(isEarly ? [{ label: "Early Penalty", value: `-${fmtNum(penaltyAmt, 6)} ${sym}`, accent: "text-rose-400" }] : []),
+          { label: "You Receive",  value: `${fmtNum(expectedReturn, 6)} ${sym}`, accent: "text-amber-300" },
+        ],
+        primaryLabel: "Done",
+      });
     } catch (e: any) {
       const msg = e instanceof ApiError ? (e.data?.error || e.message) : e?.message;
       toast.error(msg || "Redeem failed");

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { useAuth } from "@/lib/auth";
 import { KycGate } from "@/components/KycGate";
 import { PriceChart } from "@/components/PriceChart";
@@ -289,6 +290,7 @@ export default function Futures() {
   const [reduceOnly, setReduceOnly] = useState(false);
   const [bottomTab, setBottomTab] = useState<"positions" | "open" | "history">("positions");
 
+  const [futuresSuccess, setFuturesSuccess] = useState<GenericSuccess | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
     try {
       const v = window.localStorage.getItem(LAYOUT_KEY);
@@ -397,7 +399,21 @@ export default function Futures() {
   const orderMutation = useMutation({
     mutationFn: (data: any) => post("/futures/order", data),
     onSuccess: () => {
-      toast.success(`${side === "long" ? "Long" : "Short"} ${leverage}× ${type === "market" ? "market " : ""}position queued`);
+      const isLong = side === "long";
+      setFuturesSuccess({
+        kind: "generic",
+        accentColor: isLong ? "#10B981" : "#F87171",
+        iconKind: "futures",
+        title: isLong ? "Long Position Queued!" : "Short Position Queued!",
+        subtitle: `${base}/${quote} · ${leverage}× Leverage`,
+        rows: [
+          { label: "Side",   value: isLong ? "▲ LONG" : "▼ SHORT", accent: isLong ? "text-emerald-400" : "text-rose-400" },
+          { label: "Size",   value: `${amount} ${base}` },
+          { label: "Type",   value: type === "market" ? "Market Order" : `Limit @ ${price} ${quote}` },
+          { label: "Margin", value: `${leverage}× ${marginType}` },
+        ],
+        primaryLabel: "Continue Trading",
+      });
       setPrice("");
       setAmount("");
       setPctSlider([0]);
@@ -1106,6 +1122,12 @@ export default function Futures() {
           </div>
         )}
       </div>
+
+      <SuccessModal
+        open={futuresSuccess !== null}
+        onClose={() => setFuturesSuccess(null)}
+        payload={futuresSuccess}
+      />
     </div>
   );
 }
