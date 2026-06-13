@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, index, varchar } from "drizzle-orm/pg-core";
 
 export const legalPagesTable = pgTable("legal_pages", {
   slug: text("slug").primaryKey(),
@@ -44,10 +44,15 @@ export const referralsTable = pgTable("referrals", {
   bonusAmount: text("bonus_amount").default("0"),
   level: integer("level").notNull().default(1),
   sourceType: text("source_type").notNull().default("registration"),
+  /** Unique ref to the originating event (spot order, futures order, AI earning row, earn position).
+   *  Format: "spot:{orderId}" | "fut:{orderId}" | "ai_earn:{earningId}" | "earn:{positionId}"
+   *  Used for idempotency — same (referrerId, sourceRefId, level) is only credited once. */
+  sourceRefId: varchar("source_ref_id", { length: 64 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   byReferrer: index("referrals_referrer_idx").on(t.referrerId),
   byReferred: index("referrals_referred_idx").on(t.referredId),
+  bySourceRef: index("referrals_source_ref_idx").on(t.referrerId, t.sourceRefId, t.level),
 }));
 
 export type Referral = typeof referralsTable.$inferSelect;

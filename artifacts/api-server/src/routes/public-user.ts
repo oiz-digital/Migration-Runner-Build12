@@ -573,6 +573,26 @@ router.get("/refer/stats", requireAuth, async (req, res): Promise<void> => {
 
   const referredCount = countRows[0]?.c ?? 0;
 
+  // Commission history — all trading/AI/earn rows with full detail for Invite page
+  const allBonusRows = await db
+    .select({
+      id:           referralsTable.id,
+      sourceType:   referralsTable.sourceType,
+      sourceRefId:  referralsTable.sourceRefId,
+      bonusAmount:  referralsTable.bonusAmount,
+      bonusCredited:referralsTable.bonusCredited,
+      level:        referralsTable.level,
+      referredId:   referralsTable.referredId,
+      createdAt:    referralsTable.createdAt,
+    })
+    .from(referralsTable)
+    .where(and(
+      eq(referralsTable.referrerId, userId),
+      sql`${referralsTable.sourceType} IN ('trading_fee','futures_fee','ai_trading','earn_plan')`,
+    ))
+    .orderBy(sql`${referralsTable.createdAt} DESC`)
+    .limit(200);
+
   res.json({
     referralCode:      me[0]?.code ?? null,
     referredCount,
@@ -580,6 +600,16 @@ router.get("/refer/stats", requireAuth, async (req, res): Promise<void> => {
     estimatedEarnings: parseFloat(totalEarnings.toFixed(4)),
     creditedEarnings:  parseFloat(creditedEarnings.toFixed(4)),
     recent:            referredUsers,
+    commissions:       allBonusRows.map(r => ({
+      id:           r.id,
+      sourceType:   r.sourceType,
+      sourceRefId:  r.sourceRefId ?? null,
+      bonusAmount:  r.bonusAmount ?? "0",
+      bonusCredited:r.bonusCredited,
+      level:        r.level,
+      referredId:   r.referredId,
+      createdAt:    r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
+    })),
   });
 });
 

@@ -382,9 +382,11 @@ export async function placeSpotOrder(opts: {
     if (grossFee > 0) {
       // Referral commission is paid on the base exchange fee (pre-GST).
       // final.fee = baseFee × (1 + gst%/100); back out the GST before crediting.
+      // sourceRefId = "spot:{orderId}" — ensures exactly-once credit per order.
+      const spotRefId = `spot:${final.id}`;
       getSpotFeeRates(vipTier).then(({ gstPercent }) => {
         const baseFeeAmt = grossFee / (1 + gstPercent / 100);
-        return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee");
+        return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee", spotRefId);
       }).catch(() => null); // never block the order response
     }
   }

@@ -20,12 +20,25 @@ import {
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
+type CommissionRow = {
+  id: number;
+  sourceType: string;
+  sourceRefId: string | null;
+  bonusAmount: string;
+  bonusCredited: boolean;
+  level: number;
+  referredId: number;
+  createdAt: string;
+};
+
 type ReferStats = {
   referralCode: string | null;
   referredCount: number;
   referredKycCount: number;
   estimatedEarnings: number;
+  creditedEarnings: number;
   recent: Array<{ id: number; name: string; kycLevel: number; createdAt: string }>;
+  commissions: CommissionRow[];
 };
 
 const COMMISSION_PCT = 20;
@@ -348,6 +361,94 @@ export default function Invite() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* ──────── Commission History ──────── */}
+        <div className="mt-6">
+          <div className="flex items-end justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-amber-400" />
+              <h2 className="text-lg font-bold">Commission history</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {(referQ.data?.commissions ?? []).length} events
+            </span>
+          </div>
+          <Card className="border-border overflow-hidden">
+            {referQ.isLoading ? (
+              <div className="text-xs text-muted-foreground py-8 text-center">Loading…</div>
+            ) : (referQ.data?.commissions ?? []).length === 0 ? (
+              <div className="py-10 text-center">
+                <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3">
+                  <TrendingUp className="h-6 w-6 text-amber-400" />
+                </div>
+                <div className="font-semibold">No commissions yet</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Commissions appear here once your invitees trade, use AI plans, or earn interest.
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-card/60">
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-3 py-2.5 font-medium">Source</th>
+                      <th className="px-3 py-2.5 font-medium">Ref</th>
+                      <th className="px-3 py-2.5 font-medium">Level</th>
+                      <th className="px-3 py-2.5 font-medium text-right">Amount (USDT)</th>
+                      <th className="px-3 py-2.5 font-medium text-right">Status</th>
+                      <th className="px-3 py-2.5 font-medium text-right">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(referQ.data?.commissions ?? []).map((c) => {
+                      const sourceLabel: Record<string, { label: string; color: string }> = {
+                        trading_fee: { label: "Spot Trade", color: "bg-sky-500/15 text-sky-300 border-sky-500/30" },
+                        futures_fee: { label: "Futures",    color: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
+                        ai_trading:  { label: "AI Trade",   color: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+                        earn_plan:   { label: "Earn",       color: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
+                      };
+                      const src = sourceLabel[c.sourceType] ?? { label: c.sourceType, color: "bg-muted text-muted-foreground border-border" };
+                      return (
+                        <tr key={c.id} className="border-t border-border/60 hover:bg-card/40">
+                          <td className="px-3 py-2.5">
+                            <Badge variant="outline" className={`text-[10px] ${src.color}`}>
+                              {src.label}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-muted-foreground">
+                            {c.sourceRefId
+                              ? <span title={c.sourceRefId}>{c.sourceRefId}</span>
+                              : <span className="italic">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="text-xs font-semibold text-amber-400">L{c.level}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono font-semibold text-emerald-400">
+                            +{parseFloat(c.bonusAmount).toFixed(6)}
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            {c.bonusCredited ? (
+                              <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 text-[10px]">
+                                Credited
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">
+                                Pending
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-xs text-muted-foreground">
+                            {timeAgo(c.createdAt)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -146,12 +146,12 @@ async function getSpotWallet(userId: number, coinId: number) {
 }
 
 // ─── Referral ─────────────────────────────────────────────────────────────────
-async function creditAIReferralChain(userId: number, amount: number): Promise<void> {
+async function creditAIReferralChain(userId: number, amount: number, sourceRefId?: string): Promise<void> {
   const usdtCoinId = await getUsdtCoinId();
   if (!usdtCoinId) return;
   const cfg = await loadReferralConfig();
   if (!cfg.enabled) return;
-  await creditReferralChain(userId, amount, usdtCoinId, "ai_trading", cfg.ai);
+  await creditReferralChain(userId, amount, usdtCoinId, "ai_trading", cfg.ai, sourceRefId);
 }
 
 // ─── Daily earned (positive credits only, since midnight UTC) ─────────────────
@@ -281,13 +281,13 @@ async function creditTick(): Promise<void> {
 
       // ── Earnings record (note embedded in planName for UI display) ───────
       const note = pickNote(isLoss, sub.id, tickKey);
-      await db.insert(aiTradingEarningsTable).values({
+      const [earningRow] = await db.insert(aiTradingEarningsTable).values({
         userId:         sub.userId,
         subscriptionId: sub.id,
         planName:       `${plan.name} — ${note}`,
         amountUsdt:     String(credit),
         creditedAt:     now,
-      });
+      }).returning({ id: aiTradingEarningsTable.id });
 
       // ── Wallet ledger ─────────────────────────────────────────────────────
       await db
@@ -310,8 +310,10 @@ async function creditTick(): Promise<void> {
         );
 
       // ── Referral commission only on profitable ticks ─────────────────────
+      // sourceRefId = "ai_earn:{earningRowId}" — exactly-once per AI earning event.
       if (credit > 0) {
-        await creditAIReferralChain(sub.userId, credit).catch(err =>
+        const aiRefId = earningRow ? `ai_earn:${earningRow.id}` : undefined;
+        await creditAIReferralChain(sub.userId, credit, aiRefId).catch(err =>
           logger.warn({ err: (err as Error)?.message, subId: sub.id }, "ai-credit: referral error"),
         );
       }

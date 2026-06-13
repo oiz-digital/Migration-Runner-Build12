@@ -8,12 +8,17 @@
  *   Trading/Futures — L1:30  L2:15  L3:8  L4:4  L5:2
  *   Earn            — L1:3   L2:2   L3:1  L4:0.5 L5:0.25
  *   AI              — L1:5   L2:3   L3:2  L4:1   L5:0.5
+ *
+ * Idempotency: when `sourceRefId` is provided (e.g. "spot:123", "fut:456",
+ * "ai_earn:789", "earn:321") we check for an existing row with the same
+ * (referrerId, sourceRefId, level) before inserting — so calling this twice
+ * for the same event is a no-op. Always pass sourceRefId in new call sites.
  */
 
 import {
   db, usersTable, walletsTable, walletLedgerTable, referralsTable,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { loadReferralConfig } from "../routes/admin-referrals";
 
@@ -21,11 +26,10 @@ import { loadReferralConfig } from "../routes/admin-referrals";
  * Generic 5-level referral chain creditor.
  * Walks up the referral chain from `originUserId` and credits each ancestor.
  *
- * Uses an atomic INSERT … ON CONFLICT DO UPDATE to credit the referrer's spot
- * wallet in a single round-trip, eliminating the SELECT-then-INSERT race
- * condition that existed against the (userId, walletType, coinId) unique index.
- * A wallet_ledger row (type "referral_bonus") is written for every credit so
- * the commission appears in the referrer's transaction history.
+ * @param sourceRefId  Optional unique key for the originating event.
+ *   Format: "spot:{orderId}" | "fut:{orderId}" | "ai_earn:{earningId}" | "earn:{positionId}"
+ *   When provided, each (referrerId, sourceRefId, level) is only ever
+ *   credited once — repeat calls with the same ref are silently skipped.
  */
 export async function creditReferralChain(
   originUserId: number,
@@ -33,6 +37,7 @@ export async function creditReferralChain(
   coinId: number,
   sourceType: string,
   levelRates: Record<string, number>,
+  sourceRefId?: string,
 ): Promise<void> {
   if (!amount || amount <= 0) return;
   let currentId = originUserId;
@@ -50,9 +55,26 @@ export async function creditReferralChain(
     const commission = parseFloat((amount * pct / 100).toFixed(8));
     if (commission < 0.000001) { currentId = user.referredBy; continue; }
 
+    // ── Idempotency guard ─────────────────────────────────────────────────
+    // If a sourceRefId is provided, skip if this exact event has already
+    // been credited at this level for this referrer.
+    if (sourceRefId) {
+      const [existing] = await db
+        .select({ id: referralsTable.id })
+        .from(referralsTable)
+        .where(and(
+          eq(referralsTable.referrerId, user.referredBy),
+          eq(referralsTable.sourceRefId, sourceRefId),
+          eq(referralsTable.level, level),
+        ))
+        .limit(1);
+      if (existing) {
+        currentId = user.referredBy;
+        continue;
+      }
+    }
+
     // Atomic upsert: create the wallet if absent, otherwise increment balance.
-    // RETURNING gives us the post-update balance so we can compute
-    // balanceBefore without a separate read.
     const [updated] = await db.insert(walletsTable)
       .values({
         userId: user.referredBy,
@@ -74,7 +96,6 @@ export async function creditReferralChain(
       const balanceAfter  = updated.balance;
       const balanceBefore = String(Math.max(0, parseFloat(balanceAfter) - commission));
 
-      // Ledger entry — appears in referrer's transaction history
       await db.insert(walletLedgerTable).values({
         userId:        user.referredBy,
         coinId,
@@ -84,7 +105,7 @@ export async function creditReferralChain(
         balanceBefore,
         balanceAfter,
         refType:       "referral",
-        refId:         String(originUserId),
+        refId:         sourceRefId ?? String(originUserId),
         note:          `L${level} referral commission (${sourceType})`,
       }).catch(() => null);
     }
@@ -97,10 +118,11 @@ export async function creditReferralChain(
       commissionRate: String(pct),
       level,
       sourceType,
+      sourceRefId:    sourceRefId ?? null,
     }).catch(() => null);
 
     logger.debug(
-      { referrerId: user.referredBy, level, commission, pct, originUserId, sourceType },
+      { referrerId: user.referredBy, level, commission, pct, originUserId, sourceType, sourceRefId },
       "referral-chain: commission credited",
     );
 
@@ -115,16 +137,18 @@ export async function creditReferralChain(
  * @param feeAmount   — Total fee/profit in quote currency
  * @param quoteCoinId — Coin ID to credit (e.g. USDT)
  * @param sourceType  — "trading_fee" | "futures_fee" | "earn_plan"
+ * @param sourceRefId — Unique event key for idempotency (e.g. "spot:123")
  */
 export async function creditTradingFeeReferralChain(
   traderId: number,
   feeAmount: number,
   quoteCoinId: number,
   sourceType: "trading_fee" | "futures_fee" | "earn_plan" = "trading_fee",
+  sourceRefId?: string,
 ): Promise<void> {
   const config = await loadReferralConfig();
-  if (!config.enabled) return; // Admin can disable referral globally
+  if (!config.enabled) return;
 
   const rates = sourceType === "earn_plan" ? config.earn : config.trading;
-  return creditReferralChain(traderId, feeAmount, quoteCoinId, sourceType, rates);
+  return creditReferralChain(traderId, feeAmount, quoteCoinId, sourceType, rates, sourceRefId);
 }

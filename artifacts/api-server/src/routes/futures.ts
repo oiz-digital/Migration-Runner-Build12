@@ -531,9 +531,10 @@ r.post("/futures/order", bicryptoAuth, async (req: any, res: Response): Promise<
   if (Array.isArray(match?.trades) && match.trades.length > 0) {
     finalOrder = await applyFills(orderRow, match, pair);
     // 5-level futures trading-fee referral commission (fire-and-forget)
+    // sourceRefId "fut:{orderId}" ensures exactly-once credit per order.
     const futuresFeeAmt = parseFloat(finalOrder?.fee ?? "0");
     if (futuresFeeAmt > 0) {
-      creditTradingFeeReferralChain(u.id, futuresFeeAmt, pair.quoteCoinId, "futures_fee")
+      creditTradingFeeReferralChain(u.id, futuresFeeAmt, pair.quoteCoinId, "futures_fee", `fut:${orderRow.id}`)
         .catch(() => null);
     }
   } else if (match?.status) {
@@ -1051,9 +1052,10 @@ r.delete("/futures/position", bicryptoAuth, async (req: any, res: Response): Pro
   if (Array.isArray(match?.trades) && match.trades.length > 0) {
     const closedOrder = await applyFills(orderRow, match, pair);
     // 5-level futures trading-fee referral commission on close (fire-and-forget)
+    // sourceRefId "fut_close:{orderId}" — exactly-once per close order.
     const closeFeeAmt = parseFloat(closedOrder?.fee ?? "0");
     if (closeFeeAmt > 0) {
-      creditTradingFeeReferralChain(u.id, closeFeeAmt, pair.quoteCoinId, "futures_fee")
+      creditTradingFeeReferralChain(u.id, closeFeeAmt, pair.quoteCoinId, "futures_fee", `fut_close:${orderRow.id}`)
         .catch(() => null);
     }
   } else {

@@ -223,8 +223,9 @@ router.post("/earn/positions/:id/redeem", requireAuth, async (req, res): Promise
     });
 
     // 5-level earn referral commission (fire-and-forget, only on positive yield)
+    // sourceRefId = "earn:{positionId}" — exactly-once per earn redemption.
     if (result._netInterest > 0) {
-      creditTradingFeeReferralChain(userId, result._netInterest, result._coinId, "earn_plan")
+      creditTradingFeeReferralChain(userId, result._netInterest, result._coinId, "earn_plan", `earn:${id}`)
         .catch(() => null);
     }
 
