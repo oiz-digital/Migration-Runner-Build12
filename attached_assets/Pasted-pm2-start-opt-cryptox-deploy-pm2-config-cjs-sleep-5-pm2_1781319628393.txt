@@ -1,0 +1,57 @@
+pm2 start /opt/cryptox/deploy/pm2.config.cjs
+sleep 5
+pm2 status
+pm2 logs cryptox-api --lines 15 --nostream
+[PM2] Applying action deleteProcessId on app [all](ids: [ 2, 3 ])
+[PM2] [cryptox-api](2) ✓
+[PM2] [cryptox-go](3) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[PM2][WARN] Applications cryptox-api, cryptox-go not running, starting...
+[PM2] App [cryptox-api] launched (1 instances)
+[PM2] App [cryptox-go] launched (1 instances)
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 0    │ online    │ 0%       │ 18.7mb   │
+│ 1  │ cryptox-go         │ fork     │ 0    │ online    │ 0%       │ 6.5mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 1    │  │ 0%       │ 0b       │
+│ 1  │ cryptox-go         │ fork     │ 0    │ online    │ 0%       │ 6.5mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[TAILING] Tailing last 15 lines for [cryptox-api] process (change the value with --lines option)
+/var/log/cryptox/api-error.log last 15 lines:
+0|cryptox- | 2026-06-13 02:59:58 +00:00:   address: '::',
+0|cryptox- | 2026-06-13 02:59:58 +00:00:   port: 8080
+0|cryptox- | 2026-06-13 02:59:58 +00:00: }
+0|cryptox- | 2026-06-13 03:00:02 +00:00: Error: listen EADDRINUSE: address already in use :::8080
+0|cryptox- | 2026-06-13 03:00:02 +00:00:     at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+0|cryptox- | 2026-06-13 03:00:02 +00:00:     at listenInCluster (node:net:2065:12)
+0|cryptox- | 2026-06-13 03:00:02 +00:00:     at Server.listen (node:net:2170:7)
+0|cryptox- | 2026-06-13 03:00:02 +00:00:     at bootstrap (/opt/cryptox/artifacts/api-server/src/index.ts:370:10)
+0|cryptox- | 2026-06-13 03:00:02 +00:00:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+0|cryptox- | 2026-06-13 03:00:02 +00:00:   code: 'EADDRINUSE',
+0|cryptox- | 2026-06-13 03:00:02 +00:00:   errno: -98,
+0|cryptox- | 2026-06-13 03:00:02 +00:00:   syscall: 'listen',
+0|cryptox- | 2026-06-13 03:00:02 +00:00:   address: '::',
+0|cryptox- | 2026-06-13 03:00:02 +00:00:   port: 8080
+0|cryptox- | 2026-06-13 03:00:02 +00:00: }
+
+/var/log/cryptox/api-out.log last 15 lines:
+0|cryptox- | se :::8080\n    at Server.setupListenHandle [as _listen2] (node:net:2008:16)\n    at listenInCluster (node:net:2065:12)\n    at Server.listen (node:net:2170:7)\n    at bootstrap (/opt/cryptox/artifacts/api-server/src/index.ts:370:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","msg":"Uncaught exception — exiting"}
+0|cryptox- | 2026-06-13 02:59:59 +00:00: {"level":50,"time":1781319599186,"pid":130386,"hostname":"ip-172-31-11-99","err":"Failed query: select \"id\", \"uid\", \"user_id\", \"pair_id\", \"side\", \"leverage\", \"qty\", \"entry_price\", \"mark_price\", \"margin_amount\", \"margin_type\", \"unrealized_pnl\", \"liquidation_price\", \"status\", \"opened_at\", \"closed_at\", \"close_reason\", \"realized_pnl\", \"stop_loss\", \"take_profit\" from \"futures_positions\" where \"futures_positions\".\"status\" = $1\nparams: open","msg":"tickRiskCheck failed"}
+0|cryptox- | 2026-06-13 03:00:01 +00:00: {"level":30,"time":1781319601285,"pid":130386,"hostname":"ip-172-31-11-99","botId":127,"symbol":"SEIBTC","side":"sell","qty":"193.9829","reason":"chase 60.4bps move @2.16× (0.0000 → 0.0000)","msg":"bot: fired market order"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602032,"pid":131995,"hostname":"ip-172-31-11-99","host":"127.0.0.1","port":6379,"msg":"Redis connected"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602034,"pid":131995,"hostname":"ip-172-31-11-99","instanceId":"f6becad0-9dfc-43d2-9131-79b389887df1","isLeader":false,"heartbeatMs":5000,"msg":"[leader] election started"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602034,"pid":131995,"hostname":"ip-172-31-11-99","channel":"prices.tick","msg":"[ws-fanout] subscribed for cross-instance price ticks"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602102,"pid":131995,"hostname":"ip-172-31-11-99","allowedOrigins":["https://zebvix.com","https://www.zebvix.com"],"msg":"CORS allow-list configured"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602341,"pid":131995,"hostname":"ip-172-31-11-99","userDist":"/opt/user-portal/dist/public","adminDist":"/opt/admin/dist/public","msg":"Production static frontend serving enabled"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":50,"time":1781319602344,"pid":131995,"hostname":"ip-172-31-11-99","err":"listen EADDRINUSE: address already in use :::8080","stack":"Error: listen EADDRINUSE: address already in use :::8080\n    at Server.setupListenHandle [as _listen2] (node:net:2008:16)\n    at listenInCluster (node:net:2065:12)\n    at Server.listen (node:net:2170:7)\n    at bootstrap (/opt/cryptox/artifacts/api-server/src/index.ts:370:10)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)","msg":"Uncaught exception — exiting"}
+0|cryptox- | 2026-06-13 03:00:02 +00:00: {"level":30,"time":1781319602526,"pid":130386,"hostname":"ip-172-31-11-99","botId":117,"symbol":"HBARBTC","side":"buy","qty":"91.8434","reason":"chase 28.6bps move @1.02× (0.0000 → 0.0000)","msg":"bot: fired market order"}
+
+ubuntu@ip-172-31-11-99:/opt/cryptox$
+
