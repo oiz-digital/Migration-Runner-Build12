@@ -81,11 +81,12 @@ export default function AIInvoice() {
     return () => { document.title = prev; };
   }, [inv?.invoiceNo]);
 
-  const printRef = useRef<HTMLDivElement>(null); // hidden fixed 794px clone for PDF
   const [downloading, setDownloading] = useState(false);
 
   // Auto-scale invoice to fit any screen width (CSS zoom — no layout changes needed)
   const screenWrapRef = useRef<HTMLDivElement>(null);
+  const zoomWrapRef   = useRef<HTMLDivElement>(null);
+  const bodyRef       = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
     const el = screenWrapRef.current;
@@ -98,13 +99,31 @@ export default function AIInvoice() {
   }, []);
 
   const downloadPdf = async () => {
-    if (!printRef.current || !inv) return;
+    if (!inv || !bodyRef.current || !zoomWrapRef.current || !screenWrapRef.current) return;
     setDownloading(true);
     try {
-      // Wait 2 animation frames so browser paints the viewport-anchored printRef before capture
+      const body     = bodyRef.current;
+      const zoomWrap = zoomWrapRef.current;
+      const wrap     = screenWrapRef.current;
+
+      // Temporarily expand to 794px for high-quality capture (hide overflow so no visual flash)
+      const prevOverflow = wrap.style.overflow;
+      wrap.style.overflow = "hidden";
+      const prevZoom = zoomWrap.style.zoom;
+      zoomWrap.style.zoom = "1";
+      const prevWidth = body.style.width;
+      body.style.width = "794px";
+
+      await new Promise(r => setTimeout(r, 150));
       await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
       const { downloadElementAsPdf } = await import("@/lib/download-pdf");
-      await downloadElementAsPdf(printRef.current, `${inv.invoiceNo}.pdf`, { backgroundColor: "#0f172a" });
+      await downloadElementAsPdf(body, `${inv.invoiceNo}.pdf`, { backgroundColor: "#0f172a" });
+
+      // Restore layout
+      body.style.width    = prevWidth;
+      zoomWrap.style.zoom = prevZoom;
+      wrap.style.overflow = prevOverflow;
       toast.success("Invoice downloaded successfully");
     } catch (err) {
       console.error("PDF generation failed:", err);
@@ -494,20 +513,13 @@ export default function AIInvoice() {
         </div>
       </div>
 
-      {/* Responsive screen view — CSS zoom auto-scales to fit any device width */}
+      {/* Responsive screen view — CSS zoom auto-scales to fit any device width.
+          bodyRef is used for PDF capture (zoom reset to 1 + 794px width temporarily). */}
       <div ref={screenWrapRef} className="container mx-auto px-3 sm:px-4 max-w-3xl print:hidden">
-        <div style={{ zoom }}>
-          <InvoiceBody />
-        </div>
-      </div>
-
-      {/* Hidden fixed-width clone for PDF capture — always 794px, off-screen */}
-      <div
-        aria-hidden="true"
-        style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none", zIndex: -1 }}
-      >
-        <div ref={printRef} style={{ width: 794 }}>
-          <InvoiceBody fixed />
+        <div ref={zoomWrapRef} style={{ zoom }}>
+          <div ref={bodyRef}>
+            <InvoiceBody />
+          </div>
         </div>
       </div>
 
