@@ -75,6 +75,12 @@ const RISK_PROFILES: Record<string, RiskProfile> = {
     winRange:     [1.60,   2.20], // large wins; daily cap keeps net ≤ 1.3 %
     dayFloor:     0.75,
   },
+  ultra: {
+    lossTickRate: 0.38,           // ≈ 9 losses / day — very choppy
+    lossRange:    [-0.60, -1.50], // large stop-outs
+    winRange:     [2.00,   3.00], // outsized wins; daily cap still ≤ 1.3 %
+    dayFloor:     0.65,           // day can dip to 65 % of target
+  },
 };
 
 // ─── Deterministic hash ───────────────────────────────────────────────────────

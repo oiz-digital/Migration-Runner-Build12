@@ -240,9 +240,22 @@ export default function AITrading() {
     refetchInterval: 30_000,
   });
 
-  const earningsQ = useQuery<{ earnings: Earning[] }>({
+  const earningsQ = useQuery<{ earnings: Earning[]; total: number }>({
     queryKey: ["ai-trading-earnings"],
-    queryFn: () => get<{ earnings: Earning[] }>("/ai-trading/earnings?limit=60").catch(() => ({ earnings: [] })),
+    queryFn: () => get<{ earnings: Earning[]; total: number }>("/ai-trading/earnings?limit=200").catch(() => ({ earnings: [], total: 0 })),
+    enabled: !!user,
+    refetchInterval: 60_000,
+  });
+
+  interface PnlSummary {
+    profit: number; loss: number; net: number;
+    wins: number; losses: number; total: number; winRate: number;
+  }
+  const pnlSummaryQ = useQuery<PnlSummary>({
+    queryKey: ["ai-trading-pnl-summary"],
+    queryFn: () => get<PnlSummary>("/ai-trading/pnl-summary").catch(() => ({
+      profit: 0, loss: 0, net: 0, wins: 0, losses: 0, total: 0, winRate: 0,
+    })),
     enabled: !!user,
     refetchInterval: 60_000,
   });
@@ -298,17 +311,11 @@ export default function AITrading() {
     return Array.from(map.entries()).slice(-14).map(([date, amount]) => ({ date, amount }));
   }, [earnings]);
 
-  // Profit & Loss breakdown across all credited entries (losses are negative).
-  const pnlStats = useMemo(() => {
-    let profit = 0, loss = 0, wins = 0, losses = 0;
-    for (const e of earnings) {
-      if (e.amountUsdt >= 0) { profit += e.amountUsdt; wins++; }
-      else { loss += e.amountUsdt; losses++; }
-    }
-    const net = profit + loss;
-    const winRate = earnings.length > 0 ? (wins / earnings.length) * 100 : 0;
-    return { profit, loss, net, wins, losses, winRate };
-  }, [earnings]);
+  // Profit & Loss — always sourced from the full-history pnl-summary endpoint,
+  // not from the limited earnings list, so the numbers are never under-reported.
+  const pnlStats = pnlSummaryQ.data ?? {
+    profit: 0, loss: 0, net: 0, wins: 0, losses: 0, total: 0, winRate: 0,
+  };
 
   const counterInvested = useCountUp(totalInvested);
   const counterEarned = useCountUp(totalEarned);
@@ -615,7 +622,7 @@ export default function AITrading() {
             )}
 
             {/* P&L summary cards */}
-            {earnings.length > 0 && (
+            {pnlStats.total > 0 && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
                   <div className="text-[11px] text-muted-foreground mb-1">Total Profit</div>
@@ -632,7 +639,7 @@ export default function AITrading() {
                   <div className={`text-lg font-bold font-mono ${pnlStats.net >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {pnlStats.net >= 0 ? "+" : ""}{fmtUSD(pnlStats.net, 4)}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">across {earnings.length} entries</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">across {pnlStats.total} entries</div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
                   <div className="text-[11px] text-muted-foreground mb-1">Win Rate</div>
@@ -668,7 +675,7 @@ export default function AITrading() {
 
             {/* P&L history list */}
             <SectionCard title="Profit & Loss History" icon={Activity}
-              description={`${earnings.length} total entries`} padded={false}>
+              description={`${pnlStats.total} total entries`} padded={false}>
               {earningsQ.isLoading ? (
                 <div className="p-8 text-center text-muted-foreground text-sm">Loading history…</div>
               ) : earnings.length === 0 ? (

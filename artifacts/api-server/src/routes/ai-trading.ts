@@ -98,7 +98,7 @@ router.get("/ai-trading/subscriptions", requireAuth, async (req, res): Promise<v
 });
 
 router.get("/ai-trading/earnings", requireAuth, async (req, res): Promise<void> => {
-  const limit  = Math.min(100, parseInt(req.query.limit  as string ?? "50", 10) || 50);
+  const limit  = Math.min(200, parseInt(req.query.limit  as string ?? "100", 10) || 100);
   const offset =               parseInt(req.query.offset as string ?? "0",  10) || 0;
   const rows = await db.select().from(aiTradingEarningsTable)
     .where(eq(aiTradingEarningsTable.userId, req.user!.id))
@@ -118,6 +118,33 @@ router.get("/ai-trading/earnings", requireAuth, async (req, res): Promise<void> 
     limit,
     offset,
   });
+});
+
+/* GET /api/ai-trading/pnl-summary — full aggregate P&L (not paginated).
+ * Uses SQL SUM with CASE so it never under-counts regardless of how many
+ * credits the user has accumulated. */
+router.get("/ai-trading/pnl-summary", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const [row] = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN amount_usdt::numeric > 0 THEN amount_usdt::numeric ELSE 0 END), 0)  AS profit,
+      COALESCE(SUM(CASE WHEN amount_usdt::numeric < 0 THEN amount_usdt::numeric ELSE 0 END), 0)  AS loss,
+      COUNT(CASE WHEN amount_usdt::numeric > 0 THEN 1 END)::int                                  AS wins,
+      COUNT(CASE WHEN amount_usdt::numeric < 0 THEN 1 END)::int                                  AS losses,
+      COUNT(*)::int                                                                               AS total
+    FROM ai_trading_earnings
+    WHERE user_id = ${userId}
+  `).then(r => r.rows as Array<{
+    profit: string; loss: string; wins: number; losses: number; total: number;
+  }>);
+  const profit  = parseFloat(row?.profit  ?? "0");
+  const loss    = parseFloat(row?.loss    ?? "0");
+  const wins    = row?.wins    ?? 0;
+  const losses  = row?.losses  ?? 0;
+  const total   = row?.total   ?? 0;
+  const net     = profit + loss;
+  const winRate = total > 0 ? (wins / total) * 100 : 0;
+  res.json({ profit, loss, net, wins, losses, total, winRate });
 });
 
 router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void> => {
