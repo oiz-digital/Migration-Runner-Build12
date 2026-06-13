@@ -239,9 +239,11 @@ export function startPriceService(intervalMs = 1000) {
   void loadInrRate();
   void safeTick();
   setInterval(() => { void safeTick(); }, intervalMs);
-  // Refresh live INR/USD rate every 5 minutes (leader only) so the invoice
-  // and portfolio INR conversions always show the current forex rate.
-  setInterval(() => { if (isLeader()) void refreshLiveInrRate(); }, 5 * 60 * 1000);
+  // Re-read INR rate from DB every 5 minutes so any admin override in
+  // Settings → inr_usdt_rate is picked up without a server restart.
+  // loadInrRate() calls refreshLiveInrRate() only when DB has no value,
+  // so a manually saved admin rate is NEVER auto-overwritten.
+  setInterval(() => { if (isLeader()) void loadInrRate(); }, 5 * 60 * 1000);
   logger.info({ intervalMs }, "price service started (leader-gated)");
 }
 
