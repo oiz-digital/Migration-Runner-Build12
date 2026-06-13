@@ -252,6 +252,54 @@ uri = "file://attached_assets/coindcx_futures.png"
 type = "image"
 title = "coindcx futures trading"
 
+[[generated]]
+id = "IGJpODzPHqJrxOVgBVuig"
+uri = "file://attached_assets/adv_terminal.png"
+type = "image"
+title = "advanced trading terminal"
+
+[[generated]]
+id = "hC51mGtH0cyd9oLR-AIRB"
+uri = "file://attached_assets/adv_chart_pro.png"
+type = "image"
+title = "advanced technical analysis chart"
+
+[[generated]]
+id = "JB1b5WsLBLoRZcmit70ZI"
+uri = "file://attached_assets/adv_dom.png"
+type = "image"
+title = "advanced DOM order book"
+
+[[generated]]
+id = "_ET7aYEgcF1hov8XPUeXY"
+uri = "file://attached_assets/adv_risk.png"
+type = "image"
+title = "advanced risk analytics dashboard"
+
+[[generated]]
+id = "drNP6ulXkNNG_yb6m4-hL"
+uri = "file://attached_assets/adv_liquidation.png"
+type = "image"
+title = "advanced liquidation heatmap"
+
+[[generated]]
+id = "n2YZQKLsUK01oAMrsVK6p"
+uri = "file://attached_assets/adv_algo.png"
+type = "image"
+title = "advanced algo trading backtest"
+
+[[generated]]
+id = "kaRHsqH66ev7Or50FsrfW"
+uri = "file://attached_assets/adv_home_premium.png"
+type = "image"
+title = "advanced premium home"
+
+[[generated]]
+id = "NU0f49arOlhB_xvDYB4Is"
+uri = "file://attached_assets/adv_onchain.png"
+type = "image"
+title = "advanced on-chain analytics"
+
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
 uri = "file://docs/MOBILE_API_GUIDE.md"
@@ -521,3 +569,51 @@ id = "-wwykO1GYSbpL62WJ3gqM"
 uri = "file://attached_assets/coindcx_profile.png"
 type = "image"
 title = "👤 Profile & KYC"
+
+[[outputs]]
+id = "7cW1h0UzMjKVc9AoRMJs-"
+uri = "file://attached_assets/adv_home_premium.png"
+type = "image"
+title = "🌌 Elite Home — Aurora Glass"
+
+[[outputs]]
+id = "WgQ5YyUXqW5bI7q1-ii7z"
+uri = "file://attached_assets/adv_terminal.png"
+type = "image"
+title = "🖥️ Bloomberg-style Terminal"
+
+[[outputs]]
+id = "B-Vt7eGyvayy1oAx0wmEd"
+uri = "file://attached_assets/adv_chart_pro.png"
+type = "image"
+title = "📐 Ichimoku + Fib + Elliott Wave"
+
+[[outputs]]
+id = "u4srkCrKMxUvvSmE1ptHJ"
+uri = "file://attached_assets/adv_dom.png"
+type = "image"
+title = "🔬 Market Microstructure DOM"
+
+[[outputs]]
+id = "wjuvpxcly_qyfgN64D9Ln"
+uri = "file://attached_assets/adv_liquidation.png"
+type = "image"
+title = "💥 Liquidation Heatmap"
+
+[[outputs]]
+id = "3XMmxZRttHLqdCK_RPhjs"
+uri = "file://attached_assets/adv_risk.png"
+type = "image"
+title = "📉 Risk Analytics — Sharpe VaR"
+
+[[outputs]]
+id = "n6cyVzZYhSTk6m8OF3_0P"
+uri = "file://attached_assets/adv_algo.png"
+type = "image"
+title = "🤖 Algo Backtest Engine"
+
+[[outputs]]
+id = "x2DaF_cVhhaRPwqPxqche"
+uri = "file://attached_assets/adv_onchain.png"
+type = "image"
+title = "🔗 On-Chain Whale Analytics"
