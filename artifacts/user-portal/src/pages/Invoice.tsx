@@ -153,6 +153,7 @@ export default function Invoice() {
       style={{
         boxShadow: fixed ? undefined : "0 25px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(245,158,11,0.15)",
         width: fixed ? 794 : undefined,
+        minWidth: fixed ? undefined : 500,
       }}
     >
       {/* Top accent bar */}
@@ -482,9 +483,11 @@ export default function Invoice() {
         </div>
       </div>
 
-      {/* Responsive screen view */}
-      <div className="container mx-auto px-3 sm:px-4 max-w-3xl print:hidden">
-        <InvoiceBody />
+      {/* Responsive screen view — overflow-x-auto so content scrolls on small screens */}
+      <div className="overflow-x-auto print:hidden">
+        <div className="mx-auto px-3 sm:px-4 max-w-3xl">
+          <InvoiceBody />
+        </div>
       </div>
 
       {/* Hidden fixed-width clone used ONLY for PDF capture — always 794px */}
