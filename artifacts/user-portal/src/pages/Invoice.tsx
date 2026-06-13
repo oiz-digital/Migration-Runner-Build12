@@ -1,7 +1,7 @@
 /**
  * Trade Invoice — premium full-colour tax invoice for a filled spot order.
  * Route: /orders/:id/invoice
- * Download PDF via html2canvas + jsPDF.
+ * Download PDF via html-to-image + jsPDF (always captured at fixed 794px width).
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -70,23 +70,22 @@ export default function Invoice() {
     return () => { document.title = prev; };
   }, [data?.invoiceNo]);
 
-  const invoiceRef = useRef<HTMLDivElement>(null);
+  const printRef  = useRef<HTMLDivElement>(null); // hidden fixed-width clone for PDF
   const [downloading, setDownloading] = useState(false);
 
   const downloadPdf = async () => {
-    if (!invoiceRef.current || !data) return;
+    if (!printRef.current || !data) return;
     setDownloading(true);
     try {
       const { toJpeg } = await import("html-to-image");
       const { default: jsPDF } = await import("jspdf");
-      const el = invoiceRef.current;
-      const captureWidth = 794;
+      const el = printRef.current;
+      // printRef is always rendered at 794px — no style override needed
       const dataUrl = await toJpeg(el, {
-        cacheBust: true, pixelRatio: 1.5, quality: 0.82,
+        cacheBust: true,
+        pixelRatio: 1.5,
+        quality: 0.82,
         backgroundColor: "#0f172a",
-        width: captureWidth,
-        height: el.scrollHeight,
-        style: { width: `${captureWidth}px`, maxWidth: `${captureWidth}px`, overflow: "visible" },
       });
       const img = new Image();
       img.src = dataUrl;
@@ -107,7 +106,8 @@ export default function Invoice() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg,#0f172a,#1e293b)" }}>
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ background: "linear-gradient(135deg,#0f172a,#1e293b)" }}>
         <div className="text-center">
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
             style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)" }}>
@@ -146,334 +146,361 @@ export default function Invoice() {
   const accentColor = "#F59E0B";
   const accentDark  = "#B45309";
 
+  // Shared invoice body — used both for screen and hidden print clone
+  const InvoiceBody = ({ fixed }: { fixed?: boolean }) => (
+    <div
+      className={fixed ? undefined : "rounded-3xl overflow-hidden shadow-2xl"}
+      style={{
+        boxShadow: fixed ? undefined : "0 25px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(245,158,11,0.15)",
+        width: fixed ? 794 : undefined,
+      }}
+    >
+      {/* Top accent bar */}
+      <div style={{ height: 5, background: "linear-gradient(90deg,#B45309,#D97706,#F59E0B,#FCD34D,#F59E0B,#D97706)" }} />
+
+      {/* ── HEADER ── */}
+      <div style={{
+        background: "linear-gradient(135deg,#0f172a 0%,#1e2d45 60%,#162032 100%)",
+        position: "relative", overflow: "hidden",
+      }} className={fixed ? "px-8 py-7" : "px-4 py-5 sm:px-8 sm:py-7"}>
+
+        {/* Geometric bg pattern */}
+        <div style={{
+          position: "absolute", inset: 0, opacity: 0.04,
+          backgroundImage: "repeating-linear-gradient(45deg,#F59E0B 0,#F59E0B 1px,transparent 0,transparent 50%)",
+          backgroundSize: "20px 20px",
+        }} />
+
+        {/* Glow orb */}
+        <div style={{
+          position: "absolute", top: -60, right: -60, width: 200, height: 200,
+          borderRadius: "50%",
+          background: "radial-gradient(circle,rgba(245,158,11,0.18) 0%,transparent 70%)",
+        }} />
+
+        {/* Brand + Invoice meta */}
+        <div className={`relative ${fixed ? "flex items-start justify-between gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"}`}>
+          {/* Brand */}
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base shadow-lg"
+                style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a",
+                  boxShadow: "0 4px 14px rgba(245,158,11,0.4)", flexShrink: 0 }}>
+                Z
+              </div>
+              <div>
+                <div className="text-xl font-extrabold tracking-tight" style={{ color: "#F59E0B" }}>
+                  {brand.tradingName}
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium tracking-wide">
+                  CERTIFIED CRYPTO EXCHANGE
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-400">{brand.legalName}</p>
+            <p className="text-[11px] text-slate-500 leading-relaxed mt-1 max-w-[280px]">{brand.address}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
+              <p className="text-[10px] text-slate-600 font-mono">GSTIN: <span className="text-slate-400">{brand.gstin || "Registration Pending"}</span></p>
+              <p className="text-[10px] text-slate-600 font-mono">CIN: <span className="text-slate-400">{brand.cin}</span></p>
+              <p className="text-[10px] text-slate-600 font-mono">PAN: <span className="text-slate-400">{brand.pan}</span></p>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
+              <p className="text-[10px] text-slate-600 font-mono">✉ <span className="text-slate-400">{brand.supportEmail}</span></p>
+              <p className="text-[10px] text-slate-600 font-mono">🌐 <span className="text-slate-400">{brand.website}</span></p>
+            </div>
+          </div>
+
+          {/* Invoice meta */}
+          <div className={fixed ? "text-right shrink-0" : "sm:text-right"}>
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-2"
+              style={{ background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }}>
+              Tax Invoice
+            </div>
+            <p className="text-2xl font-extrabold text-white tabular-nums mt-0.5">{invoiceNo}</p>
+            <div className={`flex items-center gap-1.5 mt-1.5 ${fixed ? "justify-end" : "sm:justify-end"}`}>
+              <Calendar style={{ width: 10, height: 10, color: "#64748b" }} />
+              <p className="text-[11px] text-slate-400">Issued: {fmtDate(issuedAt)}</p>
+            </div>
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold"
+              style={isFilled
+                ? { background: "rgba(16,185,129,0.15)", color: "#10B981", border: "1px solid rgba(16,185,129,0.3)" }
+                : { background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }}>
+              <CheckCircle2 style={{ width: 10, height: 10 }} />
+              {order.status.replace("_", " ").toUpperCase()}
+            </div>
+          </div>
+        </div>
+
+        {/* Verified badge */}
+        <div className="relative mt-5 flex items-center gap-3 rounded-xl px-4 py-2.5"
+          style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
+          <Shield style={{ width: 14, height: 14, color: "#10B981", flexShrink: 0 }} />
+          <p className="text-[10px] text-emerald-400 font-semibold tracking-wide">
+            VERIFIED DIGITAL DOCUMENT — Cryptographically recorded on {fmtDateShort(issuedAt)}
+          </p>
+          <div className="ml-auto flex items-center gap-1 shrink-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[9px] text-emerald-500 font-bold">AUTHENTIC</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── WHITE BODY ── */}
+      <div className="bg-white relative">
+
+        {/* Watermark */}
+        <div style={{
+          position: "absolute", inset: 0, display: "flex", alignItems: "center",
+          justifyContent: "center", pointerEvents: "none", zIndex: 0, overflow: "hidden",
+        }}>
+          <span style={{
+            transform: "rotate(-35deg)", fontSize: 80, fontWeight: 900,
+            color: "rgba(245,158,11,0.04)", letterSpacing: "0.05em",
+            userSelect: "none", whiteSpace: "nowrap",
+          }}>TAX INVOICE</span>
+        </div>
+
+        {/* Bill-to + Order summary */}
+        <div className={`relative ${fixed ? "px-8 py-6 grid grid-cols-2 gap-6" : "px-4 py-5 sm:px-8 sm:py-6 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6"}`}
+          style={{ borderBottom: "2px solid #f1f5f9" }}>
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: accentColor }}>
+                <User style={{ width: 9, height: 9, color: "#0f172a" }} />
+              </div>
+              <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>Bill To</p>
+            </div>
+            <p className="font-bold text-slate-800 text-sm">{customer.name || customer.email}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{customer.email}</p>
+            <p className="text-[11px] text-slate-400 mt-1 font-mono">
+              <span className="text-slate-300 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                UID #{customer.userId}
+              </span>
+            </p>
+          </div>
+          <div className={fixed ? "text-right" : "sm:text-right"}>
+            <div className={`flex items-center gap-1.5 mb-2 ${fixed ? "justify-end" : "sm:justify-end"}`}>
+              <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>Order Details</p>
+              <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: accentColor }}>
+                <Hash style={{ width: 9, height: 9, color: "#0f172a" }} />
+              </div>
+            </div>
+            <p className="font-bold text-slate-800 text-sm font-mono">
+              #{order.id} · <span className="tracking-wide">{order.symbol}</span>
+            </p>
+            <div className={`flex items-center gap-2 mt-1.5 ${fixed ? "justify-end" : "sm:justify-end"}`}>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide"
+                style={isBuy
+                  ? { background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC" }
+                  : { background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5" }}>
+                {isBuy ? <TrendingUp style={{ width: 10, height: 10 }} /> : <TrendingDown style={{ width: 10, height: 10 }} />}
+                {order.side}
+              </span>
+              <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide px-2 py-0.5 bg-slate-100 rounded-full">
+                {order.type}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              <Calendar style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
+              {fmtDate(order.placedAt)}
+            </p>
+          </div>
+        </div>
+
+        {/* Fills table */}
+        <div className={`relative ${fixed ? "px-8 py-5" : "px-4 py-4 sm:px-8 sm:py-5"}`}
+          style={{ borderBottom: "2px solid #f1f5f9" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg,#F59E0B,#D97706)" }} />
+            <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>
+              Trade Fills ({fills.length} execution{fills.length !== 1 ? "s" : ""})
+            </p>
+          </div>
+          {fills.length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-2">No fill detail available — summary above.</p>
+          ) : (
+            <div className={fixed ? undefined : "overflow-x-auto -mx-1"}>
+              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #e2e8f0", minWidth: fixed ? undefined : 500 }}>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ background: "linear-gradient(135deg,#FFF7ED,#FFFBEB)" }}>
+                      <th className="text-left px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">#</th>
+                      <th className="text-left px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Time</th>
+                      <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Price ({order.quote})</th>
+                      <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Qty ({order.base})</th>
+                      <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Subtotal ({order.quote})</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono tabular-nums">
+                    {fills.map((f, i) => (
+                      <tr key={f.id} style={{
+                        background: i % 2 === 0 ? "#fff" : "#fffbf5",
+                        borderTop: "1px solid #f1f5f9",
+                      }}>
+                        <td className="px-3 py-2 text-slate-300 font-sans">{i + 1}</td>
+                        <td className="px-3 py-2 text-slate-500 font-sans text-[11px]">{fmtDate(f.executedAt)}</td>
+                        <td className="text-right px-3 py-2 text-slate-700 font-semibold">{fmt(f.price, 4)}</td>
+                        <td className="text-right px-3 py-2 text-slate-700">{fmt(f.qty, 8)}</td>
+                        <td className="text-right px-3 py-2 text-slate-800 font-semibold">{fmt(f.subtotal, 4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: "linear-gradient(135deg,#FFF7ED,#FFFBEB)", borderTop: "2px solid #FCD34D" }}>
+                      <td colSpan={2} className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: accentDark }}>
+                        VWAP &amp; Total
+                      </td>
+                      <td className="text-right px-3 py-2.5 font-mono font-bold text-slate-800">{fmt(order.avgPrice, 4)}</td>
+                      <td className="text-right px-3 py-2.5 font-mono font-bold text-slate-800">{fmt(order.filledQty, 8)}</td>
+                      <td className="text-right px-3 py-2.5 font-mono font-extrabold text-slate-900">{fmt(breakdown.grossNotional, 4)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Tax breakdown */}
+        <div className={`relative ${fixed ? "px-8 py-5" : "px-4 py-4 sm:px-8 sm:py-5"}`}
+          style={{ borderBottom: "2px solid #f1f5f9" }}>
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg,#F59E0B,#D97706)" }} />
+            <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>
+              Tax Breakdown (Indian Compliance — VDA)
+            </p>
+          </div>
+          <div className="space-y-0 rounded-xl overflow-hidden" style={{ border: "1px solid #e2e8f0" }}>
+            <BRow label="Gross trade value" value={`${fmt(breakdown.grossNotional, 4)} ${currency}`} accent={accentColor} first />
+            <BRow label="Trading fee (excl. GST)" value={`− ${fmt(breakdown.tradingFee, 4)} ${currency}`} muted />
+            <BRow label={`GST @ ${breakdown.gstPercent}% on fee`} value={`− ${fmt(breakdown.gstAmount, 4)} ${currency}`} muted />
+            {isSell && (
+              <BRow label={`TDS @ ${breakdown.tdsPercent}% on proceeds (Sec 194S)`}
+                value={`− ${fmt(breakdown.tdsAmount, 4)} ${currency}`} muted />
+            )}
+          </div>
+
+          {/* Net amount */}
+          <div className="mt-4 rounded-2xl overflow-hidden"
+            style={{
+              background: isSell ? "linear-gradient(135deg,#f0fdf4,#dcfce7)" : "linear-gradient(135deg,#fff7ed,#fef3c7)",
+              border: isSell ? "2px solid #86EFAC" : "2px solid #FCD34D",
+              boxShadow: isSell ? "0 4px 20px rgba(16,185,129,0.12)" : "0 4px 20px rgba(245,158,11,0.15)",
+            }}>
+            <div className="px-5 py-4 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.15em] font-extrabold"
+                  style={{ color: isSell ? "#15803D" : "#92400E" }}>
+                  {isSell ? "✓ Net Amount Credited to Wallet" : "✓ Net Amount Debited from Wallet"}
+                </p>
+                <p className="text-[11px] mt-1" style={{ color: isSell ? "#16a34a" : "#b45309" }}>
+                  ≈ {fmtInr(breakdown.netInr)} &nbsp;·&nbsp; 1 USDT ≈ ₹{(breakdown.inrRate ?? 84).toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-3xl font-extrabold tabular-nums"
+                  style={{ color: isSell ? "#15803D" : "#B45309" }}>
+                  {fmt(breakdown.netAmount, 4)}
+                </p>
+                <p className="text-sm font-bold" style={{ color: isSell ? "#16a34a" : "#d97706" }}>
+                  {currency}
+                </p>
+              </div>
+            </div>
+            <div className="h-1" style={{
+              background: isSell
+                ? "linear-gradient(90deg,#10B981,#34D399)"
+                : "linear-gradient(90deg,#F59E0B,#FCD34D)",
+            }} />
+          </div>
+        </div>
+
+        {/* Footer notes */}
+        <div className={`relative ${fixed ? "px-8 py-6" : "px-4 py-5 sm:px-8 sm:py-6"}`}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            {[
+              { icon: <Shield style={{ width: 12, height: 12, color: "#10B981" }} />, label: "TDS (Sec 194S)", desc: "1% deducted on every sell, deposited with Govt against your PAN." },
+              { icon: <Zap style={{ width: 12, height: 12, color: "#F59E0B" }} />, label: "GST", desc: "18% levied on trading fee component only, not on trade value." },
+              { icon: <CheckCircle2 style={{ width: 12, height: 12, color: "#60A5FA" }} />, label: "Dispute", desc: `Contact ${brand.supportEmail} within 7 days quoting ${invoiceNo}.` },
+            ].map(item => (
+              <div key={item.label} className="rounded-xl p-3.5 flex gap-2.5"
+                style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                <div className="mt-0.5 shrink-0">{item.icon}</div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-700 mb-0.5">{item.label}</p>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-4" style={{ borderTop: "1px solid #f1f5f9" }}>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center font-extrabold text-xs"
+                style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a" }}>
+                Z
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-600">{brand.tradingName}</p>
+                <p className="text-[9px] text-slate-400">{brand.website}</p>
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-400 text-right">
+              Computer-generated · No physical signature required<br />
+              <span className="font-mono text-slate-300">{invoiceNo}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom bar */}
+      <div style={{ height: 5, background: "linear-gradient(90deg,#B45309,#D97706,#F59E0B,#FCD34D,#F59E0B)" }} />
+    </div>
+  );
+
   return (
-    <div className="min-h-screen py-8 print:py-0"
+    <div className="min-h-screen py-6 sm:py-8 print:py-0"
       style={{ background: "linear-gradient(160deg,#0f172a 0%,#1a2540 50%,#0f172a 100%)" }}>
 
-      {/* ── Action bar ── */}
-      <div className="container mx-auto px-4 max-w-3xl mb-6 flex items-center justify-between print:hidden">
+      {/* Action bar */}
+      <div className="container mx-auto px-4 max-w-3xl mb-5 flex items-center justify-between print:hidden">
         <Link href="/orders">
           <Button variant="outline" size="sm"
             className="border-white/20 text-white/80 hover:text-white hover:border-amber-400/50 bg-white/5 gap-2">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to orders
+            <ArrowLeft className="w-3.5 h-3.5" /> Back
           </Button>
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 hidden sm:block">{invoiceNo}</span>
-          <Button size="sm" onClick={downloadPdf}
+          <Button size="sm" onClick={downloadPdf} disabled={downloading}
             style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a" }}
             className="font-bold hover:opacity-90 disabled:opacity-70 shadow-lg shadow-amber-500/25 gap-2">
-            {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</> : <><Download className="w-3.5 h-3.5" />Download PDF</>}
+            {downloading
+              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
+              : <><Download className="w-3.5 h-3.5" />Download PDF</>}
           </Button>
         </div>
       </div>
 
-      {/* ── Invoice Card ── */}
-      <div className="container mx-auto px-4 max-w-3xl">
-        <div ref={invoiceRef} className="rounded-3xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
-          style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,158,11,0.15)" }}>
+      {/* Responsive screen view */}
+      <div className="container mx-auto px-3 sm:px-4 max-w-3xl print:hidden">
+        <InvoiceBody />
+      </div>
 
-          {/* Top rainbow accent bar */}
-          <div style={{ height: 5, background: "linear-gradient(90deg,#B45309,#D97706,#F59E0B,#FCD34D,#F59E0B,#D97706)" }} />
-
-          {/* ── HEADER ── */}
-          <div style={{
-            background: "linear-gradient(135deg,#0f172a 0%,#1e2d45 60%,#162032 100%)",
-            position: "relative", overflow: "hidden",
-          }} className="px-8 py-7">
-
-            {/* Geometric bg pattern */}
-            <div style={{
-              position: "absolute", inset: 0, opacity: 0.04,
-              backgroundImage: "repeating-linear-gradient(45deg,#F59E0B 0,#F59E0B 1px,transparent 0,transparent 50%)",
-              backgroundSize: "20px 20px",
-            }} />
-
-            {/* Glow orb */}
-            <div style={{
-              position: "absolute", top: -60, right: -60,
-              width: 200, height: 200,
-              borderRadius: "50%",
-              background: "radial-gradient(circle,rgba(245,158,11,0.18) 0%,transparent 70%)",
-            }} />
-
-            <div className="relative flex items-start justify-between gap-4">
-              {/* Brand */}
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-base shadow-lg"
-                    style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a",
-                      boxShadow: "0 4px 14px rgba(245,158,11,0.4)" }}>
-                    Z
-                  </div>
-                  <div>
-                    <div className="text-xl font-extrabold tracking-tight" style={{ color: "#F59E0B" }}>
-                      {brand.tradingName}
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-medium tracking-wide">
-                      CERTIFIED CRYPTO EXCHANGE
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[11px] text-slate-400">{brand.legalName}</p>
-                <p className="text-[11px] text-slate-500 leading-relaxed mt-1 max-w-[260px]">{brand.address}</p>
-                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
-                  <p className="text-[10px] text-slate-600 font-mono">GSTIN: <span className="text-slate-400">{brand.gstin || "Registration Pending"}</span></p>
-                  <p className="text-[10px] text-slate-600 font-mono">CIN: <span className="text-slate-400">{brand.cin}</span></p>
-                  <p className="text-[10px] text-slate-600 font-mono">PAN: <span className="text-slate-400">{brand.pan}</span></p>
-                </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1.5">
-                  <p className="text-[10px] text-slate-600 font-mono">✉ <span className="text-slate-400">{brand.supportEmail}</span></p>
-                  <p className="text-[10px] text-slate-600 font-mono">🌐 <span className="text-slate-400">{brand.website}</span></p>
-                </div>
-              </div>
-
-              {/* Invoice meta + verified seal */}
-              <div className="text-right shrink-0">
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-2"
-                  style={{ background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }}>
-                  Tax Invoice
-                </div>
-                <p className="text-2xl font-extrabold text-white tabular-nums mt-0.5">{invoiceNo}</p>
-                <div className="flex items-center justify-end gap-1.5 mt-1.5">
-                  <Calendar style={{ width: 10, height: 10, color: "#64748b" }} />
-                  <p className="text-[11px] text-slate-400">Issued: {fmtDate(issuedAt)}</p>
-                </div>
-                {/* Status chip */}
-                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold"
-                  style={isFilled
-                    ? { background: "rgba(16,185,129,0.15)", color: "#10B981", border: "1px solid rgba(16,185,129,0.3)" }
-                    : { background: "rgba(245,158,11,0.15)", color: "#F59E0B", border: "1px solid rgba(245,158,11,0.3)" }}>
-                  <CheckCircle2 style={{ width: 10, height: 10 }} />
-                  {order.status.replace("_", " ").toUpperCase()}
-                </div>
-              </div>
-            </div>
-
-            {/* Verified digital badge strip */}
-            <div className="relative mt-5 flex items-center gap-3 rounded-xl px-4 py-2.5"
-              style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)" }}>
-              <Shield style={{ width: 14, height: 14, color: "#10B981", flexShrink: 0 }} />
-              <p className="text-[10px] text-emerald-400 font-semibold tracking-wide">
-                VERIFIED DIGITAL DOCUMENT — Cryptographically recorded on {fmtDateShort(issuedAt)}
-              </p>
-              <div className="ml-auto flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[9px] text-emerald-500 font-bold">AUTHENTIC</span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── WHITE BODY ── */}
-          <div className="bg-white relative">
-
-            {/* Diagonal watermark */}
-            <div style={{
-              position: "absolute", inset: 0, display: "flex", alignItems: "center",
-              justifyContent: "center", pointerEvents: "none", zIndex: 0, overflow: "hidden",
-            }}>
-              <span style={{
-                transform: "rotate(-35deg)",
-                fontSize: 80, fontWeight: 900, color: "rgba(245,158,11,0.04)",
-                letterSpacing: "0.05em", userSelect: "none", whiteSpace: "nowrap",
-              }}>TAX INVOICE</span>
-            </div>
-
-            {/* Bill-to + Order summary */}
-            <div className="relative px-8 py-6 grid grid-cols-2 gap-6" style={{ borderBottom: "2px solid #f1f5f9" }}>
-              <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: accentColor }}>
-                    <User style={{ width: 9, height: 9, color: "#0f172a" }} />
-                  </div>
-                  <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>Bill To</p>
-                </div>
-                <p className="font-bold text-slate-800 text-sm">{customer.name || customer.email}</p>
-                <p className="text-xs text-slate-500 mt-0.5">{customer.email}</p>
-                <p className="text-[11px] text-slate-400 mt-1 font-mono">
-                  <span className="text-slate-300 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
-                    UID #{customer.userId}
-                  </span>
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center justify-end gap-1.5 mb-2">
-                  <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>Order Details</p>
-                  <div className="w-4 h-4 rounded flex items-center justify-center" style={{ background: accentColor }}>
-                    <Hash style={{ width: 9, height: 9, color: "#0f172a" }} />
-                  </div>
-                </div>
-                <p className="font-bold text-slate-800 text-sm font-mono">
-                  #{order.id} · <span className="tracking-wide">{order.symbol}</span>
-                </p>
-                <div className="flex items-center justify-end gap-2 mt-1.5">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide"
-                    style={isBuy
-                      ? { background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC" }
-                      : { background: "#FEE2E2", color: "#DC2626", border: "1px solid #FCA5A5" }}>
-                    {isBuy ? <TrendingUp style={{ width: 10, height: 10 }} /> : <TrendingDown style={{ width: 10, height: 10 }} />}
-                    {order.side}
-                  </span>
-                  <span className="text-[10px] uppercase text-slate-400 font-semibold tracking-wide px-2 py-0.5 bg-slate-100 rounded-full">
-                    {order.type}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1.5">
-                  <Calendar style={{ width: 9, height: 9, display: "inline", marginRight: 3 }} />
-                  {fmtDate(order.placedAt)}
-                </p>
-              </div>
-            </div>
-
-            {/* ── Fills table ── */}
-            <div className="relative px-8 py-5" style={{ borderBottom: "2px solid #f1f5f9" }}>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg,#F59E0B,#D97706)" }} />
-                <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>
-                  Trade Fills ({fills.length} execution{fills.length !== 1 ? "s" : ""})
-                </p>
-              </div>
-              {fills.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-2">No fill detail available — summary above.</p>
-              ) : (
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #e2e8f0" }}>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr style={{ background: "linear-gradient(135deg,#FFF7ED,#FFFBEB)" }}>
-                        <th className="text-left px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">#</th>
-                        <th className="text-left px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Time</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Price ({order.quote})</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Qty ({order.base})</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-slate-600 text-[10px] uppercase tracking-wide">Subtotal ({order.quote})</th>
-                      </tr>
-                    </thead>
-                    <tbody className="font-mono tabular-nums">
-                      {fills.map((f, i) => (
-                        <tr key={f.id} style={{
-                          background: i % 2 === 0 ? "#fff" : "#fffbf5",
-                          borderTop: "1px solid #f1f5f9",
-                        }}>
-                          <td className="px-3 py-2 text-slate-300 font-sans">{i + 1}</td>
-                          <td className="px-3 py-2 text-slate-500 font-sans text-[11px]">{fmtDate(f.executedAt)}</td>
-                          <td className="text-right px-3 py-2 text-slate-700 font-semibold">{fmt(f.price, 4)}</td>
-                          <td className="text-right px-3 py-2 text-slate-700">{fmt(f.qty, 8)}</td>
-                          <td className="text-right px-3 py-2 text-slate-800 font-semibold">{fmt(f.subtotal, 4)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: "linear-gradient(135deg,#FFF7ED,#FFFBEB)", borderTop: "2px solid #FCD34D" }}>
-                        <td colSpan={2} className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: accentDark }}>
-                          VWAP &amp; Total
-                        </td>
-                        <td className="text-right px-3 py-2.5 font-mono font-bold text-slate-800">{fmt(order.avgPrice, 4)}</td>
-                        <td className="text-right px-3 py-2.5 font-mono font-bold text-slate-800">{fmt(order.filledQty, 8)}</td>
-                        <td className="text-right px-3 py-2.5 font-mono font-extrabold text-slate-900">{fmt(breakdown.grossNotional, 4)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* ── Tax breakdown ── */}
-            <div className="relative px-8 py-5" style={{ borderBottom: "2px solid #f1f5f9" }}>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-1 h-5 rounded-full" style={{ background: "linear-gradient(180deg,#F59E0B,#D97706)" }} />
-                <p className="text-[10px] uppercase tracking-[0.12em] font-bold" style={{ color: accentDark }}>
-                  Tax Breakdown (Indian Compliance — VDA)
-                </p>
-              </div>
-              <div className="space-y-0 rounded-xl overflow-hidden" style={{ border: "1px solid #e2e8f0" }}>
-                <BRow label="Gross trade value" value={`${fmt(breakdown.grossNotional, 4)} ${currency}`} accent={accentColor} first />
-                <BRow label="Trading fee (excl. GST)" value={`− ${fmt(breakdown.tradingFee, 4)} ${currency}`} muted />
-                <BRow label={`GST @ ${breakdown.gstPercent}% on fee`} value={`− ${fmt(breakdown.gstAmount, 4)} ${currency}`} muted />
-                {isSell && (
-                  <BRow label={`TDS @ ${breakdown.tdsPercent}% on proceeds (Sec 194S)`}
-                    value={`− ${fmt(breakdown.tdsAmount, 4)} ${currency}`} muted />
-                )}
-              </div>
-
-              {/* Net amount highlight */}
-              <div className="mt-4 rounded-2xl overflow-hidden"
-                style={{
-                  background: isSell
-                    ? "linear-gradient(135deg,#f0fdf4,#dcfce7)"
-                    : "linear-gradient(135deg,#fff7ed,#fef3c7)",
-                  border: isSell ? "2px solid #86EFAC" : "2px solid #FCD34D",
-                  boxShadow: isSell
-                    ? "0 4px 20px rgba(16,185,129,0.12)"
-                    : "0 4px 20px rgba(245,158,11,0.15)",
-                }}>
-                <div className="px-5 py-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.15em] font-extrabold"
-                      style={{ color: isSell ? "#15803D" : "#92400E" }}>
-                      {isSell ? "✓ Net Amount Credited to Wallet" : "✓ Net Amount Debited from Wallet"}
-                    </p>
-                    <p className="text-[11px] mt-1" style={{ color: isSell ? "#16a34a" : "#b45309" }}>
-                      ≈ {fmtInr(breakdown.netInr)} &nbsp;·&nbsp; 1 USDT ≈ ₹{(breakdown.inrRate ?? 84).toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-3xl font-extrabold tabular-nums"
-                      style={{ color: isSell ? "#15803D" : "#B45309" }}>
-                      {fmt(breakdown.netAmount, 4)}
-                    </p>
-                    <p className="text-sm font-bold" style={{ color: isSell ? "#16a34a" : "#d97706" }}>
-                      {currency}
-                    </p>
-                  </div>
-                </div>
-                <div className="h-1" style={{
-                  background: isSell
-                    ? "linear-gradient(90deg,#10B981,#34D399)"
-                    : "linear-gradient(90deg,#F59E0B,#FCD34D)",
-                }} />
-              </div>
-            </div>
-
-            {/* ── Footer notes ── */}
-            <div className="relative px-8 py-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                {[
-                  { icon: <Shield style={{ width: 12, height: 12, color: "#10B981" }} />, label: "TDS (Sec 194S)", desc: "1% deducted on every sell, deposited with Govt against your PAN." },
-                  { icon: <Zap style={{ width: 12, height: 12, color: "#F59E0B" }} />, label: "GST", desc: "18% levied on trading fee component only, not on trade value." },
-                  { icon: <CheckCircle2 style={{ width: 12, height: 12, color: "#60A5FA" }} />, label: "Dispute", desc: `Contact ${brand.supportEmail} within 7 days quoting ${invoiceNo}.` },
-                ].map(item => (
-                  <div key={item.label} className="rounded-xl p-3.5 flex gap-2.5"
-                    style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
-                    <div className="mt-0.5 shrink-0">{item.icon}</div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-700 mb-0.5">{item.label}</p>
-                      <p className="text-[10px] text-slate-500 leading-relaxed">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex items-center justify-between pt-4" style={{ borderTop: "1px solid #f1f5f9" }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center font-extrabold text-xs"
-                    style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a" }}>
-                    Z
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-600">{brand.tradingName}</p>
-                    <p className="text-[9px] text-slate-400">{brand.website}</p>
-                  </div>
-                </div>
-                <p className="text-[9px] text-slate-400 text-right">
-                  Computer-generated · No physical signature required<br />
-                  <span className="font-mono text-slate-300">{invoiceNo}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom gradient bar */}
-          <div style={{ height: 5, background: "linear-gradient(90deg,#B45309,#D97706,#F59E0B,#FCD34D,#F59E0B)" }} />
-        </div>
+      {/* Hidden fixed-width clone used ONLY for PDF capture — always 794px */}
+      <div
+        ref={printRef}
+        style={{
+          position: "absolute",
+          left: -9999,
+          top: 0,
+          width: 794,
+          pointerEvents: "none",
+          zIndex: -1,
+        }}
+        aria-hidden="true"
+      >
+        <InvoiceBody fixed />
       </div>
 
       <style>{`
