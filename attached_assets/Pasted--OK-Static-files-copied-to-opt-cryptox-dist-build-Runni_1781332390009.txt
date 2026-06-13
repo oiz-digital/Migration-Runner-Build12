@@ -1,0 +1,49 @@
+  OK  ] Static files copied to /opt/cryptox/dist
+[build] Running database migrations (drizzle migrate)...
+
+> @workspace/db@0.0.0 migrate /opt/cryptox/lib/db
+> drizzle-kit migrate --config ./drizzle.config.ts
+
+Reading config file '/opt/cryptox/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] migrations applied successfully![  OK  ] Database schema up to date
+[build] Seeding brand / company settings...
+psql: error: could not translate host name "123@localhost" to address: Name or service not known
+[ WARN ] Brand seed skipped (psql not available or already seeded)
+[build] Restarting PM2 processes...
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [all](ids: [ 0, 1 ])
+[PM2] [cryptox-api](0) ✓
+[PM2] [cryptox-go](1) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 34   │ online    │ 0%       │ 86.9mb   │
+│ 1  │ cryptox-go         │ fork     │ 15   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[  OK  ] PM2 restarted
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 34   │ online    │ 0%       │ 130.9mb  │
+│ 1  │ cryptox-go         │ fork     │ 15   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+
+════════════════════════════════════════════
+  Build Complete!
+════════════════════════════════════════════
+
+  API server : artifacts/api-server/dist/index.mjs
+  User portal: /opt/cryptox/dist/user/
+  Admin panel: /opt/cryptox/dist/admin/
+  Go service : artifacts/go-service/server
+
+[PM2] Applying action restartProcessId on app [cryptox-api](ids: [ 0 ])
+[PM2] [cryptox-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 35   │ online    │ 0%       │ 20.4mb   │
+│ 1  │ cryptox-go         │ fork     │ 15   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+ubuntu@ip-172-31-11-99:/opt/cryptox$

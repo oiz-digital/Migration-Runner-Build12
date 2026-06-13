@@ -92,7 +92,22 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
   ok "Database schema up to date"
 
   log "Seeding brand / company settings..."
-  psql "$DATABASE_URL" -f "$APP_DIR/deploy/seed-brand.sql" && ok "Brand settings seeded" || warn "Brand seed skipped (psql not available or already seeded)"
+  if command -v psql &>/dev/null; then
+    # Parse DATABASE_URL via node so passwords containing '@' are handled correctly
+    eval "$(node -e "
+      try {
+        const u = new URL(process.env.DATABASE_URL);
+        process.stdout.write('export PGHOST='     + JSON.stringify(u.hostname)                    + '\n');
+        process.stdout.write('export PGPORT='     + JSON.stringify(u.port || '5432')              + '\n');
+        process.stdout.write('export PGUSER='     + JSON.stringify(u.username)                    + '\n');
+        process.stdout.write('export PGPASSWORD=' + JSON.stringify(decodeURIComponent(u.password))+ '\n');
+        process.stdout.write('export PGDATABASE=' + JSON.stringify(u.pathname.slice(1))           + '\n');
+      } catch(e) { process.stderr.write('URL parse failed: ' + e.message + '\n'); }
+    " 2>/dev/null)"
+    psql -f "$APP_DIR/deploy/seed-brand.sql" && ok "Brand settings seeded" || warn "Brand seed failed — check seed-brand.sql"
+  else
+    warn "psql not found — run manually: psql \"\$DATABASE_URL\" -f deploy/seed-brand.sql"
+  fi
 else
   warn "DATABASE_URL not set — skipping DB migration. Run manually: pnpm --filter @workspace/db run migrate"
 fi
