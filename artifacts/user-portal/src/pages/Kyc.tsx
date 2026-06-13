@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useId } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Shield, BadgeCheck, Lock, Clock, CheckCircle2, XCircle, AlertCircle,
@@ -673,6 +673,8 @@ function KycSubmitDialog({
   onSuccess: () => void;
 }) {
   const lvl = level ?? 0;
+  const uid = useId();
+  const fieldId = (name: string) => `${uid}-${name}`;
 
   // Pre-populate from previous approved level
   const prevApproved = useMemo(() => {
@@ -789,12 +791,12 @@ function KycSubmitDialog({
             </div>
 
             <div>
-              <Label htmlFor="fn" className="text-xs">
+              <Label htmlFor={fieldId("fn")} className="text-xs">
                 Full Name <span className="text-rose-400">*</span>
                 <span className="text-muted-foreground font-normal ml-1">(as on PAN card)</span>
               </Label>
               <Input
-                id="fn"
+                id={fieldId("fn")}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 onBlur={() => touch("fullName")}
@@ -810,11 +812,11 @@ function KycSubmitDialog({
             </div>
 
             <div>
-              <Label htmlFor="dob" className="text-xs">
+              <Label htmlFor={fieldId("dob")} className="text-xs">
                 Date of Birth <span className="text-rose-400">*</span>
               </Label>
               <Input
-                id="dob"
+                id={fieldId("dob")}
                 type="date"
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
@@ -828,11 +830,11 @@ function KycSubmitDialog({
             </div>
 
             <div>
-              <Label htmlFor="pan" className="text-xs">
+              <Label htmlFor={fieldId("pan")} className="text-xs">
                 PAN Number <span className="text-rose-400">*</span>
               </Label>
               <Input
-                id="pan"
+                id={fieldId("pan")}
                 value={pan}
                 onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
                 onBlur={() => touch("pan")}
@@ -861,11 +863,11 @@ function KycSubmitDialog({
                 </div>
 
                 <div>
-                  <Label htmlFor="aad" className="text-xs">
+                  <Label htmlFor={fieldId("aad")} className="text-xs">
                     Aadhaar Number <span className="text-rose-400">*</span>
                   </Label>
                   <Input
-                    id="aad"
+                    id={fieldId("aad")}
                     value={aadhaar}
                     onChange={(e) => {
                       const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
@@ -926,11 +928,11 @@ function KycSubmitDialog({
                 {fieldError("selfie")}
 
                 <div>
-                  <Label htmlFor="addr" className="text-xs">
+                  <Label htmlFor={fieldId("addr")} className="text-xs">
                     Residential Address <span className="text-rose-400">*</span>
                   </Label>
                   <Textarea
-                    id="addr"
+                    id={fieldId("addr")}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     onBlur={() => touch("address")}
