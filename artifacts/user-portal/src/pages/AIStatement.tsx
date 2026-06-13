@@ -105,14 +105,24 @@ export default function AIStatement() {
       const { toJpeg } = await import("html-to-image");
       const { default: jsPDF } = await import("jspdf");
       const el = stmtRef.current;
-      const captureWidth = 794;
+
+      // Temporarily force element to 794px so charts re-render at desktop width
+      const prevWidth    = el.style.width;
+      const prevMaxWidth = el.style.maxWidth;
+      el.style.width    = "794px";
+      el.style.maxWidth = "794px";
+      // Wait for ResizeObserver + Recharts to re-paint at new width
+      await new Promise(r => setTimeout(r, 450));
+
       const dataUrl = await toJpeg(el, {
         cacheBust: true, pixelRatio: 1.5, quality: 0.82,
         backgroundColor: "#0f172a",
-        width: captureWidth,
-        height: el.scrollHeight,
-        style: { width: `${captureWidth}px`, maxWidth: `${captureWidth}px`, overflow: "visible" },
       });
+
+      // Restore original styles
+      el.style.width    = prevWidth;
+      el.style.maxWidth = prevMaxWidth;
+
       const img = new Image();
       img.src = dataUrl;
       await new Promise<void>(r => { img.onload = () => r(); });
