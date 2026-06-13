@@ -5,4 +5,5 @@
 - [Zebvix trading audit fixes](zebvix-trading-audit.md) — spot+futures audit: limit buy fee buffer, SL/TP engine, VIP futures fees, referral 30%, brand name fix
 - [Zebvix referral config architecture](zebvix-referral-config.md) — unified config in settingsTable key "referral.config"; loadReferralConfig() exported from admin-referrals.ts; two separate settings tables (settingsTable vs exchangeSettingsTable) — engines only read from settingsTable
 - [Zebvix security audit fixes](zebvix-security-audit.md) — full June 2026 audit: auth gaps in App.tsx (/trade /futures /options /p2p /convert /leagues), KYC gates on orders/withdrawals/AI subscribe, parseInt radix fixes
+- [Zebvix admin role gate bug](zebvix-admin-role-gate.md) — ADMIN_ROLES in admin/App.tsx must include compliance/finance/marketing; wallet-manager sidebar must be admin/superadmin only (API enforces admin-only)
 - [Zebvix demo data setup](zebvix-demo-setup.md) — full prod-level seed: AI plans, announcements, news, earn products, gateways, legal pages, KYC settings, fee config, market bots all configured via SQL

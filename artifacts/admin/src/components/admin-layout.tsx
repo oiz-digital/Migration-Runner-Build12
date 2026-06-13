@@ -111,7 +111,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/crypto-deposits",   label: "Crypto Deposits",    icon: Bitcoin,        roles: ["support", "finance", "admin", "superadmin"] },
       { href: "/user-addresses",    label: "User Addresses",     icon: Wallet2,        roles: ["support", "finance", "admin", "superadmin"] },
       { href: "/crypto-withdrawals",label: "Crypto Withdrawals", icon: Banknote,       roles: ["support", "finance", "admin", "superadmin"] },
-      { href: "/wallet-manager",    label: "Wallet Manager",     icon: Wallet2,        roles: ["finance", "admin", "superadmin"] },
+      { href: "/wallet-manager",    label: "Wallet Manager",     icon: Wallet2,        roles: ["admin", "superadmin"] },
     ],
   },
   {

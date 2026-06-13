@@ -72,7 +72,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const ADMIN_ROLES = ["support", "admin", "superadmin"];
+const ADMIN_ROLES = ["support", "compliance", "finance", "marketing", "admin", "superadmin"];
 
 /** Wrap a page that requires a stricter role than the global admin gate. */
 function RoleGated({ allow, children }: { allow: string[]; children: ReactNode }) {
