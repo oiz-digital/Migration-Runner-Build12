@@ -11,7 +11,7 @@
  */
 
 import {
-  db, usersTable, walletsTable, referralsTable,
+  db, usersTable, walletsTable, walletLedgerTable, referralsTable,
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
@@ -24,6 +24,8 @@ import { loadReferralConfig } from "../routes/admin-referrals";
  * Uses an atomic INSERT … ON CONFLICT DO UPDATE to credit the referrer's spot
  * wallet in a single round-trip, eliminating the SELECT-then-INSERT race
  * condition that existed against the (userId, walletType, coinId) unique index.
+ * A wallet_ledger row (type "referral_bonus") is written for every credit so
+ * the commission appears in the referrer's transaction history.
  */
 export async function creditReferralChain(
   originUserId: number,
@@ -49,10 +51,9 @@ export async function creditReferralChain(
     if (commission < 0.000001) { currentId = user.referredBy; continue; }
 
     // Atomic upsert: create the wallet if absent, otherwise increment balance.
-    // Avoids the SELECT→INSERT race condition against the unique
-    // (user_id, wallet_type, coin_id) index — any concurrent credit will
-    // safely queue on the same row rather than losing data.
-    await db.insert(walletsTable)
+    // RETURNING gives us the post-update balance so we can compute
+    // balanceBefore without a separate read.
+    const [updated] = await db.insert(walletsTable)
       .values({
         userId: user.referredBy,
         coinId,
@@ -66,14 +67,34 @@ export async function creditReferralChain(
           balance: sql`${walletsTable.balance} + ${commission}`,
           updatedAt: new Date(),
         },
-      });
+      })
+      .returning({ id: walletsTable.id, balance: walletsTable.balance });
+
+    if (updated) {
+      const balanceAfter  = updated.balance;
+      const balanceBefore = String(Math.max(0, parseFloat(balanceAfter) - commission));
+
+      // Ledger entry — appears in referrer's transaction history
+      await db.insert(walletLedgerTable).values({
+        userId:        user.referredBy,
+        coinId,
+        walletType:    "spot",
+        type:          "referral_bonus",
+        amount:        String(commission),
+        balanceBefore,
+        balanceAfter,
+        refType:       "referral",
+        refId:         String(originUserId),
+        note:          `L${level} referral commission (${sourceType})`,
+      }).catch(() => null);
+    }
 
     await db.insert(referralsTable).values({
-      referrerId:      user.referredBy,
-      referredId:      originUserId,
-      bonusCredited:   true,
-      bonusAmount:     String(commission),
-      commissionRate:  String(pct),
+      referrerId:     user.referredBy,
+      referredId:     originUserId,
+      bonusCredited:  true,
+      bonusAmount:    String(commission),
+      commissionRate: String(pct),
       level,
       sourceType,
     }).catch(() => null);

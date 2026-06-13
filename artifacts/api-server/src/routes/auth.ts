@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, or, inArray, sql } from "drizzle-orm";
 import { z, type ZodSchema } from "zod";
-import { db, usersTable, loginLogsTable, walletsTable, coinsTable, settingsTable, otpCodesTable, referralsTable } from "@workspace/db";
+import { db, usersTable, loginLogsTable, walletsTable, walletLedgerTable, coinsTable, settingsTable, otpCodesTable, referralsTable } from "@workspace/db";
 import {
   hashPassword,
   verifyPassword,
@@ -244,7 +244,7 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
         // balance. Eliminates the SELECT→INSERT race condition against the
         // unique (user_id, wallet_type, coin_id) index — safe under concurrent
         // signups with the same referral code.
-        await db.insert(walletsTable)
+        const [regWallet] = await db.insert(walletsTable)
           .values({
             userId: referredBy!, coinId: usdtCoinId, walletType: "spot",
             balance: String(REGISTRATION_BONUS_USDT), locked: "0",
@@ -255,7 +255,27 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
               balance: sql`${walletsTable.balance} + ${REGISTRATION_BONUS_USDT}`,
               updatedAt: new Date(),
             },
-          });
+          })
+          .returning({ balance: walletsTable.balance });
+
+        // Ledger entry — referrer sees this as a transaction in their history
+        if (regWallet) {
+          const balAfter  = regWallet.balance;
+          const balBefore = String(Math.max(0, parseFloat(balAfter) - REGISTRATION_BONUS_USDT));
+          await db.insert(walletLedgerTable).values({
+            userId:        referredBy!,
+            coinId:        usdtCoinId,
+            walletType:    "spot",
+            type:          "referral_bonus",
+            amount:        String(REGISTRATION_BONUS_USDT),
+            balanceBefore: balBefore,
+            balanceAfter:  balAfter,
+            refType:       "referral",
+            refId:         String(user.id),
+            note:          "Registration referral bonus",
+          }).catch(() => null);
+        }
+
         await db.insert(referralsTable).values({
           referrerId: referredBy!, referredId: user.id,
           bonusCredited: true, bonusAmount: String(REGISTRATION_BONUS_USDT),
