@@ -9,14 +9,15 @@ import { Router, type IRouter } from "express";
 import { db, usersTable, walletsTable, coinsTable, masterWalletsTable } from "@workspace/db";
 import { eq, ilike, or, desc, and } from "drizzle-orm";
 import { requireRole } from "../middlewares/auth";
-import { getRawTick } from "../lib/price-service";
+import { getRawTick, getInrRate } from "../lib/price-service";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
 const adminAuth = requireRole("admin", "superadmin");
 
 function assetPrice(symbol: string): number {
-  if (symbol === "USDT" || symbol === "USDC" || symbol === "INR") return symbol === "INR" ? 0.012 : 1;
+  if (symbol === "USDT" || symbol === "USDC") return 1;
+  if (symbol === "INR") { const r = getInrRate(); return r > 0 ? 1 / r : 0.012; }
   const tick = getRawTick(`${symbol}USDT`);
   return tick ? tick.usdt : 0;
 }

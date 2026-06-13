@@ -1854,9 +1854,9 @@ r.get("/exchange/stats", async (_req, res): Promise<void> => {
   const allStats = getAllPairStats();
   const ticks = getCache() as any[];
 
-  // Live USDT→INR rate (from price-service cache; fallback ~83)
+  // Live USDT→INR rate (from price-service cache; fallback ~84)
   const usdtTick = ticks.find((t: any) => t.symbol === "USDT");
-  const inrRate = Number(usdtTick?.inr ?? 0) || 83;
+  const inrRate = Number(usdtTick?.inr ?? 0) || 84;
 
   let totalVolumeInr = 0;
   let totalTrades24h = 0;

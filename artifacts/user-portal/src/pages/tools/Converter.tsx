@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useTickers } from "@/lib/marketSocket";
+import { useTickers, useInrRate } from "@/lib/marketSocket";
 import { buildUsdRates } from "@/lib/volumeUsd";
 
 function fmt(n: number, dp = 2) {
@@ -22,6 +22,7 @@ function dpFor(n: number) {
 
 export default function ConverterPage() {
   const tickers = useTickers();
+  const liveInrRate = useInrRate(); // live USDT/INR rate from WebSocket
 
   // Build USD rate table for every base asset we can price
   const usdRates = useMemo(() => buildUsdRates(Object.values(tickers)), [tickers]);
@@ -36,8 +37,10 @@ export default function ConverterPage() {
   const [to, setTo] = useState<string>("USDT");
   const [amount, setAmount] = useState<string>("1");
 
-  const fromUsd = usdRates[from] ?? (from === "USDT" || from === "USD" ? 1 : from === "INR" ? 1 / 83 : 0);
-  const toUsd = usdRates[to] ?? (to === "USDT" || to === "USD" ? 1 : to === "INR" ? 1 / 83 : 0);
+  // INR fallback: use live WebSocket rate; hardcoded 84 only if socket not yet ready
+  const inrUsd = liveInrRate > 0 ? 1 / liveInrRate : 1 / 84;
+  const fromUsd = usdRates[from] ?? (from === "USDT" || from === "USD" ? 1 : from === "INR" ? inrUsd : 0);
+  const toUsd = usdRates[to] ?? (to === "USDT" || to === "USD" ? 1 : to === "INR" ? inrUsd : 0);
 
   const rate = fromUsd && toUsd ? fromUsd / toUsd : 0;
   const amt = parseFloat(amount) || 0;

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { KycProgressBanner } from "@/components/KycGate";
-import { useTickers } from "@/lib/marketSocket";
+import { useTickers, useInrRate } from "@/lib/marketSocket";
 import { useMemo, useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -192,9 +192,10 @@ function CoinIcon({ symbol, size = 9 }: { symbol: string; size?: 7 | 8 | 9 | 10 
 }
 
 // USD value lookup using marketSocket tickers (BTC/USDT, ETH/USDT, …).
-// INR uses 1 USD ≈ ₹83 (matches backend sumUsd()).
+// INR: uses live USDT/INR WebSocket rate; fallback ≈84 only when socket not yet ready.
 function useUsdPriceLookup() {
   const tickers = useTickers();
+  const liveInrRate = useInrRate();
   return useMemo(() => {
     const map = new Map<string, number>();
     for (const t of Object.values(tickers)) {
@@ -207,9 +208,9 @@ function useUsdPriceLookup() {
     }
     map.set("USDT", 1);
     map.set("USD", 1);
-    map.set("INR", 1 / 83);
+    map.set("INR", liveInrRate > 0 ? 1 / liveInrRate : 1 / 84);
     return (sym: string): number => map.get(sym.toUpperCase()) ?? 0;
-  }, [tickers]);
+  }, [tickers, liveInrRate]);
 }
 
 // ──────────────────────────────────────────────────────────────────

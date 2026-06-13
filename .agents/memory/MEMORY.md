@@ -8,4 +8,5 @@
 - [Zebvix admin role gate bug](zebvix-admin-role-gate.md) — ADMIN_ROLES in admin/App.tsx must include compliance/finance/marketing; wallet-manager sidebar must be admin/superadmin only (API enforces admin-only)
 - [Zebvix demo data setup](zebvix-demo-setup.md) — full prod-level seed: AI plans, announcements, news, earn products, gateways, legal pages, KYC settings, fee config, market bots all configured via SQL
 - [Zebvix wallet/P2P/AI audit fixes](zebvix-wallet-p2p-audit.md) — AI INR→USDT bug (fundingCoinId schema), KYC on bicrypto withdrawals, P2P ledger zero-balances, dup bank accounts, fee cache 30s TTL, referral on base fee
+- [Zebvix INR rate consistency audit](zebvix-inr-rate-audit.md) — 5 hardcoded INR rate gaps found+fixed; referralsTable has no coinId so old INR commissions stay mixed in sum (known historical data issue)
 - [Zebvix Go service production binary](zebvix-go-prod-binary.md) — Go binary MUST be built with CGO_ENABLED=0; Nix's Go toolchain produces dynamically linked binaries that fail in production with "no such file or directory" (missing ELF interpreter)
