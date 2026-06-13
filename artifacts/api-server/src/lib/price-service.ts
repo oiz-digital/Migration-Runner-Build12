@@ -40,8 +40,39 @@ function broadcast(ticks: Tick[]) {
 async function loadInrRate() {
   try {
     const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, "inr_usdt_rate")).limit(1);
-    if (row) { const n = Number(row.value); if (Number.isFinite(n) && n > 0) inrRate = n; }
+    if (row) { const n = Number(row.value); if (Number.isFinite(n) && n > 0) { inrRate = n; return; } }
   } catch {}
+  // DB not set — fall through to live fetch below
+  await refreshLiveInrRate();
+}
+
+/** Fetches live USD→INR rate from free public forex APIs (no key required). */
+async function refreshLiveInrRate(): Promise<void> {
+  const attempt = async (url: string, extract: (d: any) => number | undefined): Promise<number | null> => {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return null;
+      const d = await r.json();
+      const v = extract(d);
+      return typeof v === "number" && Number.isFinite(v) && v > 50 && v < 200 ? v : null;
+    } catch { return null; }
+  };
+
+  const live =
+    await attempt("https://open.er-api.com/v6/latest/USD", d => d?.rates?.INR) ??
+    await attempt("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", d => d?.usd?.inr);
+
+  if (live) {
+    const rounded = Math.round(live * 100) / 100;
+    inrRate = rounded;
+    logger.info({ inrRate: rounded }, "INR rate refreshed from live forex API");
+    // Persist back so next startup uses the fresh value
+    try {
+      await db.insert(settingsTable)
+        .values({ key: "inr_usdt_rate", value: String(rounded) })
+        .onConflictDoUpdate({ target: settingsTable.key, set: { value: String(rounded) } });
+    } catch {}
+  }
 }
 
 // Map: source symbol (e.g. "BTCUSDT" or coin.symbol fallback) -> { price, change, volume }
@@ -203,11 +234,14 @@ async function safeTick() {
 export function startPriceService(intervalMs = 1000) {
   if (started) return;
   started = true;
-  // Load INR rate from DB immediately — don't wait for the first tick so
-  // portfolio analytics requests that arrive before tick-1 get the correct rate.
+  // Load INR rate from DB (or live forex API) immediately — don't wait for
+  // the first tick so analytics requests that arrive early get the correct rate.
   void loadInrRate();
   void safeTick();
   setInterval(() => { void safeTick(); }, intervalMs);
+  // Refresh live INR/USD rate every 5 minutes (leader only) so the invoice
+  // and portfolio INR conversions always show the current forex rate.
+  setInterval(() => { if (isLeader()) void refreshLiveInrRate(); }, 5 * 60 * 1000);
   logger.info({ intervalMs }, "price service started (leader-gated)");
 }
 
