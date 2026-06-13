@@ -16,10 +16,10 @@ run = "go run ."
 [services.production]
 
 [services.production.build]
-args = ["sh", "-c", "cd artifacts/go-service && CGO_ENABLED=0 go build -ldflags='-s -w' -o server ."]
+args = ["sh", "-c", "mkdir -p artifacts/go-service/dist && cd artifacts/go-service && CGO_ENABLED=0 go build -ldflags='-s -w' -o dist/server ."]
 
 [services.production.run]
-args = ["./artifacts/go-service/server"]
+args = ["./artifacts/go-service/dist/server"]
 
 [services.production.run.env]
 PORT = "23004"
