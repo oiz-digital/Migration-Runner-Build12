@@ -363,6 +363,20 @@ app.use(
 );
 app.use("/api/otp/send", otpSendLimiter);
 
+// Broker quote endpoints proxy to an external pricing API. Limit aggressively
+// to prevent abuse and protect the upstream quota.
+const brokerQuoteLimiter = rateLimit({
+  store: makeStore("broker-quote"),
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  passOnStoreError: true,
+  message: { error: "Too many quote requests — max 30/min" },
+  validate: { xForwardedForHeader: false },
+});
+app.use("/api/instruments", brokerQuoteLimiter);
+
 // Tight per-session order throttle. Mounted BEFORE the global limiter so the
 // tighter cap takes precedence; the global limiter then still acts as a
 // platform-wide ceiling.

@@ -211,3 +211,30 @@ func (e *Engine) ResetBook(pairID int64) {
 func (e *Engine) Snapshot(pairID int64, depth int) ([][2]float64, [][2]float64) {
         return e.book(pairID).Snapshot(depth)
 }
+
+// PurgeEmptyBooks removes orderbooks that have no resting orders on either
+// side. Called periodically to prevent unbounded memory growth when pairs are
+// deactivated or testing pairs are abandoned.
+// Returns the number of books purged.
+func (e *Engine) PurgeEmptyBooks() int {
+        e.mu.Lock()
+        defer e.mu.Unlock()
+        purged := 0
+        for id, bk := range e.books {
+                bk.mu.Lock()
+                empty := len(bk.Bids) == 0 && len(bk.Asks) == 0
+                bk.mu.Unlock()
+                if empty {
+                        delete(e.books, id)
+                        purged++
+                }
+        }
+        return purged
+}
+
+// BookCount returns the number of pair orderbooks currently in memory.
+func (e *Engine) BookCount() int {
+        e.mu.RLock()
+        defer e.mu.RUnlock()
+        return len(e.books)
+}

@@ -182,8 +182,27 @@ func main() {
         }
         prefix = strings.TrimRight(prefix, "/")
 
+        // Warn loudly if INTERNAL_SECRET is not set — in production all /internal
+        // RPCs would be unauthenticated and reachable by any process on the host.
+        if os.Getenv("INTERNAL_SECRET") == "" {
+                log.Println("WARNING: INTERNAL_SECRET env var is not set — /internal/* RPCs are unauthenticated. Set INTERNAL_SECRET in production!")
+        }
+
         srv := newServer()
         mux := http.NewServeMux()
+
+        // Periodic maintenance: purge orderbooks for inactive/deleted pairs to
+        // prevent unbounded memory growth. Runs every 30 minutes.
+        go func() {
+                ticker := time.NewTicker(30 * time.Minute)
+                defer ticker.Stop()
+                for range ticker.C {
+                        n := srv.engine.PurgeEmptyBooks()
+                        if n > 0 {
+                                log.Printf("cryptox-go: purged %d empty orderbooks (active books: %d)", n, srv.engine.BookCount())
+                        }
+                }
+        }()
 
         // Public health + WS (also under the artifact prefix for dev preview).
         mux.HandleFunc("/healthz", srv.handleHealth)

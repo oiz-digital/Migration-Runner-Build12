@@ -140,7 +140,7 @@ export default function DashboardPage() {
     queryKey: ["/admin/users", "recent"],
     queryFn: async () => {
       const r = await get<RecentUser[] | { rows?: RecentUser[] }>("/admin/users").catch(() => []);
-      const arr = Array.isArray(r) ? r : (r as any)?.rows ?? [];
+      const arr = Array.isArray(r) ? r : (r as { rows?: RecentUser[] })?.rows ?? [];
       return arr.slice(0, 5);
     },
     refetchInterval: 30000,
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       const r = await get<RecentWithdrawal[] | { rows?: RecentWithdrawal[] }>(
         "/admin/inr-withdrawals?status=pending"
       ).catch(() => []);
-      const arr = Array.isArray(r) ? r : (r as any)?.rows ?? [];
+      const arr = Array.isArray(r) ? r : (r as { rows?: RecentWithdrawal[] })?.rows ?? [];
       return arr.slice(0, 5);
     },
     refetchInterval: 30000,
@@ -221,7 +221,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow="Console · Overview"
         title={`${greet}, ${user?.name || (user?.email || "Admin").split("@")[0]}`}
-        description={today + " · Aaj ke pending tasks aur live numbers"}
+        description={today + " · Pending tasks and live platform numbers"}
         actions={
           <StatusPill
             variant={sysHealthy ? "success" : "warning"}

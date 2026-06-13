@@ -414,6 +414,15 @@ const shutdown = async () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
+process.on("unhandledRejection", (reason: unknown) => {
+  logger.error({ reason: String(reason) }, "Unhandled promise rejection — exiting");
+  process.exit(1);
+});
+process.on("uncaughtException", (err: Error) => {
+  logger.error({ err: err.message, stack: err.stack }, "Uncaught exception — exiting");
+  process.exit(1);
+});
+
 bootstrap().catch((err) => {
   logger.error({ err: err?.stack || String(err) }, "fatal: bootstrap failed");
   process.exit(1);

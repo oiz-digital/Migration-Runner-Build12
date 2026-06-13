@@ -135,9 +135,7 @@ function App() {
                 <Route path="/invite">
                   {() => <RequireAuth><Invite /></RequireAuth>}
                 </Route>
-                <Route path="/support">
-                  {() => <RequireAuth><Support /></RequireAuth>}
-                </Route>
+                <Route path="/support" component={Support} />
 
                 <Route path="/about" component={About} />
                 {/* Canonical short routes (used by footer + all links) */}
