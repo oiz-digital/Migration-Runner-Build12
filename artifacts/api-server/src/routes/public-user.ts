@@ -16,6 +16,7 @@ import {
   usersTable,
   gatewaysTable,
   depositAddressesTable,
+  referralsTable,
 } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { consumeVerifiedOtp } from "./otp";
@@ -552,21 +553,33 @@ router.post("/kyc/submit", requireAuth, async (req, res): Promise<void> => {
 // ─── Referral stats ───────────────────────────────────────────────────────────
 router.get("/refer/stats", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const me = await db.select({ code: usersTable.referralCode }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  const referredCount = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(usersTable)
-    .where(eq(usersTable.referredBy, userId));
-  const referredUsers = await db
-    .select({ id: usersTable.id, name: usersTable.name, kycLevel: usersTable.kycLevel, createdAt: usersTable.createdAt })
-    .from(usersTable).where(eq(usersTable.referredBy, userId)).orderBy(desc(usersTable.createdAt)).limit(50);
+
+  const [me, countRows, referredUsers, bonusRows] = await Promise.all([
+    db.select({ code: usersTable.referralCode }).from(usersTable).where(eq(usersTable.id, userId)).limit(1),
+    db.select({ c: sql<number>`count(*)::int` }).from(usersTable).where(eq(usersTable.referredBy, userId)),
+    db.select({ id: usersTable.id, name: usersTable.name, kycLevel: usersTable.kycLevel, createdAt: usersTable.createdAt })
+      .from(usersTable).where(eq(usersTable.referredBy, userId)).orderBy(desc(usersTable.createdAt)).limit(50),
+    db.select({ bonusAmount: referralsTable.bonusAmount, bonusCredited: referralsTable.bonusCredited })
+      .from(referralsTable).where(eq(referralsTable.referrerId, userId)),
+  ]);
+
+  // Sum all credited bonuses (bonusCredited=true means wallet was already topped up)
+  const creditedEarnings = bonusRows
+    .filter(r => r.bonusCredited)
+    .reduce((s, r) => s + parseFloat(r.bonusAmount ?? "0"), 0);
+  // Also include uncredited (pending) so user can see total accrued
+  const totalEarnings = bonusRows
+    .reduce((s, r) => s + parseFloat(r.bonusAmount ?? "0"), 0);
+
+  const referredCount = countRows[0]?.c ?? 0;
 
   res.json({
-    referralCode: me[0]?.code ?? null,
-    referredCount: referredCount[0]?.c ?? 0,
-    referredKycCount: referredUsers.filter(u => (u.kycLevel ?? 0) >= 1).length,
-    estimatedEarnings: 0, // placeholder until commissions ledger exists
-    recent: referredUsers,
+    referralCode:      me[0]?.code ?? null,
+    referredCount,
+    referredKycCount:  referredUsers.filter(u => (u.kycLevel ?? 0) >= 1).length,
+    estimatedEarnings: parseFloat(totalEarnings.toFixed(4)),
+    creditedEarnings:  parseFloat(creditedEarnings.toFixed(4)),
+    recent:            referredUsers,
   });
 });
 
