@@ -226,9 +226,11 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
     // Normalise to USDT; INR pair amounts are divided by current rate
     const notionalUsd = isInrQuote ? rawNotional / inrRate : rawNotional;
     const feeUsd      = isInrQuote ? rawFee      / inrRate : rawFee;
-    // TDS: use stored value if > 0; for sells without stored TDS compute 1% of notional
-    const rawTdsEff   = (t.side === "sell" && rawTds === 0) ? rawNotional * 0.01 : rawTds;
-    const tdsUsdEff   = isInrQuote ? rawTdsEff / inrRate : rawTdsEff;
+
+    // TDS = always 1% of sell notional (deterministic — stored tds column may be 0/missing)
+    // Both notionalInr and notionalUsd already correct for the quote currency above
+    const tdsUsdEff   = t.side === "sell" ? notionalUsd * 0.01 : 0;
+    const tdsInrEff   = tdsUsdEff * inrRate;
 
     totalVolumeUsd += notionalUsd;
     totalFeesUsd   += feeUsd;
@@ -240,11 +242,11 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
         date:        t.createdAt ? new Date(t.createdAt).toISOString() : "",
         pair:        t.pairSymbol ?? "—",
         side:        t.side ?? "—",
-        notionalInr: isInrQuote ? rawNotional : notionalUsd * inrRate,
+        notionalInr: notionalUsd * inrRate,
         notionalUsd,
-        feeInr:      isInrQuote ? rawFee      : feeUsd * inrRate,
+        feeInr:      feeUsd * inrRate,
         feeUsd,
-        tdsInr:      isInrQuote ? rawTdsEff   : tdsUsdEff * inrRate,
+        tdsInr:      tdsInrEff,
         tdsUsd:      tdsUsdEff,
       });
     }
