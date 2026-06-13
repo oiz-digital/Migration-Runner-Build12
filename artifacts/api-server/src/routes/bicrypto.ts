@@ -1436,6 +1436,11 @@ r.post("/finance/bank/accounts", bicryptoAuth, async (req: any, res): Promise<vo
   if (!bankName || !accountNumber || !ifsc || !holderName) {
     res.status(400).json({ message: "bankName, accountNumber, ifsc, holderName required" }); return;
   }
+  const [existing] = await db.select({ id: bankAccountsTable.id })
+    .from(bankAccountsTable)
+    .where(and(eq(bankAccountsTable.userId, req.bcUser.id), eq(bankAccountsTable.accountNumber, String(accountNumber).trim())))
+    .limit(1);
+  if (existing) { res.status(409).json({ message: "Bank account already added" }); return; }
   const [row] = await db.insert(bankAccountsTable).values({
     userId: req.bcUser.id,
     bankName: String(bankName).trim(),
@@ -1459,6 +1464,9 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
   }
   const sym = String(currency).toUpperCase();
   if (sym === "INR") { res.status(400).json({ message: "Use /finance/withdraw/fiat for INR" }); return; }
+  if ((req.bcUser?.kycLevel ?? 0) < 2) {
+    res.status(403).json({ message: "KYC Level 2 required for crypto withdrawals. Please complete identity verification." }); return;
+  }
 
   const [coin] = await db.select().from(coinsTable).where(eq(coinsTable.symbol, sym)).limit(1);
   if (!coin) { res.status(404).json({ message: "Currency not supported" }); return; }

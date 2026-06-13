@@ -179,6 +179,8 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
       const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
         userId, planId,
         investedAmount: String(usdtEquiv.toFixed(8)),
+        fundingCoinId: inrWallet.coinId,
+        fundingAmount: String(amount.toFixed(8)),
         expiresAt, status: "active", totalEarned: "0",
       }).returning();
 
@@ -230,6 +232,8 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
 
     const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
       userId, planId, investedAmount: String(amount),
+      fundingCoinId: wallet.coinId,
+      fundingAmount: String(amount),
       expiresAt, status: "active", totalEarned: "0",
     }).returning();
     await tx.insert(walletLedgerTable).values({
@@ -249,49 +253,76 @@ router.post("/ai-trading/subscriptions/:id/cancel", requireAuth, async (req, res
   const [sub] = await db.select().from(aiTradingSubscriptionsTable)
     .where(and(eq(aiTradingSubscriptionsTable.id, id), eq(aiTradingSubscriptionsTable.userId, userId)));
   if (!sub || sub.status !== "active") { res.status(404).json({ error: "Not found" }); return; }
-  const invested = parseFloat(sub.investedAmount);
+
+  // Use the exact funding coin/amount stored at subscription time when available.
+  // Legacy subscriptions (created before these columns existed) fall back to USDT.
+  const refundCoinId = sub.fundingCoinId ?? null;
+  const refundAmount = parseFloat(sub.fundingAmount ?? sub.investedAmount);
 
   await db.transaction(async (tx) => {
-    // SELECT FOR UPDATE to prevent concurrent cancels on the same subscription.
-    const [usdtW] = await tx
-      .select()
-      .from(walletsTable)
-      .innerJoin(coinsTable, eq(coinsTable.id, walletsTable.coinId))
-      .where(and(
-        eq(walletsTable.userId, userId),
-        eq(walletsTable.walletType, "spot"),
-        eq(coinsTable.symbol, "USDT"),
-      ))
-      .for("update")
-      .limit(1);
-
-    // Return principal using SQL expressions — atomic, no race condition.
-    // GREATEST(0,...) on locked guards against INR-funded subs where USDT
-    // was never locked but the invested amount is in USDT units.
-    if (usdtW) {
-      const wallet    = usdtW.wallets;
-      const balBefore = wallet.balance ?? "0";
-      await tx.update(walletsTable).set({
-        balance:   sql`${walletsTable.balance} + ${invested}`,
-        locked:    sql`GREATEST(0, ${walletsTable.locked} - ${invested})`,
-        updatedAt: new Date(),
-      }).where(eq(walletsTable.id, wallet.id));
-      await tx.insert(walletLedgerTable).values({
-        userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_return",
-        amount: String(invested), balanceBefore: balBefore,
-        balanceAfter: String(parseFloat(balBefore) + invested),
-        refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
-      });
-    } else {
-      // Wallet does not exist yet (e.g. INR-funded plan, USDT wallet never created).
-      // Create it and credit the invested amount directly.
-      const [coin] = await tx.select({ id: coinsTable.id }).from(coinsTable)
-        .where(eq(coinsTable.symbol, "USDT")).limit(1);
-      if (coin) {
-        await tx.insert(walletsTable).values({
-          userId, coinId: coin.id, walletType: "spot",
-          balance: String(invested), locked: "0",
+    if (refundCoinId != null) {
+      // New-style subscription: return exactly what was deducted at subscribe time.
+      const [w] = await tx.select().from(walletsTable)
+        .where(and(eq(walletsTable.userId, userId), eq(walletsTable.walletType, "spot"), eq(walletsTable.coinId, refundCoinId)))
+        .for("update").limit(1);
+      if (w) {
+        const balBefore = w.balance ?? "0";
+        await tx.update(walletsTable).set({
+          balance:   sql`${walletsTable.balance} + ${refundAmount}`,
+          locked:    sql`GREATEST(0, ${walletsTable.locked} - ${refundAmount})`,
+          updatedAt: new Date(),
+        }).where(eq(walletsTable.id, w.id));
+        await tx.insert(walletLedgerTable).values({
+          userId, coinId: w.coinId, walletType: "spot", type: "ai_principal_return",
+          amount: String(refundAmount), balanceBefore: balBefore,
+          balanceAfter: String(parseFloat(balBefore) + refundAmount),
+          refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
         });
+      } else {
+        // Wallet for the funding coin doesn't exist yet — create and credit.
+        await tx.insert(walletsTable).values({
+          userId, coinId: refundCoinId, walletType: "spot",
+          balance: String(refundAmount), locked: "0",
+        });
+      }
+    } else {
+      // Legacy subscription (fundingCoinId not recorded): fall back to USDT.
+      const invested = parseFloat(sub.investedAmount);
+      const [usdtW] = await tx
+        .select()
+        .from(walletsTable)
+        .innerJoin(coinsTable, eq(coinsTable.id, walletsTable.coinId))
+        .where(and(
+          eq(walletsTable.userId, userId),
+          eq(walletsTable.walletType, "spot"),
+          eq(coinsTable.symbol, "USDT"),
+        ))
+        .for("update")
+        .limit(1);
+
+      if (usdtW) {
+        const wallet    = usdtW.wallets;
+        const balBefore = wallet.balance ?? "0";
+        await tx.update(walletsTable).set({
+          balance:   sql`${walletsTable.balance} + ${invested}`,
+          locked:    sql`GREATEST(0, ${walletsTable.locked} - ${invested})`,
+          updatedAt: new Date(),
+        }).where(eq(walletsTable.id, wallet.id));
+        await tx.insert(walletLedgerTable).values({
+          userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_return",
+          amount: String(invested), balanceBefore: balBefore,
+          balanceAfter: String(parseFloat(balBefore) + invested),
+          refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
+        });
+      } else {
+        const [coin] = await tx.select({ id: coinsTable.id }).from(coinsTable)
+          .where(eq(coinsTable.symbol, "USDT")).limit(1);
+        if (coin) {
+          await tx.insert(walletsTable).values({
+            userId, coinId: coin.id, walletType: "spot",
+            balance: String(invested), locked: "0",
+          });
+        }
       }
     }
 

@@ -451,6 +451,13 @@ router.post("/p2p/orders", requireAuth, async (req, res): Promise<void> => {
       // alongside release/refund and `routes/transfer.ts` patterns.
       const qtyStr = quantizeQty(qty);
       const fiatStr = fiatAmount.toFixed(2);
+      // Snapshot seller balance before escrow lock for accurate ledger audit trail.
+      const [sellerWPre] = await tx.select({ balance: walletsTable.balance })
+        .from(walletsTable)
+        .where(and(eq(walletsTable.userId, sellerId), eq(walletsTable.coinId, offer.coinId), eq(walletsTable.walletType, "spot")))
+        .limit(1);
+      const sellerBalBefore = sellerWPre?.balance ?? "0";
+      const sellerBalAfterLock = String((parseFloat(sellerBalBefore) - Number(qtyStr)).toFixed(8));
       await lockEscrow(tx, sellerId, offer.coinId, qtyStr);
 
       // Decrement available liquidity on the offer.
@@ -479,7 +486,7 @@ router.post("/p2p/orders", requireAuth, async (req, res): Promise<void> => {
       await tx.insert(walletLedgerTable).values({
         userId: sellerId, coinId: offer.coinId, walletType: "spot", type: "p2p_debit",
         amount: (-Number(qtyStr)).toFixed(8),
-        balanceBefore: "0", balanceAfter: "0",
+        balanceBefore: sellerBalBefore, balanceAfter: sellerBalAfterLock,
         refType: "p2p_order", refId: String(order.id), note: "P2P escrow lock",
       });
 
@@ -629,19 +636,33 @@ async function releaseOrder(orderId: number, actorId: number, actorRole: string)
     if (!isAdmin && o.status !== "paid") throw bad("Buyer hasn't marked as paid yet");
     if (o.status === "cancelled" || o.status === "expired") throw bad("Cannot release a cancelled/expired order");
 
-    // Move crypto via shared helper: seller.locked → buyer.balance.
+    // Snapshot wallets before the escrow move for accurate ledger audit trail.
+    const [relSellerWPre] = await tx.select({ p2pLocked: walletsTable.p2pLocked })
+      .from(walletsTable)
+      .where(and(eq(walletsTable.userId, o.sellerId), eq(walletsTable.coinId, o.coinId), eq(walletsTable.walletType, "spot")))
+      .limit(1);
+    const [relBuyerWPre] = await tx.select({ balance: walletsTable.balance })
+      .from(walletsTable)
+      .where(and(eq(walletsTable.userId, o.buyerId), eq(walletsTable.coinId, o.coinId), eq(walletsTable.walletType, "spot")))
+      .limit(1);
+    const relSellerLockedBefore = relSellerWPre?.p2pLocked ?? "0";
+    const relSellerLockedAfter  = String((parseFloat(relSellerLockedBefore) - Number(o.qty)).toFixed(8));
+    const relBuyerBalBefore     = relBuyerWPre?.balance ?? "0";
+    const relBuyerBalAfter      = String((parseFloat(relBuyerBalBefore) + Number(o.qty)).toFixed(8));
+
+    // Move crypto via shared helper: seller.p2pLocked → buyer.balance.
     await releaseEscrow(tx, o.sellerId, o.buyerId, o.coinId, o.qty);
     await tx.insert(walletLedgerTable).values([
       {
         userId: o.sellerId, coinId: o.coinId, walletType: "spot", type: "p2p_debit",
         amount: (-Number(o.qty)).toFixed(8),
-        balanceBefore: "0", balanceAfter: "0",
+        balanceBefore: relSellerLockedBefore, balanceAfter: relSellerLockedAfter,
         refType: "p2p_order", refId: String(orderId), note: "P2P escrow released to buyer (seller)",
       },
       {
         userId: o.buyerId, coinId: o.coinId, walletType: "spot", type: "p2p_credit",
         amount: Number(o.qty).toFixed(8),
-        balanceBefore: "0", balanceAfter: "0",
+        balanceBefore: relBuyerBalBefore, balanceAfter: relBuyerBalAfter,
         refType: "p2p_order", refId: String(orderId), note: "P2P crypto received (buyer)",
       },
     ]);
@@ -700,11 +721,18 @@ async function cancelOrder(orderId: number, actorId: number, actorRole: string) 
 
     // Refund seller's escrow via shared helper.
     const qtyStr = quantizeQty(o.qty);
+    // Snapshot seller balance before refund for accurate ledger audit trail.
+    const [cancelSellerWPre] = await tx.select({ balance: walletsTable.balance })
+      .from(walletsTable)
+      .where(and(eq(walletsTable.userId, o.sellerId), eq(walletsTable.coinId, o.coinId), eq(walletsTable.walletType, "spot")))
+      .limit(1);
+    const cancelSellerBalBefore = cancelSellerWPre?.balance ?? "0";
+    const cancelSellerBalAfter  = String((parseFloat(cancelSellerBalBefore) + Number(qtyStr)).toFixed(8));
     await refundEscrow(tx, o.sellerId, o.coinId, qtyStr);
     await tx.insert(walletLedgerTable).values({
       userId: o.sellerId, coinId: o.coinId, walletType: "spot", type: "p2p_credit",
       amount: Number(qtyStr).toFixed(8),
-      balanceBefore: "0", balanceAfter: "0",
+      balanceBefore: cancelSellerBalBefore, balanceAfter: cancelSellerBalAfter,
       refType: "p2p_order", refId: String(o.id), note: "P2P escrow refunded (order cancelled)",
     });
 

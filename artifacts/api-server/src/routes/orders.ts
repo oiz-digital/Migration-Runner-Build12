@@ -376,10 +376,14 @@ export async function placeSpotOrder(opts: {
 
   // ── 5-level trading-fee referral commission (fire-and-forget) ────────────
   if (matchRes.trades > 0) {
-    const feeAmt = parseFloat(final.fee ?? "0");
-    if (feeAmt > 0) {
-      creditTradingFeeReferralChain(userId, feeAmt, pair.quoteCoinId, "trading_fee")
-        .catch(() => null); // never block the order response
+    const grossFee = parseFloat(final.fee ?? "0");
+    if (grossFee > 0) {
+      // Referral commission is paid on the base exchange fee (pre-GST).
+      // final.fee = baseFee × (1 + gst%/100); back out the GST before crediting.
+      getSpotFeeRates(vipTier).then(({ gstPercent }) => {
+        const baseFeeAmt = grossFee / (1 + gstPercent / 100);
+        return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee");
+      }).catch(() => null); // never block the order response
     }
   }
 

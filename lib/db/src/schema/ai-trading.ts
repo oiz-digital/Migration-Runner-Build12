@@ -1,5 +1,6 @@
 import { pgTable, serial, text, numeric, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { coinsTable } from "./coins";
 
 export const riskLevelEnum = pgEnum("risk_level", ["low", "medium", "high", "ultra"]);
 
@@ -24,6 +25,8 @@ export const aiTradingSubscriptionsTable = pgTable("ai_trading_subscriptions", {
   userId: integer("user_id").notNull().references(() => usersTable.id),
   planId: integer("plan_id").notNull().references(() => aiTradingPlansTable.id),
   investedAmount: numeric("invested_amount", { precision: 20, scale: 8 }).notNull(),
+  fundingCoinId: integer("funding_coin_id").references(() => coinsTable.id),
+  fundingAmount: numeric("funding_amount", { precision: 20, scale: 8 }),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   status: aiSubStatusEnum("status").notNull().default("active"),

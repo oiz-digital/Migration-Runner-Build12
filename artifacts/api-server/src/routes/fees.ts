@@ -27,7 +27,20 @@ export const DEFAULT_VIP_TIERS: VipTier[] = [
 
 const TIERS_KEY = "fees.vip_tiers";
 
+// In-memory TTL caches — avoids a DB round-trip on every match iteration.
+// Admin fee/tier changes propagate within FEE_CACHE_TTL_MS (30 s).
+const FEE_CACHE_TTL_MS = 30_000;
+let _vipTiersCache: { value: VipTier[]; exp: number } | null = null;
+let _feeSettingsCache: { value: FeeSettings; exp: number } | null = null;
+
+/** Invalidate both caches immediately (e.g. after admin writes new fee config). */
+export function invalidateFeeCache(): void {
+  _vipTiersCache = null;
+  _feeSettingsCache = null;
+}
+
 export async function loadVipTiers(): Promise<VipTier[]> {
+  if (_vipTiersCache && Date.now() < _vipTiersCache.exp) return _vipTiersCache.value;
   try {
     const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, TIERS_KEY)).limit(1);
     if (row?.value) {
@@ -35,14 +48,17 @@ export async function loadVipTiers(): Promise<VipTier[]> {
       if (Array.isArray(arr) && arr.length > 0 && arr.every((t: any) => typeof t.level === "number")) {
         // Backfill convertFee for tiers persisted before this field existed.
         const sorted = (arr as VipTier[]).sort((a, b) => a.level - b.level);
-        return sorted.map((t) => {
+        const result = sorted.map((t) => {
           if (typeof t.convertFee === "number" && Number.isFinite(t.convertFee) && t.convertFee >= 0) return t;
           const def = DEFAULT_VIP_TIERS.find((d) => d.level === t.level);
           return { ...t, convertFee: def?.convertFee ?? 0.30 };
         });
+        _vipTiersCache = { value: result, exp: Date.now() + FEE_CACHE_TTL_MS };
+        return result;
       }
     }
   } catch (e) { /* fallthrough */ }
+  _vipTiersCache = { value: DEFAULT_VIP_TIERS, exp: Date.now() + FEE_CACHE_TTL_MS };
   return DEFAULT_VIP_TIERS;
 }
 
@@ -62,12 +78,12 @@ const DEFAULT_FEE_SETTINGS: FeeSettings = {
   futuresFeePercent: 0, futuresGstPercent: 18, referralCommission: 30,
 };
 export async function loadFeeSettings(): Promise<FeeSettings> {
+  if (_feeSettingsCache && Date.now() < _feeSettingsCache.exp) return _feeSettingsCache.value;
   try {
-    const keys = ["spot.fee_percent","spot.gst_percent","tds.percent","futures.fee_percent","futures.gst_percent","referral.commission"];
     const rows = await db.select().from(settingsTable);
     const map = new Map(rows.map(r => [r.key, r.value]));
     const num = (k: string, d: number) => { const v = map.get(k); const n = v ? Number(v) : NaN; return Number.isFinite(n) ? n : d; };
-    return {
+    const result: FeeSettings = {
       spotFeePercent: num("spot.fee_percent", DEFAULT_FEE_SETTINGS.spotFeePercent),
       spotGstPercent: num("spot.gst_percent", DEFAULT_FEE_SETTINGS.spotGstPercent),
       tdsPercent: num("tds.percent", DEFAULT_FEE_SETTINGS.tdsPercent),
@@ -75,7 +91,12 @@ export async function loadFeeSettings(): Promise<FeeSettings> {
       futuresGstPercent: num("futures.gst_percent", DEFAULT_FEE_SETTINGS.futuresGstPercent),
       referralCommission: num("referral.commission", DEFAULT_FEE_SETTINGS.referralCommission),
     };
-  } catch { return DEFAULT_FEE_SETTINGS; }
+    _feeSettingsCache = { value: result, exp: Date.now() + FEE_CACHE_TTL_MS };
+    return result;
+  } catch {
+    _feeSettingsCache = { value: DEFAULT_FEE_SETTINGS, exp: Date.now() + FEE_CACHE_TTL_MS };
+    return DEFAULT_FEE_SETTINGS;
+  }
 }
 
 /** Compute effective futures maker/taker rates for a given VIP tier (GST-inclusive). */
