@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Sigma, Plus, Trash2, Zap, Layers, TrendingUp, TrendingDown,
-  Activity, Clock, BarChart3, Shield,
+  Activity, Clock, BarChart3, Shield, RefreshCw, CheckCircle2, AlertCircle, SkipForward,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,14 +53,20 @@ const defaultForm = {
   minQty: 0.01,
 };
 
+type DailyCreateResult = {
+  created: number; skipped: number; errors: number;
+  contracts: string[]; errorDetails: string[];
+};
+
 export default function OptionsAdminPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"active" | "settled" | "all">("active");
   const [createOpen, setCreateOpen] = useState(false);
-  const [pairMode, setPairMode] = useState(false); // create call+put simultaneously
+  const [pairMode, setPairMode] = useState(false);
   const [form, setForm] = useState(defaultForm);
   const [filterUnderlying, setFilterUnderlying] = useState("ALL");
+  const [autoResult, setAutoResult] = useState<DailyCreateResult | null>(null);
 
   const contractsQ = useQuery<{ contracts: Contract[] }>({
     queryKey: ["admin-options"],
@@ -114,6 +120,15 @@ export default function OptionsAdminPage() {
     onError: (e: any) => toast({ title: "IV update failed", description: e?.message, variant: "destructive" }),
   });
 
+  const autoCreateMut = useMutation({
+    mutationFn: (): Promise<DailyCreateResult> => post(`/api/admin/options/daily-create`, {}),
+    onSuccess: (data) => {
+      setAutoResult(data);
+      qc.invalidateQueries({ queryKey: ["admin-options"] });
+    },
+    onError: (e: any) => toast({ title: "Auto-generate failed", description: e?.message ?? "Try again", variant: "destructive" }),
+  });
+
   const contracts = contractsQ.data?.contracts ?? [];
   const active = contracts.filter((c) => c.status === "active");
   const expired = contracts.filter((c) => c.status === "expired");
@@ -144,11 +159,82 @@ export default function OptionsAdminPage() {
         title="Options Console"
         description="Manage option contracts — create, adjust IV, force-settle or delete."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" /> New Contract
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => autoCreateMut.mutate()}
+              disabled={autoCreateMut.isPending}
+              className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", autoCreateMut.isPending && "animate-spin")} />
+              {autoCreateMut.isPending ? "Generating…" : "Auto-Generate Chain"}
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" /> New Contract
+            </Button>
+          </div>
         }
       />
+
+      {/* Auto-create result dialog */}
+      <Dialog open={!!autoResult} onOpenChange={(o) => { if (!o) setAutoResult(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-amber-400" />
+              Daily Chain Generated
+            </DialogTitle>
+            <DialogDescription>
+              Options chain created for BTC · ETH · BNB · SOL · XRP
+            </DialogDescription>
+          </DialogHeader>
+          {autoResult && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto mb-1" />
+                  <div className="text-xl font-bold text-emerald-400">{autoResult.created}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Created</div>
+                </div>
+                <div className="rounded-lg bg-muted/20 border border-border/40 p-3 text-center">
+                  <SkipForward className="h-5 w-5 text-muted-foreground mx-auto mb-1" />
+                  <div className="text-xl font-bold">{autoResult.skipped}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Skipped</div>
+                </div>
+                <div className={cn(
+                  "rounded-lg border p-3 text-center",
+                  autoResult.errors > 0 ? "bg-rose-500/10 border-rose-500/20" : "bg-muted/20 border-border/40",
+                )}>
+                  <AlertCircle className={cn("h-5 w-5 mx-auto mb-1", autoResult.errors > 0 ? "text-rose-400" : "text-muted-foreground")} />
+                  <div className={cn("text-xl font-bold", autoResult.errors > 0 && "text-rose-400")}>{autoResult.errors}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Errors</div>
+                </div>
+              </div>
+              {autoResult.contracts.length > 0 && (
+                <div className="rounded-lg bg-muted/10 border border-border/30 p-3 max-h-48 overflow-y-auto">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">New Contracts</div>
+                  <div className="flex flex-wrap gap-1">
+                    {autoResult.contracts.map((s) => (
+                      <span key={s} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {autoResult.errorDetails.length > 0 && (
+                <div className="rounded-lg bg-rose-500/5 border border-rose-500/20 p-3">
+                  <div className="text-[10px] text-rose-400 uppercase tracking-wide mb-1">Errors</div>
+                  {autoResult.errorDetails.map((e, i) => (
+                    <div key={i} className="text-xs text-rose-300">{e}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setAutoResult(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

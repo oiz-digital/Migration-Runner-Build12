@@ -13,6 +13,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { db, optionContractsTable, optionPositionsTable, coinsTable } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { logAdminAction } from "../lib/audit";
+import { runDailyCreate } from "../lib/options-daily-creator";
 
 const router: IRouter = Router();
 
@@ -111,6 +112,18 @@ router.delete("/admin/options/contracts/:id", ...ADMIN_GUARD, async (req, res): 
   await db.delete(optionContractsTable).where(eq(optionContractsTable.id, id));
   await logAdminAction(req, { action: "options.contract.delete", entity: "option_contract", entityId: id });
   res.json({ ok: true });
+});
+
+// ─── Daily auto-create (manual trigger) ──────────────────────────────────────
+router.post("/admin/options/daily-create", ...ADMIN_GUARD, async (req, res): Promise<void> => {
+  const result = await runDailyCreate();
+  await logAdminAction(req, {
+    action: "options.daily_create",
+    entity: "option_contract",
+    entityId: 0,
+    payload: { created: result.created, skipped: result.skipped, errors: result.errors },
+  });
+  res.json(result);
 });
 
 router.post("/admin/options/contracts/:id/settle", ...ADMIN_GUARD, async (req, res): Promise<void> => {

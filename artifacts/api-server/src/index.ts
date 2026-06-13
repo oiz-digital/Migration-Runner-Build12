@@ -12,6 +12,7 @@ import { startWithdrawalWatcher } from "./lib/withdrawal-watcher";
 import { startAutoWithdrawScheduler } from "./lib/auto-withdraw-scheduler";
 import { startFuturesEngine } from "./lib/futures-engine";
 import { startOptionsEngine } from "./lib/options-engine";
+import { startOptionsDailyCreator } from "./lib/options-daily-creator";
 import { startListingDiscovery } from "./lib/listing-discovery";
 import { startPriceAlertWorker } from "./lib/notifications";
 import { startBotEngine } from "./lib/bot-engine";
@@ -388,6 +389,7 @@ async function bootstrap() {
     startAutoWithdrawScheduler(60000);
     startFuturesEngine();
     startOptionsEngine();
+    startOptionsDailyCreator();
     startListingDiscovery();
     startPriceAlertWorker();
     startBotEngine();
