@@ -3,7 +3,7 @@
  * Route: /ai-trading/statement
  * Download PDF via html2canvas + jsPDF.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { get } from "@/lib/api";
@@ -86,8 +86,6 @@ export default function AIStatement() {
   const [from, setFrom] = useState(PRESETS[0].from);
   const [to,   setTo]   = useState(PRESETS[0].to);
   const [activePreset, setActivePreset] = useState("This Month");
-  const stmtRef   = useRef<HTMLDivElement>(null);
-  const [downloading, setDownloading] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery<AIStatementData>({
     queryKey: ["ai-statement", from, to],
@@ -97,31 +95,10 @@ export default function AIStatement() {
   const applyPreset = (p: typeof PRESETS[0]) => { setFrom(p.from); setTo(p.to); setActivePreset(p.label); };
   const handleGenerate = () => { refetch(); };
 
-  const downloadPdf = async () => {
-    if (!stmtRef.current || !data) return;
-    setDownloading(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(stmtRef.current, {
-        scale: 2, useCORS: true, logging: false, backgroundColor: "#0f172a",
-        onclone: (doc) => {
-          // Ensure recharts SVGs render in the cloned document
-          doc.querySelectorAll("svg").forEach(svg => {
-            svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-          });
-        },
-      });
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width / 2, canvas.height / 2] });
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
-      pdf.save(`${data.statementNo}.pdf`);
-      toast.success("Statement downloaded successfully");
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      toast.error("Failed to generate PDF. Please try again.");
-    } finally {
-      setDownloading(false);
-    }
+  const downloadPdf = () => {
+    if (!data) return;
+    toast.info("Print dialog will open — select 'Save as PDF'");
+    setTimeout(() => window.print(), 300);
   };
 
   const { brand, customer, summary, subscriptions, earnings, statementNo, generatedAt, period } = data ?? {};
@@ -162,12 +139,10 @@ export default function AIStatement() {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to AI Trading
           </Button>
         </Link>
-        <Button size="sm" onClick={downloadPdf} disabled={downloading || !data}
+        <Button size="sm" onClick={downloadPdf} disabled={!data}
           style={{ background: "linear-gradient(135deg,#8B5CF6,#7C3AED)", color: "white" }}
           className="font-bold hover:opacity-90 disabled:opacity-50 shadow-lg shadow-violet-500/25 gap-2">
-          {downloading
-            ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
-            : <><Download className="w-3.5 h-3.5" />Download PDF</>}
+          <><Download className="w-3.5 h-3.5" />Download PDF</>
         </Button>
       </div>
 
@@ -231,7 +206,7 @@ export default function AIStatement() {
       {/* ── Statement Paper ── */}
       {data && (
         <div className="container mx-auto px-4 max-w-5xl">
-          <div ref={stmtRef} className="rounded-3xl overflow-hidden shadow-2xl"
+          <div className="rounded-3xl overflow-hidden shadow-2xl"
             style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.2)" }}>
 
             {/* Top accent */}

@@ -3,7 +3,7 @@
  * Route: /orders/:id/invoice
  * Download PDF via html2canvas + jsPDF.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
@@ -56,8 +56,6 @@ const fmtDateShort = (iso: string) =>
 export default function Invoice() {
   const [, params] = useRoute<{ id: string }>("/orders/:id/invoice");
   const orderId = params?.id;
-  const invoiceRef = useRef<HTMLDivElement>(null);
-  const [downloading, setDownloading] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery<InvoiceData>({
     queryKey: ["invoice", orderId],
@@ -72,27 +70,10 @@ export default function Invoice() {
     return () => { document.title = prev; };
   }, [data?.invoiceNo]);
 
-  const downloadPdf = async () => {
-    if (!invoiceRef.current || !data) return;
-    setDownloading(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(invoiceRef.current, {
-        scale: 2, useCORS: true, logging: false, backgroundColor: "#0f172a",
-      });
-      const imgW = canvas.width;
-      const imgH = canvas.height;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [imgW / 2, imgH / 2] });
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW / 2, imgH / 2);
-      pdf.save(`${data.invoiceNo}.pdf`);
-      toast.success("Invoice downloaded successfully");
-    } catch (err) {
-      console.error("PDF generation failed:", err);
-      toast.error("Failed to generate PDF. Please try again.");
-    } finally {
-      setDownloading(false);
-    }
+  const downloadPdf = () => {
+    if (!data) return;
+    toast.info("Print dialog will open — select 'Save as PDF'");
+    setTimeout(() => window.print(), 300);
   };
 
   if (isLoading) {
@@ -150,19 +131,17 @@ export default function Invoice() {
         </Link>
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 hidden sm:block">{invoiceNo}</span>
-          <Button size="sm" onClick={downloadPdf} disabled={downloading}
+          <Button size="sm" onClick={downloadPdf}
             style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)", color: "#0f172a" }}
             className="font-bold hover:opacity-90 disabled:opacity-70 shadow-lg shadow-amber-500/25 gap-2">
-            {downloading
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
-              : <><Download className="w-3.5 h-3.5" />Download PDF</>}
+            <><Download className="w-3.5 h-3.5" />Download PDF</>
           </Button>
         </div>
       </div>
 
       {/* ── Invoice Card ── */}
       <div className="container mx-auto px-4 max-w-3xl">
-        <div ref={invoiceRef} className="rounded-3xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
+        <div className="rounded-3xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
           style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(245,158,11,0.15)" }}>
 
           {/* Top rainbow accent bar */}
