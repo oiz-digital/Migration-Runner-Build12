@@ -13,26 +13,26 @@ const router: IRouter = Router();
 
 /* ── helpers ── */
 
-async function getSpotWallet(userId: number, symbol: string) {
-  const [coin] = await db.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, symbol)).limit(1);
+async function getSpotWallet(userId: number, symbol: string, anyDb: any = db) {
+  const [coin] = await anyDb.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, symbol)).limit(1);
   if (!coin) return null;
-  const [wallet] = await db.select().from(walletsTable)
+  const [wallet] = await anyDb.select().from(walletsTable)
     .where(and(eq(walletsTable.userId, userId), eq(walletsTable.walletType, "spot"), eq(walletsTable.coinId, coin.id)))
     .limit(1);
   return wallet ? { ...wallet, coinId: coin.id } : { coinId: coin.id, balance: "0", locked: "0", id: null };
 }
 
-async function upsertSpotWallet(userId: number, symbol: string, balance: string, locked: string) {
-  const [coin] = await db.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, symbol)).limit(1);
+async function upsertSpotWallet(userId: number, symbol: string, balance: string, locked: string, anyDb: any = db) {
+  const [coin] = await anyDb.select({ id: coinsTable.id }).from(coinsTable).where(eq(coinsTable.symbol, symbol)).limit(1);
   if (!coin) return;
-  const [existing] = await db.select({ id: walletsTable.id }).from(walletsTable)
+  const [existing] = await anyDb.select({ id: walletsTable.id }).from(walletsTable)
     .where(and(eq(walletsTable.userId, userId), eq(walletsTable.walletType, "spot"), eq(walletsTable.coinId, coin.id)))
     .limit(1);
   if (existing) {
-    await db.update(walletsTable).set({ balance, locked, updatedAt: new Date() })
+    await anyDb.update(walletsTable).set({ balance, locked, updatedAt: new Date() })
       .where(eq(walletsTable.id, existing.id));
   } else {
-    await db.insert(walletsTable).values({ userId, walletType: "spot", coinId: coin.id, balance, locked });
+    await anyDb.insert(walletsTable).values({ userId, walletType: "spot", coinId: coin.id, balance, locked });
   }
 }
 
@@ -133,7 +133,6 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
 
   const min = parseFloat(plan.minInvestment), max = parseFloat(plan.maxInvestment);
-  // No-expire bots run indefinitely until the user stops them.
   const expiresAt = noExpire ? null : new Date(Date.now() + plan.durationDays * 86400000);
   const userId = req.user!.id;
 
@@ -144,50 +143,62 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
       res.status(400).json({ error: `USDT equivalent must be between $${min}–$${max} (₹${(min * inrRate).toFixed(0)}–₹${(max * inrRate).toFixed(0)})` });
       return;
     }
-    const inrWallet = await getSpotWallet(userId, "INR");
-    const inrAvail  = parseFloat(inrWallet?.balance ?? "0");
-    if (inrAvail < amount) {
-      res.status(400).json({ error: `Insufficient INR balance. Need ₹${amount.toFixed(2)}, have ₹${inrAvail.toFixed(2)}` });
+    // Pre-flight balance check (outside tx, for a fast fail before acquiring locks)
+    const inrPreCheck = await getSpotWallet(userId, "INR");
+    if (parseFloat(inrPreCheck?.balance ?? "0") < amount) {
+      res.status(400).json({ error: `Insufficient INR balance. Need ₹${amount.toFixed(2)}, have ₹${parseFloat(inrPreCheck?.balance ?? "0").toFixed(2)}` });
       return;
     }
-    await upsertSpotWallet(userId, "INR",
-      String(inrAvail - amount),
-      String(parseFloat(inrWallet?.locked ?? "0") + amount));
-
-    const usdtWallet = await getSpotWallet(userId, "USDT");
-    await upsertSpotWallet(userId, "USDT",
-      usdtWallet?.balance ?? "0",
-      String(parseFloat(usdtWallet?.locked ?? "0") + usdtEquiv));
-
-    const [sub] = await db.insert(aiTradingSubscriptionsTable).values({
-      userId, planId,
-      investedAmount: String(usdtEquiv.toFixed(8)),
-      expiresAt, status: "active", totalEarned: "0",
-    }).returning();
+    const sub = await db.transaction(async (tx) => {
+      // Re-read INR wallet inside tx with a fresh lock
+      const inrWallet = await getSpotWallet(userId, "INR", tx);
+      const inrAvail  = parseFloat(inrWallet?.balance ?? "0");
+      if (inrAvail < amount) throw Object.assign(new Error(`Insufficient INR balance. Need ₹${amount.toFixed(2)}, have ₹${inrAvail.toFixed(2)}`), { code: 400 });
+      await upsertSpotWallet(userId, "INR",
+        String(inrAvail - amount),
+        String(parseFloat(inrWallet?.locked ?? "0") + amount), tx);
+      const usdtWallet = await getSpotWallet(userId, "USDT", tx);
+      await upsertSpotWallet(userId, "USDT",
+        usdtWallet?.balance ?? "0",
+        String(parseFloat(usdtWallet?.locked ?? "0") + usdtEquiv), tx);
+      const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
+        userId, planId,
+        investedAmount: String(usdtEquiv.toFixed(8)),
+        expiresAt, status: "active", totalEarned: "0",
+      }).returning();
+      return created;
+    });
     res.status(201).json(serializeSub(sub, plan));
     return;
   }
 
   if (amount < min || amount > max) { res.status(400).json({ error: `Amount must be between $${min} and $${max}` }); return; }
-  const wallet = await getSpotWallet(userId, "USDT");
-  const avail  = parseFloat(wallet?.balance ?? "0");
-  if (avail < amount) { res.status(400).json({ error: "Insufficient USDT balance" }); return; }
-  await upsertSpotWallet(userId, "USDT",
-    String(avail - amount),
-    String(parseFloat(wallet?.locked ?? "0") + amount));
-
-  const [sub] = await db.insert(aiTradingSubscriptionsTable).values({
-    userId, planId, investedAmount: String(amount),
-    expiresAt, status: "active", totalEarned: "0",
-  }).returning();
-
-  if (wallet?.coinId) {
-    await db.insert(walletLedgerTable).values({
-      userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_lock",
-      amount: String(-amount), balanceBefore: wallet.balance, balanceAfter: String(avail - amount),
-      refType: "ai_subscription", refId: String(sub.id), note: `AI plan: ${plan.name}`,
-    });
+  // Pre-flight balance check (outside tx, for a fast fail)
+  const preCheck = await getSpotWallet(userId, "USDT");
+  if (parseFloat(preCheck?.balance ?? "0") < amount) {
+    res.status(400).json({ error: "Insufficient USDT balance" }); return;
   }
+  const sub = await db.transaction(async (tx) => {
+    // Re-read USDT wallet inside tx
+    const wallet = await getSpotWallet(userId, "USDT", tx);
+    const avail   = parseFloat(wallet?.balance ?? "0");
+    if (avail < amount) throw Object.assign(new Error("Insufficient USDT balance"), { code: 400 });
+    await upsertSpotWallet(userId, "USDT",
+      String(avail - amount),
+      String(parseFloat(wallet?.locked ?? "0") + amount), tx);
+    const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
+      userId, planId, investedAmount: String(amount),
+      expiresAt, status: "active", totalEarned: "0",
+    }).returning();
+    if (wallet?.coinId) {
+      await tx.insert(walletLedgerTable).values({
+        userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_lock",
+        amount: String(-amount), balanceBefore: wallet.balance, balanceAfter: String(avail - amount),
+        refType: "ai_subscription", refId: String(created.id), note: `AI plan: ${plan.name}`,
+      });
+    }
+    return created;
+  });
 
   res.status(201).json(serializeSub(sub, plan));
 });
@@ -198,22 +209,24 @@ router.post("/ai-trading/subscriptions/:id/cancel", requireAuth, async (req, res
   const [sub] = await db.select().from(aiTradingSubscriptionsTable)
     .where(and(eq(aiTradingSubscriptionsTable.id, id), eq(aiTradingSubscriptionsTable.userId, userId)));
   if (!sub || sub.status !== "active") { res.status(404).json({ error: "Not found" }); return; }
-  const invested    = parseFloat(sub.investedAmount);
-  const wallet      = await getSpotWallet(userId, "USDT");
-  const balBefore   = wallet?.balance ?? "0";
-  await upsertSpotWallet(userId, "USDT",
-    String(parseFloat(balBefore) + invested),
-    String(Math.max(0, parseFloat(wallet?.locked ?? "0") - invested)));
-  await db.update(aiTradingSubscriptionsTable).set({ status: "cancelled" })
-    .where(eq(aiTradingSubscriptionsTable.id, id));
+  const invested = parseFloat(sub.investedAmount);
 
-  if (wallet?.coinId) {
-    await db.insert(walletLedgerTable).values({
-      userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_return",
-      amount: String(invested), balanceBefore: balBefore, balanceAfter: String(parseFloat(balBefore) + invested),
-      refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
-    });
-  }
+  await db.transaction(async (tx) => {
+    const wallet    = await getSpotWallet(userId, "USDT", tx);
+    const balBefore = wallet?.balance ?? "0";
+    await upsertSpotWallet(userId, "USDT",
+      String(parseFloat(balBefore) + invested),
+      String(Math.max(0, parseFloat(wallet?.locked ?? "0") - invested)), tx);
+    await tx.update(aiTradingSubscriptionsTable).set({ status: "cancelled" })
+      .where(eq(aiTradingSubscriptionsTable.id, id));
+    if (wallet?.coinId) {
+      await tx.insert(walletLedgerTable).values({
+        userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_return",
+        amount: String(invested), balanceBefore: balBefore, balanceAfter: String(parseFloat(balBefore) + invested),
+        refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
+      });
+    }
+  });
 
   res.json({ success: true });
 });

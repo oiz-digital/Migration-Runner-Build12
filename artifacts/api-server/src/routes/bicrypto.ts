@@ -11,7 +11,7 @@ import {
   networksTable, cryptoWithdrawalsTable, inrWithdrawalsTable, bankAccountsTable,
   cryptoDepositsTable, inrDepositsTable,
   ordersTable, tradesTable, futuresTradesTable,
-  walletAddressesTable, transfersTable,
+  walletAddressesTable, transfersTable, walletLedgerTable,
 } from "@workspace/db";
 import { deriveEvmWallet } from "../lib/hd-wallet";
 import { encryptSecret } from "../lib/crypto-vault";
@@ -1513,6 +1513,15 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
         memo: memo ? String(memo).trim() : null,
         status: "pending",
       }).returning();
+      await tx.insert(walletLedgerTable).values({
+        userId: req.bcUser.id, coinId: coin.id, walletType: "spot",
+        type: "withdrawal_crypto",
+        amount: String(-amt),
+        balanceBefore: String(Number(debited[0].balance) + amt),
+        balanceAfter: debited[0].balance,
+        refType: "crypto_withdrawal", refId: String(wd.id),
+        note: `Crypto withdrawal ${sym} via ${net.chain}`,
+      });
       return wd;
     });
     res.status(201).json({
@@ -1584,6 +1593,15 @@ r.post("/finance/withdraw/fiat", bicryptoAuth, async (req: any, res): Promise<vo
         refId,
         status: "pending",
       }).returning();
+      await tx.insert(walletLedgerTable).values({
+        userId: req.bcUser.id, coinId: inrCoin.id, walletType: "inr",
+        type: "withdrawal_inr",
+        amount: String(-amt),
+        balanceBefore: String(Number(debited[0].balance) + amt),
+        balanceAfter: debited[0].balance,
+        refType: "inr_withdrawal", refId: String(wd.id),
+        note: `INR withdrawal to ${bank.bankName}`,
+      });
       return wd;
     });
     res.status(201).json({
@@ -1668,6 +1686,24 @@ r.post("/finance/transfer", bicryptoAuth, async (req: any, res): Promise<void> =
           balance: String(amt), locked: "0",
         });
       }
+      // Ledger: debit side
+      await tx.insert(walletLedgerTable).values({
+        userId: req.bcUser.id, coinId: coin.id, walletType: fromType,
+        type: "transfer_out",
+        amount: String(-amt),
+        balanceBefore: "0", balanceAfter: "0",
+        refType: "transfer", refId: "0",
+        note: `Transfer ${sym} from ${fromType} → ${toType}`,
+      });
+      // Ledger: credit side
+      await tx.insert(walletLedgerTable).values({
+        userId: req.bcUser.id, coinId: coin.id, walletType: toType,
+        type: "transfer_in",
+        amount: String(amt),
+        balanceBefore: "0", balanceAfter: "0",
+        refType: "transfer", refId: "0",
+        note: `Transfer ${sym} from ${fromType} → ${toType}`,
+      });
     });
     res.json({ message: "Transfer successful", from, to, currency: sym, amount: amt });
   } catch (e: any) {

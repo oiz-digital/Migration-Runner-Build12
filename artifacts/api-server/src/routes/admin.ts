@@ -1545,6 +1545,7 @@ router.patch("/admin/inr-deposits/:id", adminOnly, async (req, res): Promise<voi
       return d;
     });
     res.json(updated);
+    void logAdminAction(req, { action: `inr_deposit.${status}`, entity: "inr_deposit", entityId: id, payload: { status, notes: notes ?? null } });
     // Fire-and-forget deposit confirmation email
     if (status === "completed" && updated) {
       const [depUser] = await db.select().from(usersTable).where(eq(usersTable.id, updated.userId)).limit(1);
@@ -1619,6 +1620,7 @@ router.patch("/admin/inr-withdrawals/:id", adminOnly, async (req, res): Promise<
       return updatedRow;
     });
     res.json(updated);
+    void logAdminAction(req, { action: `inr_withdrawal.${status}`, entity: "inr_withdrawal", entityId: id, payload: { status, rejectReason: rejectReason ?? null } });
   } catch (e: any) {
     if (e?.code) { res.status(e.code).json({ error: e.message }); return; }
     throw e;
@@ -1931,6 +1933,11 @@ router.post("/admin/users/:id/fund", adminOnly, async (req, res): Promise<void> 
       return { wallet, ledger, note: note ?? null, by: req.user!.id };
     });
     res.json(result);
+    void logAdminAction(req, {
+      action: "user.fund",
+      entity: "user", entityId: userId,
+      payload: { symbol: symbol ?? null, coinId: rawCoinId ?? null, amount: amt, walletType, note: note ?? null },
+    });
   } catch (e: any) {
     if (e?.code) { res.status(e.code).json({ error: e.message }); return; }
     throw e;

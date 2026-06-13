@@ -66,6 +66,7 @@ import tradingLeaguesRouter from "./trading-leagues";
 import koinxRouter from "./koinx";
 import { createReadStream, existsSync } from "node:fs";
 import { join, extname } from "node:path";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -152,8 +153,8 @@ const KYC_MIME: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
   webp: "image/webp", pdf: "application/pdf",
 };
-router.get("/uploads/kyc/:filename", (req, res): void => {
-  const raw = req.params.filename ?? "";
+router.get("/uploads/kyc/:filename", requireAuth, (req, res): void => {
+  const raw = String(req.params.filename ?? "");
   // Reject path traversal
   if (raw.includes("/") || raw.includes("..") || raw.length > 80) {
     res.status(400).json({ message: "Invalid filename" }); return;
