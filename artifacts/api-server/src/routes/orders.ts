@@ -10,6 +10,7 @@ import { getInrRate } from "../lib/price-service";
 import { COMPANY_CIN, COMPANY_GST, COMPANY_PAN, COMPANY_ADDRESS } from "../lib/company";
 import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
 import { triggerCopyTrades } from "../lib/copy-engine";
+import { logger } from "../lib/logger";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────
 // Stricter than the historical placeSpotOrder() guard — we validate types &
@@ -403,7 +404,9 @@ export async function placeSpotOrder(opts: {
         }
 
         return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee", spotRefId);
-      }).catch(() => null); // never block the order response
+      }).catch((err: unknown) => {
+        logger.error({ err, orderId: final.id }, "Referral commission failed — investigate");
+      });
     }
   }
 
@@ -418,7 +421,9 @@ export async function placeSpotOrder(opts: {
         price:        Number(final.avgPrice ?? final.price),
         baseCoinId:   pair.baseCoinId,
         quoteCoinId:  pair.quoteCoinId,
-      }).catch(() => null); // never block the order response
+      }).catch((err: unknown) => {
+        logger.error({ err, orderId: final.id }, "Copy trade trigger failed — investigate");
+      });
     }
   }
 

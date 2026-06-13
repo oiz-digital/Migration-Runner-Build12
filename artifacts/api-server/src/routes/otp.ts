@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, sql, desc, isNull, gt } from "drizzle-orm";
-import { createHash, randomInt } from "crypto";
+import { createHash, randomInt, timingSafeEqual } from "crypto";
 import { db, otpCodesTable, otpProvidersTable, usersTable } from "@workspace/db";
 import { sendOtpEmail } from "../lib/email";
 import { sendOtpSms } from "../lib/sms";
@@ -135,7 +135,10 @@ router.post("/otp/verify", async (req, res): Promise<void> => {
   if (row.attempts >= MAX_ATTEMPTS) {
     res.status(429).json({ error: "Too many attempts, request a new code" }); return;
   }
-  if (hashCode(String(code)) !== row.code) {
+  const inputHash = Buffer.from(hashCode(String(code)), "hex");
+  const storedHash = Buffer.from(row.code, "hex");
+  const codeMatch = inputHash.length === storedHash.length && timingSafeEqual(inputHash, storedHash);
+  if (!codeMatch) {
     await db.update(otpCodesTable)
       .set({ attempts: sql`${otpCodesTable.attempts} + 1` })
       .where(eq(otpCodesTable.id, row.id));

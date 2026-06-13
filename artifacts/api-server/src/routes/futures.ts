@@ -219,19 +219,32 @@ function positionToFlutter(p: any, pair: ResolvedPair, markPx: number): any {
 async function lockMargin(tx: any, userId: number, quoteCoinId: number, amount: number): Promise<number> {
   // Find or create the futures wallet row, then SELECT FOR UPDATE inside the
   // same tx so concurrent orders cannot double-spend the same balance.
-  const [w] = await tx.select().from(walletsTable).where(and(
+  // Use FOR UPDATE on the initial lookup to prevent new-user race conditions
+  // (two concurrent orders for a brand-new user could both see no row and both
+  // attempt an INSERT, causing a duplicate-key constraint failure).
+  const [existing] = await tx.select({ id: walletsTable.id }).from(walletsTable).where(and(
     eq(walletsTable.userId, userId),
     eq(walletsTable.coinId, quoteCoinId),
     eq(walletsTable.walletType, "futures"),
-  )).limit(1);
+  )).for("update").limit(1);
   let walletId: number;
-  if (!w) {
+  if (!existing) {
     const [created] = await tx.insert(walletsTable).values({
       userId, coinId: quoteCoinId, walletType: "futures", balance: "0", locked: "0",
-    }).returning();
-    walletId = created.id;
+    }).onConflictDoNothing().returning();
+    if (created) {
+      walletId = created.id;
+    } else {
+      // Another concurrent tx inserted it — re-fetch with lock
+      const [reloaded] = await tx.select({ id: walletsTable.id }).from(walletsTable).where(and(
+        eq(walletsTable.userId, userId),
+        eq(walletsTable.coinId, quoteCoinId),
+        eq(walletsTable.walletType, "futures"),
+      )).for("update").limit(1);
+      walletId = reloaded.id;
+    }
   } else {
-    walletId = w.id;
+    walletId = existing.id;
   }
   const [locked] = await tx.select().from(walletsTable).where(eq(walletsTable.id, walletId)).for("update").limit(1);
   const bal = Number(locked.balance);

@@ -288,7 +288,7 @@ router.post("/admin/orders/:id/cancel", adminOnly, async (req, res): Promise<voi
 });
 
 // ─── Admin: audit log viewer ────────────────────────────────────────────
-router.get("/admin/audit-logs", supportPlus, async (req, res): Promise<void> => {
+router.get("/admin/audit-logs", adminOnly, async (req, res): Promise<void> => {
   const q = req.query as Record<string, string>;
   const conds: any[] = [];
   if (q.actorId) conds.push(eq(auditLogsTable.actorId, Number(q.actorId)));
@@ -296,10 +296,11 @@ router.get("/admin/audit-logs", supportPlus, async (req, res): Promise<void> => 
   if (q.action) conds.push(eq(auditLogsTable.action, q.action));
   if (q.entityId) conds.push(eq(auditLogsTable.entityId, q.entityId));
   const limit = Math.min(Number(q.limit ?? 200), 500);
+  const offset = Math.max(Number(q.offset ?? 0), 0);
   const where = conds.length ? and(...conds) : undefined;
   const rows = where
-    ? await db.select().from(auditLogsTable).where(where).orderBy(desc(auditLogsTable.id)).limit(limit)
-    : await db.select().from(auditLogsTable).orderBy(desc(auditLogsTable.id)).limit(limit);
+    ? await db.select().from(auditLogsTable).where(where).orderBy(desc(auditLogsTable.id)).limit(limit).offset(offset)
+    : await db.select().from(auditLogsTable).orderBy(desc(auditLogsTable.id)).limit(limit).offset(offset);
   // Hydrate actor email/name in a single follow-up query so the UI can render
   // human labels without N+1 round-trips.
   const actorIds = Array.from(new Set(rows.map((r) => r.actorId).filter((v): v is number => v !== null)));
@@ -314,7 +315,7 @@ router.get("/admin/audit-logs", supportPlus, async (req, res): Promise<void> => 
   })));
 });
 
-router.get("/admin/audit-logs/stats", supportPlus, async (_req, res): Promise<void> => {
+router.get("/admin/audit-logs/stats", adminOnly, async (_req, res): Promise<void> => {
   const stats = await db.execute(sql`
     SELECT
       COUNT(*)::int AS total,
@@ -382,12 +383,22 @@ router.post("/admin/coins", adminOnly, async (req, res): Promise<void> => {
 });
 router.patch("/admin/coins/:id", adminOnly, async (req, res): Promise<void> => {
   const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
-  const b: Record<string, any> = { ...req.body };
-  delete b.id; delete b.createdAt; delete b.updatedAt;
+  const src = req.body ?? {};
+  const ALLOWED_COIN_FIELDS = new Set([
+    "symbol", "name", "type", "decimals", "logoUrl", "description", "status",
+    "isListed", "listingAt", "marketCapRank", "binanceSymbol", "priceSource",
+    "manualPrice", "infoUrl",
+  ]);
+  const b: Record<string, any> = {};
+  for (const key of ALLOWED_COIN_FIELDS) {
+    if (key in src) b[key] = src[key];
+  }
   if (b.listingAt) b.listingAt = new Date(b.listingAt);
   if (b.manualPrice !== undefined && b.manualPrice !== null) b.manualPrice = String(b.manualPrice);
+  if (Object.keys(b).length === 0) { res.status(400).json({ error: "No valid fields to update" }); return; }
   const [coin] = await db.update(coinsTable).set(b).where(eq(coinsTable.id, id)).returning();
   if (!coin) { res.status(404).json({ error: "Not found" }); return; }
+  void logAdminAction(req, { action: "coin.update", entity: "coin", entityId: id, payload: b });
   res.json(coin);
 });
 router.delete("/admin/coins/:id", adminOnly, async (req, res): Promise<void> => {
@@ -2076,6 +2087,12 @@ router.patch("/admin/crypto-withdrawals/:id", adminOnly, async (req, res): Promi
       }).where(eq(cryptoWithdrawalsTable.id, id)).returning();
       return updatedRow;
     });
+    void logAdminAction(req, {
+      action: `crypto_withdrawal.${status}`,
+      entity: "crypto_withdrawal",
+      entityId: id,
+      payload: { status, txHash: txHash ?? null, rejectReason: rejectReason ?? null },
+    });
     res.json(updated);
   } catch (e: any) {
     if (e?.code) { res.status(e.code).json({ error: e.message }); return; }
@@ -2346,7 +2363,7 @@ router.delete("/admin/otp-providers/:id", adminOnly, async (req, res): Promise<v
 });
 
 // Login logs
-router.get("/admin/login-logs", supportPlus, async (_req, res): Promise<void> => {
+router.get("/admin/login-logs", adminOnly, async (_req, res): Promise<void> => {
   res.json(await db.select().from(loginLogsTable).orderBy(desc(loginLogsTable.createdAt)).limit(500));
 });
 
