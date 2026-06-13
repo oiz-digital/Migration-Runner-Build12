@@ -1,0 +1,178 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ CI=true git pull origin main
+remote: Enumerating objects: 31, done.
+remote: Counting objects: 100% (31/31), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 18 (delta 15), reused 18 (delta 15), pack-reused 0 (from 0)
+Unpacking objects: 100% (18/18), 113.04 KiB | 4.04 MiB/s, done.
+From https://github.com/oiz-digital/Migration-Runner-Build12
+ * branch            main       -> FETCH_HEAD
+   c59a203..d55a15f  main       -> origin/main
+Updating c59a203..d55a15f
+Fast-forward
+ artifacts/api-server/src/lib/company.ts            |  24 ++-
+ artifacts/api-server/src/routes/orders.ts          |   4 +-
+ artifacts/user-portal/src/pages/Invoice.tsx        | 641 ++++++++++++++++++++++++++++++++-----------------------------
+ attached_assets/INV-00012252_(2)_1781330843758.pdf | Bin 0 -> 143719 bytes
+ 4 files changed, 351 insertions(+), 318 deletions(-)
+ create mode 100644 attached_assets/INV-00012252_(2)_1781330843758.pdf
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox
+git pull origin main
+CI=true bash deploy/build.sh
+pm2 restart cryptox-api --update-env
+From https://github.com/oiz-digital/Migration-Runner-Build12
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+[build] ═══════════════════════════════════════════
+[build]   Zebvix — Production Build
+[build]   Root : /opt/cryptox
+[build]   Node : v24.16.0
+[build]   Go   : go1.22.4
+[build]   pnpm : 9.15.9
+[build] ═══════════════════════════════════════════
+[build] Environment loaded from .env
+[build] [1/7] Installing pnpm dependencies...
+Scope: all 12 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+. preinstall: Done
+Done in 2.2s using pnpm v9.15.9
+[  OK  ] Dependencies installed
+[build] [2/7] Building shared libraries (TypeScript composite build)...
+
+> workspace@0.0.0 typecheck:libs /opt/cryptox
+> tsc --build
+
+[  OK  ] Libraries built
+[build] [3/7] Building API server...
+
+> @workspace/api-server@0.0.0 build /opt/cryptox/artifacts/api-server
+> node ./build.mjs
+
+
+  dist/index.mjs                       6.3mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.0kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                  11.7mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+
+⚡ Done in 1057ms
+[  OK  ] API server built → artifacts/api-server/dist/index.mjs
+[build] [4/7] Building user portal...
+
+> @workspace/user-portal@0.0.0 build /opt/cryptox/artifacts/user-portal
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+transforming...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/dropdown-menu.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/avatar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2835 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/public/index.html                                     1.61 kB │ gzip:   0.78 kB
+dist/public/assets/index-iFKD8Wsy.css                    341.05 kB │ gzip:  42.00 kB
+dist/public/assets/index-BeoRn2gJ.js                      13.73 kB │ gzip:   5.41 kB
+dist/public/assets/purify.es-Da2JFxT4.js                  27.96 kB │ gzip:  10.48 kB
+dist/public/assets/jspdf.plugin.autotable-B0IxatYY.js     31.04 kB │ gzip:   9.90 kB
+dist/public/assets/index.es-BYsDxDo6.js                  158.83 kB │ gzip:  53.04 kB
+dist/public/assets/html2canvas.esm-DXEQVQnt.js           201.04 kB │ gzip:  47.43 kB
+dist/public/assets/jspdf.es.min-C5PwkZ_W.js              386.01 kB │ gzip: 126.32 kB
+dist/public/assets/index-Cj5T_k0G.js                   2,447.28 kB │ gzip: 654.37 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 12.20s
+[  OK  ] User portal built → artifacts/user-portal/dist/
+[build] [5/7] Building admin panel...
+
+> @workspace/admin@0.0.0 build /opt/cryptox/artifacts/admin
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+transforming...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/avatar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/progress.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/command.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/dropdown-menu.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2542 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/public/index.html                           1.30 kB │ gzip:   0.68 kB
+dist/public/assets/zebvix-mark-CLM6YkG7.png  1,010.25 kB
+dist/public/assets/index-C2td4xwg.css          186.10 kB │ gzip:  26.87 kB
+dist/public/assets/index-BeFGNnOx.js         1,869.45 kB │ gzip: 473.66 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.56s
+[  OK  ] Admin panel built → artifacts/admin/dist/
+[build] [6/7] Building Go order matching engine...
+[  OK  ] Go service built → artifacts/go-service/server
+[build] [7/7] Copying static files to /opt/cryptox/dist/...
+[  OK  ] Static files copied to /opt/cryptox/dist
+[build] Running database migrations (drizzle migrate)...
+
+> @workspace/db@0.0.0 migrate /opt/cryptox/lib/db
+> drizzle-kit migrate --config ./drizzle.config.ts
+
+Reading config file '/opt/cryptox/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] migrations applied successfully![  OK  ] Database schema up to date
+[build] Restarting PM2 processes...
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [all](ids: [ 0, 1 ])
+[PM2] [cryptox-api](0) ✓
+[PM2] [cryptox-go](1) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 29   │ online    │ 0%       │ 87.6mb   │
+│ 1  │ cryptox-go         │ fork     │ 12   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[  OK  ] PM2 restarted
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 29   │ online    │ 0%       │ 137.2mb  │
+│ 1  │ cryptox-go         │ fork     │ 12   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+
+════════════════════════════════════════════
+  Build Complete!
+════════════════════════════════════════════
+
+  API server : artifacts/api-server/dist/index.mjs
+  User portal: /opt/cryptox/dist/user/
+  Admin panel: /opt/cryptox/dist/admin/
+  Go service : artifacts/go-service/server
+
+[PM2] Applying action restartProcessId on app [cryptox-api](ids: [ 0 ])
+[PM2] [cryptox-api](0) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 30   │ online    │ 0%       │ 19.8mb   │
+│ 1  │ cryptox-go         │ fork     │ 12   │ online    │ 0%       │ 6.4mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+ubuntu@ip-172-31-11-99:/opt/cryptox$
+
+
