@@ -186,7 +186,7 @@ router.get("/orders/statement", requireAuth, async (req: any, res): Promise<void
   const totalFeeGst    = totalFee + gstAmount;
   const netDeducted    = totalFeeGst + totalTds;
   const mmYY           = `${String(from.getUTCMonth() + 1).padStart(2, "0")}${from.getUTCFullYear()}`;
-  const statementNo    = `ZBX-SPOT-${mmYY}-${userId}`;
+  const statementNo    = `STS-${mmYY}-${String(userId).padStart(6,"0")}`;
 
   res.json({
     statementNo,
