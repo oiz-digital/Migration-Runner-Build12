@@ -1,0 +1,15 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox && DB=$(grep '^DATABASE_URL=' .env | cut -d'=' -f2-) && psql "$DB" <<'SQL'
+INSERT INTO users (email, name, password_hash, role, kyc_level, status, uid, referral_code, email_verified, created_at, updated_at)
+VALUES
+  ('arjun.sharma.trader@zebvix.com','Arjun Sharma','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-01','ARJUN001',true,now()-'180 days'::interval,now()),
+  ('priya.kapoor.trader@zebvix.com','Priya Kapoor','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-02','PRIYA001',true,now()-'220 days'::interval,now()),
+  ('rahul.mehta.trader@zebvix.com','Rahul Mehta','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-03','RAHUL001',true,now()-'150 days'::interval,now()),
+  ('deepak.verma.trader@zebvix.com','Deepak Verma','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-04','DEEPK001',true,now()-'300 days'::interval,now()),
+  ('sneha.patel.trader@zebvix.com','Sneha Patel','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-05','SNEHA001',true,now()-'90 days'::interval,now()),
+  ('vikram.singh.trader@zebvix.com','Vikram Singh','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-06','VIKRM001',true,now()-'400 days'::interval,now()),
+  ('ananya.gupta.trader@zebvix.com','Ananya Gupta','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-07','ANANM001',true,now()-'120 days'::interval,now()),
+  ('karan.malhotra.trader@zebvix.com','Karan Malhotra','$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-08','KARAN001',true,now()-'250 days'::interval,now())
+ON CONFLICT (email) DO NOTHING RETURNING id, email;
+SQL
+psql: error: could not translate host name "123@localhost" to address: Name or service not known
+ubuntu@ip-172-31-11-99:/opt/cryptox$
