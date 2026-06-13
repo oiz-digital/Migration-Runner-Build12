@@ -1,7 +1,9 @@
 export const COMPANY_NAME    = process.env.COMPANY_NAME    ?? "Zebvix Technologies Private Limited";
-export const COMPANY_SHORT   = process.env.COMPANY_SHORT   ?? "ZBX";
-export const COMPANY_CIN     = process.env.COMPANY_CIN     ?? "U66110KA2022PTC123456";
-export const COMPANY_GST     = process.env.COMPANY_GST     ?? "29AAAAZ0000Z1Z1";
-export const COMPANY_ADDRESS = process.env.COMPANY_ADDRESS ?? "Level 7, Prestige Atrium, 1 Central Street, Bengaluru — 560001, Karnataka, India";
+export const COMPANY_SHORT   = process.env.COMPANY_SHORT   ?? "Zebvix";
+export const COMPANY_CIN     = process.env.COMPANY_CIN     ?? "U66190UW2026PTC251591";
+export const COMPANY_PAN     = process.env.COMPANY_PAN     ?? "AACCZ9728R";
+export const COMPANY_TAN     = process.env.COMPANY_TAN     ?? "MRTZ01489F";
+export const COMPANY_GST     = process.env.COMPANY_GST     ?? "";
+export const COMPANY_ADDRESS = process.env.COMPANY_ADDRESS ?? "105, Vill Subari, Shamli, Jhinjhana, Kairana, Muzaffarnagar — 247773, Uttar Pradesh, India";
 export const COMPANY_EMAIL   = process.env.COMPANY_EMAIL   ?? "support@zebvix.com";
 export const COMPANY_WEBSITE = process.env.COMPANY_WEBSITE ?? "zebvix.com";

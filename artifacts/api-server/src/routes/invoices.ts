@@ -8,7 +8,7 @@ import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { db, ordersTable, usersTable, tradesTable, pairsTable, coinsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getInrRate } from "../lib/price-service";
-import { COMPANY_NAME, COMPANY_SHORT, COMPANY_CIN, COMPANY_GST, COMPANY_ADDRESS, COMPANY_EMAIL, COMPANY_WEBSITE } from "../lib/company";
+import { COMPANY_NAME, COMPANY_SHORT, COMPANY_CIN, COMPANY_GST, COMPANY_PAN, COMPANY_ADDRESS, COMPANY_EMAIL, COMPANY_WEBSITE } from "../lib/company";
 
 const router: IRouter = Router();
 
@@ -77,7 +77,7 @@ router.get("/orders/:id/invoice", requireAuth, async (req: any, res): Promise<vo
       address:      COMPANY_ADDRESS,
       gstin:        COMPANY_GST,
       cin:          COMPANY_CIN,
-      pan:          process.env.COMPANY_PAN ?? "AAAAZ0000Z",
+      pan:          COMPANY_PAN,
       supportEmail: COMPANY_EMAIL,
       website:      COMPANY_WEBSITE,
     },
@@ -195,7 +195,7 @@ router.get("/orders/statement", requireAuth, async (req: any, res): Promise<void
     brand: {
       legalName: COMPANY_NAME, tradingName: COMPANY_SHORT,
       address: COMPANY_ADDRESS, gstin: COMPANY_GST, cin: COMPANY_CIN,
-      pan: process.env.COMPANY_PAN ?? "AAAAZ0000Z", supportEmail: COMPANY_EMAIL, website: COMPANY_WEBSITE,
+      pan: COMPANY_PAN, supportEmail: COMPANY_EMAIL, website: COMPANY_WEBSITE,
     },
     customer: { name: user?.name ?? user?.email ?? "User", email: user?.email ?? "", userId },
     summary: {

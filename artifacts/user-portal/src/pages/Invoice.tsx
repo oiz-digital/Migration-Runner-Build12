@@ -213,7 +213,7 @@ export default function Invoice() {
                 <p className="text-[11px] text-slate-400">{brand.legalName}</p>
                 <p className="text-[11px] text-slate-500 leading-relaxed mt-1 max-w-[260px]">{brand.address}</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-2">
-                  <p className="text-[10px] text-slate-600 font-mono">GSTIN: <span className="text-slate-400">{brand.gstin}</span></p>
+                  <p className="text-[10px] text-slate-600 font-mono">GSTIN: <span className="text-slate-400">{brand.gstin || "Registration Pending"}</span></p>
                   <p className="text-[10px] text-slate-600 font-mono">CIN: <span className="text-slate-400">{brand.cin}</span></p>
                   <p className="text-[10px] text-slate-600 font-mono">PAN: <span className="text-slate-400">{brand.pan}</span></p>
                 </div>
