@@ -2,7 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import React, {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from "react";
 import {
   Animated,
   Dimensions,
@@ -16,514 +18,615 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
+import Svg, { Path, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePrices } from "@/hooks/usePrices";
 import { apiFetch } from "@/hooks/useApi";
 import { SparkLine } from "@/components/SparkLine";
-import { AnimatedPrice } from "@/components/AnimatedPrice";
 
-const { width: SCREEN_W } = Dimensions.get("window");
-const GREEN = "#0ECB81";
-const RED = "#F6465D";
+const { width: SW } = Dimensions.get("window");
+const GREEN  = "#0ECB81";
+const RED    = "#F6465D";
 const YELLOW = "#F0B90B";
+const BLUE   = "#1890FF";
 const PURPLE = "#9945ff";
 
-interface WalletItem { symbol: string; balance: string; locked: string }
+/* ─── Types ──────────────────────────────────────────────────────────────── */
+interface WalletItem   { symbol: string; balance: string; locked: string }
 interface WalletResponse { wallets: WalletItem[] }
 
+/* ─── Constants ──────────────────────────────────────────────────────────── */
 const COIN_COLORS: Record<string, string> = {
-  BTC: "#f7931a", ETH: "#627eea", BNB: "#f3ba2f", XRP: "#346aa9",
-  SOL: "#9945ff", ADA: "#3cc8c8", USDT: "#26a17b", MATIC: "#8247e5",
-  AVAX: "#e84142", DOT: "#e6007a", LINK: "#2a5ada", DOGE: "#c2a633",
-  DEFAULT: "#6b7a9e",
+  BTC:"#f7931a", ETH:"#627eea", BNB:"#f3ba2f", XRP:"#346aa9",
+  SOL:"#9945ff", ADA:"#3cc8c8", USDT:"#26a17b", MATIC:"#8247e5",
+  AVAX:"#e84142", DOT:"#e6007a", LINK:"#2a5ada", DOGE:"#c2a633", DEFAULT:"#6b7a9e",
 };
 
-function genSpark(price: number, change24h: number, symbol: string, n = 20): number[] {
-  let seed = symbol.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-  const rng = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-  const start = price / (1 + change24h / 100);
-  const pts: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1);
-    pts.push(Math.max(start + start * (change24h / 100) * t + (rng() - 0.5) * start * 0.012, 1e-8));
-  }
-  pts[n - 1] = price;
-  return pts;
-}
-
-const SERVICES = [
-  { label: "AI Trading", icon: "cpu" as const, route: "/ai-trading", color: PURPLE, badge: "NEW" },
-  { label: "Bots", icon: "grid" as const, route: "/bots", color: "#eb9100", badge: "" },
-  { label: "Earn", icon: "percent" as const, route: "/earn", color: GREEN, badge: "28%" },
-  { label: "Copy Trade", icon: "copy" as const, route: "/copy-trading", color: "#627eea", badge: "" },
-  { label: "Options", icon: "activity" as const, route: "/options", color: RED, badge: "" },
-  { label: "Convert", icon: "repeat" as const, route: "/convert", color: GREEN, badge: "" },
-  { label: "INR Pay", icon: "credit-card" as const, route: "/inr-payments", color: YELLOW, badge: "" },
-  { label: "Referrals", icon: "gift" as const, route: "/invite", color: "#eb9100", badge: "30%" },
-  { label: "P2P", icon: "users" as const, route: "/p2p", color: PURPLE, badge: "" },
-  { label: "Ledger", icon: "book" as const, route: "/ledger", color: "#848E9C", badge: "" },
-  { label: "Portfolio", icon: "pie-chart" as const, route: "/portfolio", color: "#627eea", badge: "" },
-  { label: "Alerts", icon: "bell" as const, route: "/price-alerts", color: YELLOW, badge: "" },
+const QUICK_ACTIONS = [
+  { label: "Deposit",  icon: "arrow-down-circle" as const, color: GREEN,  route: "/(tabs)/assets" },
+  { label: "Withdraw", icon: "arrow-up-circle"   as const, color: RED,    route: "/(tabs)/assets" },
+  { label: "Buy",      icon: "shopping-cart"     as const, color: YELLOW, route: "/convert"       },
+  { label: "P2P",      icon: "users"             as const, color: PURPLE, route: "/p2p"           },
+  { label: "Convert",  icon: "repeat"            as const, color: BLUE,   route: "/convert"       },
+  { label: "Earn",     icon: "percent"           as const, color: GREEN,  route: "/earn"          },
+  { label: "History",  icon: "clock"             as const, color: "#848E9C", route: "/orders"     },
+  { label: "More",     icon: "grid"              as const, color: "#848E9C", route: "/discover"   },
 ];
 
-const QUICK = [
-  { label: "Deposit", icon: "arrow-down-circle" as const, route: "/(tabs)/assets", color: GREEN },
-  { label: "Withdraw", icon: "arrow-up-circle" as const, route: "/(tabs)/assets", color: RED },
-  { label: "Buy Crypto", icon: "shopping-cart" as const, route: "/convert", color: YELLOW },
-  { label: "P2P", icon: "users" as const, route: "/p2p", color: PURPLE },
-  { label: "History", icon: "clock" as const, route: "/orders", color: "#848E9C" },
+const SERVICES = [
+  { label: "AI Trading",  icon: "cpu"        as const, color: PURPLE,    route: "/ai-trading",   badge: "NEW" },
+  { label: "Bots",        icon: "grid"       as const, color: "#eb9100", route: "/bots",         badge: ""    },
+  { label: "Earn",        icon: "percent"    as const, color: GREEN,     route: "/earn",         badge: "28%" },
+  { label: "Copy Trade",  icon: "copy"       as const, color: BLUE,      route: "/copy-trading", badge: ""    },
+  { label: "Options",     icon: "activity"   as const, color: RED,       route: "/options",      badge: ""    },
+  { label: "Convert",     icon: "repeat"     as const, color: GREEN,     route: "/convert",      badge: ""    },
+  { label: "INR Pay",     icon: "credit-card"as const, color: YELLOW,    route: "/inr-payments", badge: ""    },
+  { label: "Referrals",   icon: "gift"       as const, color: "#eb9100", route: "/invite",       badge: "30%" },
+  { label: "P2P",         icon: "users"      as const, color: PURPLE,    route: "/p2p",          badge: ""    },
+  { label: "Ledger",      icon: "book"       as const, color: "#848E9C", route: "/ledger",       badge: ""    },
+  { label: "Portfolio",   icon: "pie-chart"  as const, color: BLUE,      route: "/portfolio",    badge: ""    },
+  { label: "Alerts",      icon: "bell"       as const, color: YELLOW,    route: "/price-alerts", badge: ""    },
 ];
 
 const PROMO = [
-  { id: "1", title: "Invite & Earn 30%", sub: "Earn commission on every referral trade forever", color: GREEN, icon: "gift" as const },
-  { id: "2", title: "Earn up to 28% APY", sub: "Fixed & flexible staking pools available now", color: YELLOW, icon: "percent" as const },
-  { id: "3", title: "Zero-Fee P2P in INR", sub: "Buy & sell directly with verified Indian traders", color: PURPLE, icon: "users" as const },
-  { id: "4", title: "100× Futures", sub: "Professional perpetual contracts with no expiry", color: RED, icon: "trending-up" as const },
+  { id:"1", title:"Invite & Earn 30%",      sub:"Lifetime commission on every referral trade",  color:GREEN,  icon:"gift"       as const, route:"/invite"       },
+  { id:"2", title:"AI Trading — Up to 28%", sub:"Let AI manage your portfolio automatically",   color:PURPLE, icon:"cpu"        as const, route:"/ai-trading"   },
+  { id:"3", title:"Zero-Fee P2P",           sub:"Buy & sell INR directly with verified traders", color:BLUE,   icon:"users"      as const, route:"/p2p"          },
+  { id:"4", title:"Earn 28% APY",           sub:"Stake your idle crypto and earn daily rewards", color:YELLOW, icon:"percent"    as const, route:"/earn"         },
+  { id:"5", title:"100× Futures",           sub:"Pro perpetual contracts with deep liquidity",   color:RED,    icon:"trending-up"as const, route:"/futures"      },
 ];
 
-type MTab = "hot" | "gainers" | "losers";
+/* ─── Helpers ─────────────────────────────────────────────────────────────── */
+function genSpark(price:number, change24h:number, sym:string, n=20):number[] {
+  let s = sym.split("").reduce((a,c)=>a+c.charCodeAt(0),0);
+  const rng=()=>{s=(s*9301+49297)%233280;return s/233280;};
+  const start=price/(1+change24h/100); const pts:number[]=[];
+  for(let i=0;i<n;i++){const t=i/(n-1);pts.push(Math.max(start+start*(change24h/100)*t+(rng()-0.5)*start*0.012,1e-8));}
+  pts[n-1]=price; return pts;
+}
 
-// Scrolling price ticker component
-function LiveTicker({ ticks }: { ticks: any[] }) {
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const anim = useRef<Animated.CompositeAnimation | null>(null);
-  const tickerData = useMemo(() => ticks.filter(t => t.usdt > 0).slice(0, 20), [ticks]);
-  const tickerStr = tickerData.map(t => {
-    const p = t.usdt < 1 ? t.usdt.toFixed(4) : t.usdt < 100 ? t.usdt.toFixed(2) : t.usdt.toLocaleString("en-US", { maximumFractionDigits: 0 });
-    return `${t.symbol} $${p}`;
-  }).join("   ·   ");
+function fmtUsd(v:number){
+  return v>=1e6?`$${(v/1e6).toFixed(2)}M`:v>=1e3?`$${(v/1e3).toFixed(1)}K`:`$${v.toFixed(2)}`;
+}
 
-  useEffect(() => {
-    if (tickerStr.length === 0) return;
-    const W = tickerStr.length * 7.5;
-    scrollX.setValue(0);
-    anim.current = Animated.loop(
-      Animated.timing(scrollX, { toValue: -W, duration: W * 60, useNativeDriver: true })
-    );
-    anim.current.start();
-    return () => anim.current?.stop();
-  }, [tickerStr]);
-
-  if (tickerData.length === 0) return null;
+/* ─── Portfolio mini-chart (SVG path from simulated history) ──────────────── */
+function PortfolioChart({ totalUsdt, change24h }:{ totalUsdt:number; change24h:number }) {
+  const W = SW - 64, H = 56;
+  const pts = useMemo(()=>{
+    const n=30; const arr:number[]=[];
+    let s=12345;
+    const rng=()=>{s=(s*9301+49297)%233280;return s/233280;};
+    const base=totalUsdt||(change24h<0?1010:990);
+    for(let i=0;i<n;i++){
+      const t=i/(n-1);
+      arr.push(base*(1-change24h/100)+base*(change24h/100)*t+(rng()-0.5)*base*0.015);
+    }
+    arr[n-1]=totalUsdt||arr[n-1]; return arr;
+  },[totalUsdt,change24h]);
+  const minV=Math.min(...pts), maxV=Math.max(...pts), rng=maxV-minV||1;
+  const coords=pts.map((v,i)=>({
+    x:(i/(pts.length-1))*W,
+    y:H-((v-minV)/rng)*(H-8)-4,
+  }));
+  const d="M "+coords.map(c=>`${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" L ");
+  const area=d+` L ${W},${H} L 0,${H} Z`;
+  const isPos=change24h>=0;
+  const lineColor=isPos?GREEN:RED;
   return (
-    <View style={ticker.wrap}>
-      <Animated.Text style={[ticker.text, { transform: [{ translateX: scrollX }] }]}>
-        {tickerStr}{"   ·   "}{tickerStr}
+    <Svg width={W} height={H}>
+      <Defs>
+        <SvgGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor={lineColor} stopOpacity={0.3}/>
+          <Stop offset="100%" stopColor={lineColor} stopOpacity={0}/>
+        </SvgGradient>
+      </Defs>
+      <Path d={area} fill="url(#cg)"/>
+      <Path d={d} stroke={lineColor} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+
+/* ─── Scrolling ticker ────────────────────────────────────────────────────── */
+function Ticker({ ticks }:{ ticks:any[] }) {
+  const scrollX=useRef(new Animated.Value(0)).current;
+  const anim=useRef<Animated.CompositeAnimation|null>(null);
+  const items=useMemo(()=>ticks.filter(t=>t.usdt>0).slice(0,18),[ticks]);
+  const str=items.map(t=>{
+    const p=t.usdt<1?t.usdt.toFixed(4):t.usdt<100?t.usdt.toFixed(2):Math.round(t.usdt).toLocaleString();
+    const sign=t.change24h>=0?"+":"";
+    return `${t.symbol}  $${p}  ${sign}${t.change24h.toFixed(2)}%`;
+  }).join("     ·     ");
+  useEffect(()=>{
+    if(!str) return;
+    const W=str.length*7.8;
+    scrollX.setValue(0);
+    anim.current=Animated.loop(Animated.timing(scrollX,{toValue:-W,duration:W*55,useNativeDriver:true}));
+    anim.current.start();
+    return()=>anim.current?.stop();
+  },[str]);
+  if(!items.length) return null;
+  return (
+    <View style={{height:26,overflow:"hidden",justifyContent:"center"}}>
+      <Animated.Text style={{fontSize:11,color:"#5d6b7a",fontWeight:"500",letterSpacing:0.15,transform:[{translateX:scrollX}]}} numberOfLines={1}>
+        {str}{"     ·     "}{str}
       </Animated.Text>
     </View>
   );
 }
-const ticker = StyleSheet.create({
-  wrap: { height: 28, overflow: "hidden", justifyContent: "center" },
-  text: { fontSize: 11, color: "#848E9C", fontWeight: "500", letterSpacing: 0.2 },
-});
 
+/* ─── Main screen ─────────────────────────────────────────────────────────── */
 export default function HomeScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const colors   = useColors();
+  const insets   = useSafeAreaInsets();
+  const router   = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { ticks, priceMap, inrRate } = usePrices();
-  const [mTab, setMTab] = useState<MTab>("hot");
-  const [bannerIdx, setBannerIdx] = useState(0);
+
   const [hideBalance, setHideBalance] = useState(false);
-  const bannerRef = useRef<ScrollView>(null);
+  const [marketTab, setMarketTab]     = useState<"hot"|"gainers"|"losers">("hot");
+  const [promoIdx,  setPromoIdx]      = useState(0);
+  const promoRef = useRef<ScrollView>(null);
 
-  const topPt = insets.top + (Platform.OS === "web" ? 67 : 0);
-  const botPt = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+  const topPt = insets.top + (Platform.OS==="web"?67:0);
+  const botPt = insets.bottom + (Platform.OS==="web"?34:0);
 
-  const { data: walletData, isLoading, refetch } = useQuery({
-    queryKey: ["wallet"],
-    queryFn: () => apiFetch<WalletResponse>("/api/finance/wallet"),
-    enabled: isAuthenticated,
-    staleTime: 30_000,
+  /* wallet query */
+  const { data:walletData, isLoading, refetch } = useQuery({
+    queryKey:["wallet"],
+    queryFn:()=>apiFetch<WalletResponse>("/api/finance/wallet"),
+    enabled:isAuthenticated, staleTime:30_000,
   });
 
-  const totalUsdt = useMemo(() => {
-    if (!walletData?.wallets) return 0;
-    return walletData.wallets.reduce((sum, w) => {
-      const bal = parseFloat(w.balance) || 0;
-      const tick = priceMap[w.symbol.toUpperCase()];
-      if (w.symbol.toUpperCase() === "USDT") return sum + bal;
-      if (w.symbol.toUpperCase() === "INR") return sum + bal / inrRate;
-      return sum + bal * (tick?.usdt ?? 0);
-    }, 0);
-  }, [walletData, priceMap, inrRate]);
+  /* portfolio maths */
+  const { totalUsdt, totalInr, btcEquiv, change24h } = useMemo(()=>{
+    const ws=walletData?.wallets??[];
+    const usd=ws.reduce((s,w)=>{
+      const b=parseFloat(w.balance)||0;
+      const t=priceMap[w.symbol.toUpperCase()];
+      if(w.symbol.toUpperCase()==="USDT") return s+b;
+      if(w.symbol.toUpperCase()==="INR")  return s+b/inrRate;
+      return s+b*(t?.usdt??0);
+    },0);
+    const btcPx=priceMap["BTC"]?.usdt??1;
+    const chg=ws.reduce((s,w)=>{
+      const b=parseFloat(w.balance)||0;
+      const t=priceMap[w.symbol.toUpperCase()];
+      const val=b*(t?.usdt??0);
+      return s+val*(t?.change24h??0)/100;
+    },0);
+    return { totalUsdt:usd, totalInr:usd*inrRate, btcEquiv:usd/btcPx, change24h:usd>0?(chg/usd)*100:0 };
+  },[walletData,priceMap,inrRate]);
 
-  const totalInr = totalUsdt * inrRate;
-  const btcEquiv = totalUsdt / (priceMap["BTC"]?.usdt ?? 1);
+  /* market list */
+  const marketList = useMemo(()=>{
+    const base=ticks.filter(t=>t.usdt>0&&t.symbol!=="USDT"&&t.symbol!=="INR");
+    if(marketTab==="gainers") return [...base].filter(t=>t.change24h>0).sort((a,b)=>b.change24h-a.change24h).slice(0,8);
+    if(marketTab==="losers")  return [...base].filter(t=>t.change24h<0).sort((a,b)=>a.change24h-b.change24h).slice(0,8);
+    return [...base].sort((a,b)=>(b.usdt*(b.volume24h??0))-(a.usdt*(a.volume24h??0))).slice(0,8);
+  },[ticks,marketTab]);
 
-  const portfolioChange = useMemo(() => {
-    if (!walletData?.wallets || totalUsdt === 0) return 0;
-    const weighted = walletData.wallets.reduce((sum, w) => {
-      const bal = parseFloat(w.balance) || 0;
-      const tick = priceMap[w.symbol.toUpperCase()];
-      const val = bal * (tick?.usdt ?? 0);
-      return sum + val * (tick?.change24h ?? 0) / 100;
-    }, 0);
-    return totalUsdt > 0 ? (weighted / totalUsdt) * 100 : 0;
-  }, [walletData, priceMap, totalUsdt]);
+  /* top movers for hot strip */
+  const topMovers = useMemo(()=>
+    ticks.filter(t=>t.usdt>0&&t.symbol!=="USDT").sort((a,b)=>Math.abs(b.change24h)-Math.abs(a.change24h)).slice(0,6),
+  [ticks]);
 
-  const marketList = useMemo(() => {
-    const base = ticks.filter(t => t.usdt > 0 && t.symbol !== "USDT" && t.symbol !== "INR");
-    if (mTab === "gainers") return [...base].filter(t => t.change24h > 0).sort((a, b) => b.change24h - a.change24h).slice(0, 10);
-    if (mTab === "losers") return [...base].filter(t => t.change24h < 0).sort((a, b) => a.change24h - b.change24h).slice(0, 10);
-    return [...base].sort((a, b) => (b.usdt * (b.volume24h ?? 0)) - (a.usdt * (a.volume24h ?? 0))).slice(0, 10);
-  }, [ticks, mTab]);
+  const onRefresh = useCallback(()=>{ void refetch(); },[refetch]);
+  const go=(route:string)=>{
+    if(Platform.OS!=="web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if(!isAuthenticated&&route!=="/convert"&&route!=="/p2p") { router.push("/login"); return; }
+    router.push(route as any);
+  };
 
-  const onRefresh = useCallback(() => { void refetch(); }, [refetch]);
+  const balStr = hideBalance?"$  ••••••"
+    : isAuthenticated
+      ? `$${totalUsdt.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`
+      : "$0.00";
+  const isPos = change24h>=0;
+  const firstName = user?.name?.split(" ")[0]??"there";
 
   return (
-    <View style={[s.root, { backgroundColor: colors.background }]}>
-      {/* ── Sticky header ── */}
-      <View style={[s.header, { paddingTop: topPt, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={s.headerRow}>
-          <View style={s.logoWrap}>
-            <View style={[s.logoMark, { backgroundColor: GREEN }]}>
-              <Text style={s.logoZ}>Z</Text>
+    <View style={[st.root,{backgroundColor:"#080B0F"}]}>
+
+      {/* ══════════════════ TOP GRADIENT HERO ══════════════════ */}
+      <LinearGradient
+        colors={["#0A2318","#091A14","#080B0F"]}
+        style={[st.hero,{paddingTop:topPt}]}
+      >
+        {/* Header row */}
+        <View style={st.topBar}>
+          <View style={st.topLeft}>
+            <View style={st.logoMark}>
+              <Text style={st.logoZ}>Z</Text>
             </View>
-            <Text style={[s.logoText, { color: colors.foreground }]}>Zebvix</Text>
+            <View>
+              <Text style={st.greeting}>
+                {isAuthenticated?`Hello, ${firstName} 👋`:"Welcome to Zebvix"}
+              </Text>
+              <Text style={st.subGreeting}>
+                {new Date().toLocaleDateString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+              </Text>
+            </View>
           </View>
-          <View style={s.headerIcons}>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.muted }]} onPress={() => router.push("/notifications" as any)}>
-              <Feather name="bell" size={17} color={colors.foreground} />
+          <View style={st.topRight}>
+            <TouchableOpacity style={st.iconCircle} onPress={()=>router.push("/notifications" as any)}>
+              <Feather name="bell" size={18} color="#EAECEF"/>
+              <View style={st.notifDot}/>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.muted }]} onPress={() => router.push("/support" as any)}>
-              <Feather name="help-circle" size={17} color={colors.foreground} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.muted }]} onPress={() => router.push("/settings" as any)}>
-              <Feather name="settings" size={17} color={colors.foreground} />
+            <TouchableOpacity style={st.iconCircle} onPress={()=>router.push("/settings" as any)}>
+              {isAuthenticated
+                ? <View style={[st.avatarSmall,{backgroundColor:GREEN+"33"}]}>
+                    <Text style={[st.avatarLetter,{color:GREEN}]}>{user?.name?.charAt(0).toUpperCase()??"Z"}</Text>
+                  </View>
+                : <Feather name="user" size={18} color="#EAECEF"/>}
             </TouchableOpacity>
           </View>
         </View>
-        {/* Live ticker */}
-        <LiveTicker ticks={ticks} />
-      </View>
 
+        {/* Live ticker */}
+        <Ticker ticks={ticks}/>
+
+        {/* ── Portfolio balance card ── */}
+        <View style={st.balanceCard}>
+          <View style={st.balanceTop}>
+            <View style={{flex:1}}>
+              <Text style={st.balLabel}>Total Portfolio Value</Text>
+              <View style={st.balRow}>
+                <Text style={st.balValue} numberOfLines={1} adjustsFontSizeToFit>{balStr}</Text>
+                <TouchableOpacity onPress={()=>setHideBalance(h=>!h)} style={st.eyeBtn}>
+                  <Feather name={hideBalance?"eye-off":"eye"} size={16} color="#5D6B7A"/>
+                </TouchableOpacity>
+              </View>
+              {isAuthenticated&&!hideBalance&&(
+                <Text style={st.balSub}>≈ ₹{totalInr.toLocaleString("en-IN",{maximumFractionDigits:0})}  ·  {btcEquiv.toFixed(6)} BTC</Text>
+              )}
+            </View>
+            {/* 24h change bubble */}
+            <View style={[st.changeBubble,{backgroundColor:(isPos?GREEN:RED)+"20",borderColor:(isPos?GREEN:RED)+"40"}]}>
+              <Feather name={isPos?"trending-up":"trending-down"} size={13} color={isPos?GREEN:RED}/>
+              <Text style={[st.changeText,{color:isPos?GREEN:RED}]}>
+                {isPos?"+":""}{change24h.toFixed(2)}%
+              </Text>
+              <Text style={st.changeLabel}>24h</Text>
+            </View>
+          </View>
+
+          {/* Mini portfolio chart */}
+          {isAuthenticated&&(
+            <View style={st.chartWrap}>
+              <PortfolioChart totalUsdt={totalUsdt} change24h={change24h}/>
+            </View>
+          )}
+
+          {/* Quick action row */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:20}} contentContainerStyle={{gap:12,paddingHorizontal:2}}>
+            {QUICK_ACTIONS.map(q=>(
+              <TouchableOpacity key={q.label} style={st.qaBtn} onPress={()=>go(q.route)} activeOpacity={0.75}>
+                <View style={[st.qaIcon,{backgroundColor:q.color+"20"}]}>
+                  <Feather name={q.icon} size={19} color={q.color}/>
+                </View>
+                <Text style={st.qaLabel}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </LinearGradient>
+
+      {/* ══════════════════ SCROLL BODY ══════════════════ */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: botPt + 100 }}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={GREEN} />}
+        contentContainerStyle={{paddingBottom:botPt+110}}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={GREEN}/>}
       >
-        {/* ── Portfolio Card ── */}
-        <LinearGradient
-          colors={isAuthenticated ? ["#0D2E1E", "#151B22", "#0B0E11"] : ["#151B22", "#0B0E11"]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[s.portfolioCard, { borderColor: colors.border }]}
-        >
-          <View style={s.portfolioTop}>
-            <View>
-              <Text style={[s.portfolioGreet, { color: "#848E9C" }]}>
-                {isAuthenticated ? `👋 ${user?.name?.split(" ")[0] ?? "Welcome"}` : "Welcome to Zebvix"}
-              </Text>
-              <View style={s.balanceRow}>
-                <AnimatedPrice
-                  price={isAuthenticated ? totalUsdt : 0}
-                  format={(p) => hideBalance ? "$••••••" : `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                  style={s.balanceValue}
-                />
-                <TouchableOpacity onPress={() => setHideBalance(h => !h)} style={{ marginLeft: 8, marginTop: 4 }}>
-                  <Feather name={hideBalance ? "eye-off" : "eye"} size={16} color="#848E9C" />
-                </TouchableOpacity>
-              </View>
-              <Text style={[s.balanceSub, { color: "#848E9C" }]}>
-                {isAuthenticated && !hideBalance
-                  ? `≈ ₹${totalInr.toLocaleString("en-IN", { maximumFractionDigits: 0 })}  ·  ${btcEquiv.toFixed(6)} BTC`
-                  : "Log in to view your portfolio"}
-              </Text>
-            </View>
-            {isAuthenticated && portfolioChange !== 0 && (
-              <View style={[s.changeBubble, { backgroundColor: (portfolioChange >= 0 ? GREEN : RED) + "22" }]}>
-                <Feather name={portfolioChange >= 0 ? "trending-up" : "trending-down"} size={14} color={portfolioChange >= 0 ? GREEN : RED} />
-                <Text style={[s.changeText, { color: portfolioChange >= 0 ? GREEN : RED }]}>
-                  {portfolioChange >= 0 ? "+" : ""}{portfolioChange.toFixed(2)}%
-                </Text>
-                <Text style={[s.changeLabel, { color: "#848E9C" }]}>24h</Text>
-              </View>
-            )}
-          </View>
 
-          {/* Quick Actions */}
-          <View style={s.quickRow}>
-            {QUICK.map((q) => (
-              <TouchableOpacity
-                key={q.label}
-                style={s.quickItem}
-                onPress={() => {
-                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (!isAuthenticated && q.route !== "/convert") { router.push("/login"); return; }
-                  router.push(q.route as any);
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[s.quickIcon, { backgroundColor: q.color + "25" }]}>
-                  <Feather name={q.icon} size={18} color={q.color} />
+        {/* ── Top movers strip ── */}
+        {topMovers.length>0&&(
+          <View style={st.sec}>
+            <View style={st.secRow}>
+              <Text style={st.secTitle}>Top Movers</Text>
+              <TouchableOpacity onPress={()=>router.push("/(tabs)/markets" as any)}>
+                <Text style={[st.secLink,{color:GREEN}]}>See All →</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:10,paddingTop:2}}>
+              {topMovers.map(t=>{
+                const c=COIN_COLORS[t.symbol]??COIN_COLORS.DEFAULT;
+                const isP=t.change24h>=0;
+                const p=t.usdt<1?t.usdt.toFixed(4):t.usdt<1000?t.usdt.toFixed(2):t.usdt.toLocaleString("en-US",{maximumFractionDigits:0});
+                const spark=genSpark(t.usdt,t.change24h,t.symbol);
+                return (
+                  <TouchableOpacity key={t.symbol} style={[st.moverCard,{borderColor:(isP?GREEN:RED)+"30"}]} onPress={()=>router.push(`/trade/${t.symbol}USDT` as any)} activeOpacity={0.8}>
+                    <LinearGradient colors={[c+"18","transparent"]} start={{x:0,y:0}} end={{x:0,y:1}} style={StyleSheet.absoluteFill}/>
+                    <View style={st.moverTop}>
+                      <View style={[st.moverCircle,{backgroundColor:c+"25"}]}>
+                        <Text style={[st.moverLetter,{color:c}]}>{t.symbol.charAt(0)}</Text>
+                      </View>
+                      <View style={[st.moverChg,{backgroundColor:(isP?GREEN:RED)+"20"}]}>
+                        <Text style={[st.moverChgText,{color:isP?GREEN:RED}]}>{isP?"+":""}{t.change24h.toFixed(1)}%</Text>
+                      </View>
+                    </View>
+                    <Text style={st.moverSym}>{t.symbol}</Text>
+                    <Text style={st.moverPrice}>${p}</Text>
+                    <SparkLine data={spark} width={108} height={38} positive={isP} id={`mv${t.symbol}`}/>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── Promo banners ── */}
+        <View style={st.sec}>
+          <ScrollView
+            ref={promoRef}
+            horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={e=>setPromoIdx(Math.round(e.nativeEvent.contentOffset.x/(SW-32)))}
+          >
+            {PROMO.map(b=>(
+              <TouchableOpacity key={b.id} style={[st.promoBanner,{width:SW-32}]} activeOpacity={0.88} onPress={()=>go(b.route)}>
+                <LinearGradient colors={[b.color+"35","#0E1317"]} start={{x:0,y:0}} end={{x:1,y:0}} style={[StyleSheet.absoluteFill,{borderRadius:18}]}/>
+                <View style={[st.promoIconBox,{backgroundColor:b.color+"22"}]}>
+                  <Feather name={b.icon} size={24} color={b.color}/>
                 </View>
-                <Text style={[s.quickLabel, { color: "#848E9C" }]}>{q.label}</Text>
+                <View style={{flex:1}}>
+                  <Text style={st.promoTitle}>{b.title}</Text>
+                  <Text style={st.promoSub}>{b.sub}</Text>
+                </View>
+                <View style={[st.promoArrow,{backgroundColor:b.color+"22"}]}>
+                  <Feather name="arrow-right" size={14} color={b.color}/>
+                </View>
               </TouchableOpacity>
             ))}
-          </View>
-        </LinearGradient>
-
-        {/* ── Promo Banners ── */}
-        <View style={s.promoWrap}>
-          <ScrollView
-            ref={bannerRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setBannerIdx(Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - 32)))}
-          >
-            {PROMO.map((b) => (
-              <View key={b.id} style={[s.promoBanner, { width: SCREEN_W - 32, backgroundColor: colors.card, borderColor: b.color + "40" }]}>
-                <LinearGradient colors={[b.color + "28", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-                <View style={[s.promoIconWrap, { backgroundColor: b.color + "22" }]}>
-                  <Feather name={b.icon} size={22} color={b.color} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.promoTitle, { color: "#EAECEF" }]}>{b.title}</Text>
-                  <Text style={[s.promoSub, { color: "#848E9C" }]}>{b.sub}</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color="#848E9C" />
-              </View>
-            ))}
           </ScrollView>
-          <View style={s.promoDots}>
-            {PROMO.map((_, i) => (
-              <View key={i} style={[s.promoDot, { backgroundColor: i === bannerIdx ? GREEN : colors.border, width: i === bannerIdx ? 18 : 6 }]} />
+          {/* dots */}
+          <View style={st.dotRow}>
+            {PROMO.map((_,i)=>(
+              <View key={i} style={[st.dot,{backgroundColor:i===promoIdx?GREEN:"#2B3139",width:i===promoIdx?22:6}]}/>
             ))}
           </View>
         </View>
 
-        {/* ── Services Grid ── */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Services</Text>
-            <View style={[s.sectionBadge, { backgroundColor: GREEN + "22" }]}>
-              <Text style={[s.sectionBadgeText, { color: GREEN }]}>12 Products</Text>
+        {/* ── Services grid ── */}
+        <View style={st.sec}>
+          <View style={st.secRow}>
+            <Text style={st.secTitle}>Products</Text>
+            <View style={[st.badge12,{backgroundColor:GREEN+"18",borderColor:GREEN+"30"}]}>
+              <Text style={[st.badge12Text,{color:GREEN}]}>12 Available</Text>
             </View>
           </View>
-          <View style={[s.servicesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.servicesGrid}>
-              {SERVICES.map((svc) => (
-                <TouchableOpacity
-                  key={svc.label}
-                  style={s.svcItem}
-                  onPress={() => {
-                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    if (!isAuthenticated) { router.push("/login"); return; }
-                    router.push(svc.route as any);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={[s.svcIconWrap, { backgroundColor: svc.color + "22" }]}>
-                    <Feather name={svc.icon} size={22} color={svc.color} />
-                    {svc.badge ? (
-                      <View style={[s.svcBadge, { backgroundColor: svc.color }]}>
-                        <Text style={s.svcBadgeText}>{svc.badge}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                  <Text style={[s.svcLabel, { color: "#848E9C" }]}>{svc.label}</Text>
-                </TouchableOpacity>
-              ))}
+          <View style={[st.servCard,{backgroundColor:"#0E1317",borderColor:"#1E2730"}]}>
+            {/* row 1 */}
+            <View style={st.servRow}>
+              {SERVICES.slice(0,4).map(s=><SvcTile key={s.label} s={s} go={go}/>)}
+            </View>
+            <View style={[st.servDivider,{backgroundColor:"#1E2730"}]}/>
+            {/* row 2 */}
+            <View style={st.servRow}>
+              {SERVICES.slice(4,8).map(s=><SvcTile key={s.label} s={s} go={go}/>)}
+            </View>
+            <View style={[st.servDivider,{backgroundColor:"#1E2730"}]}/>
+            {/* row 3 */}
+            <View style={st.servRow}>
+              {SERVICES.slice(8,12).map(s=><SvcTile key={s.label} s={s} go={go}/>)}
             </View>
           </View>
         </View>
 
-        {/* ── Hot Picks (horizontal scroll) ── */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.foreground }]}>Hot Picks</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 12 }}>
-            {ticks.filter(t => t.usdt > 0 && t.symbol !== "USDT").slice(0, 8).map((t) => {
-              const c = COIN_COLORS[t.symbol] ?? COIN_COLORS.DEFAULT;
-              const isPos = t.change24h >= 0;
-              const p = t.usdt < 1 ? t.usdt.toFixed(4) : t.usdt < 1000 ? t.usdt.toFixed(2) : t.usdt.toLocaleString("en-US", { maximumFractionDigits: 0 });
-              const spark = genSpark(t.usdt, t.change24h, t.symbol);
-              return (
-                <TouchableOpacity
-                  key={t.symbol}
-                  style={[s.hotCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  onPress={() => router.push(`/trade/${t.symbol}USDT` as any)}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient colors={[c + "15", "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
-                  <View style={s.hotTop}>
-                    <View style={[s.hotCircle, { backgroundColor: c + "25" }]}>
-                      <Text style={[s.hotLetter, { color: c }]}>{t.symbol.charAt(0)}</Text>
-                    </View>
-                    <View style={[s.hotChg, { backgroundColor: (isPos ? GREEN : RED) + "22" }]}>
-                      <Text style={[s.hotChgText, { color: isPos ? GREEN : RED }]}>
-                        {isPos ? "+" : ""}{t.change24h.toFixed(2)}%
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[s.hotSym, { color: colors.foreground }]}>{t.symbol}</Text>
-                  <Text style={[s.hotPrice, { color: colors.foreground }]}>${p}</Text>
-                  <SparkLine data={spark} width={100} height={36} positive={isPos} id={`hp${t.symbol}`} />
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* ── Market Overview ── */}
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Market Overview</Text>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/markets" as any)}>
-              <Text style={[s.seeAll, { color: GREEN }]}>See All →</Text>
+        {/* ── Market overview ── */}
+        <View style={st.sec}>
+          <View style={st.secRow}>
+            <Text style={st.secTitle}>Market Overview</Text>
+            <TouchableOpacity onPress={()=>router.push("/(tabs)/markets" as any)}>
+              <Text style={[st.secLink,{color:GREEN}]}>See All →</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Mini tabs */}
-          <View style={[s.miniTabs, { backgroundColor: colors.muted }]}>
-            {(["hot", "gainers", "losers"] as MTab[]).map((tab) => (
+          {/* Tab pills */}
+          <View style={st.mTabRow}>
+            {(["hot","gainers","losers"] as const).map(t=>(
               <TouchableOpacity
-                key={tab}
-                style={[s.miniTab, mTab === tab && { backgroundColor: colors.card }]}
-                onPress={() => setMTab(tab)}
+                key={t}
+                style={[st.mTabBtn,marketTab===t&&{backgroundColor:GREEN+"18",borderColor:GREEN+"50"}]}
+                onPress={()=>setMarketTab(t)}
               >
-                <Text style={[s.miniTabText, { color: mTab === tab ? GREEN : "#848E9C" }]}>
-                  {tab === "hot" ? "🔥 Hot" : tab === "gainers" ? "📈 Gainers" : "📉 Losers"}
+                <Text style={[st.mTabText,{color:marketTab===t?GREEN:"#5D6B7A"}]}>
+                  {t==="hot"?"🔥 Hot":t==="gainers"?"📈 Gainers":"📉 Losers"}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <View style={[s.marketCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[s.marketColHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[s.colLabel, { color: "#848E9C", flex: 1 }]}>Coin</Text>
-              <Text style={[s.colLabel, { color: "#848E9C", width: 55, textAlign: "center" }]}>Chart</Text>
-              <Text style={[s.colLabel, { color: "#848E9C", width: 75, textAlign: "right" }]}>Price</Text>
-              <Text style={[s.colLabel, { color: "#848E9C", width: 68, textAlign: "right" }]}>24h%</Text>
+          {/* Coin list */}
+          <View style={[st.coinListCard,{backgroundColor:"#0E1317",borderColor:"#1E2730"}]}>
+            <View style={[st.coinListHdr,{borderBottomColor:"#1E2730"}]}>
+              <Text style={[st.colLbl,{flex:1,color:"#3D4D5C"}]}>Coin</Text>
+              <Text style={[st.colLbl,{width:58,textAlign:"center",color:"#3D4D5C"}]}>7D</Text>
+              <Text style={[st.colLbl,{width:78,textAlign:"right",color:"#3D4D5C"}]}>Price</Text>
+              <Text style={[st.colLbl,{width:68,textAlign:"right",color:"#3D4D5C"}]}>24h%</Text>
             </View>
-            {marketList.map((t, i) => {
-              const c = COIN_COLORS[t.symbol] ?? COIN_COLORS.DEFAULT;
-              const isPos = t.change24h >= 0;
-              const spark = genSpark(t.usdt, t.change24h, t.symbol);
-              const p = t.usdt < 0.01 ? t.usdt.toFixed(6) : t.usdt < 100 ? t.usdt.toFixed(4) : t.usdt.toLocaleString("en-US", { maximumFractionDigits: 0 });
+            {marketList.length===0&&(
+              <View style={{padding:28,alignItems:"center"}}>
+                <Text style={{color:"#3D4D5C",fontSize:13}}>Connecting to live markets…</Text>
+              </View>
+            )}
+            {marketList.map((t,i)=>{
+              const c=COIN_COLORS[t.symbol]??COIN_COLORS.DEFAULT;
+              const isP=t.change24h>=0;
+              const spark=genSpark(t.usdt,t.change24h,t.symbol);
+              const p=t.usdt<0.01?t.usdt.toFixed(6):t.usdt<100?t.usdt.toFixed(4):t.usdt.toLocaleString("en-US",{maximumFractionDigits:0});
               return (
                 <TouchableOpacity
                   key={t.symbol}
-                  style={[s.marketRow, { borderBottomColor: colors.border, borderBottomWidth: i < marketList.length - 1 ? StyleSheet.hairlineWidth : 0 }]}
-                  onPress={() => router.push(`/trade/${t.symbol}USDT` as any)}
-                  activeOpacity={0.7}
+                  style={[st.coinRow,{borderBottomColor:"#1E2730",borderBottomWidth:i<marketList.length-1?StyleSheet.hairlineWidth:0}]}
+                  onPress={()=>router.push(`/trade/${t.symbol}USDT` as any)}
+                  activeOpacity={0.75}
                 >
-                  <View style={s.coinLeft}>
-                    <View style={[s.coinCircle, { backgroundColor: c + "22" }]}>
-                      <Text style={[s.coinLetter, { color: c }]}>{t.symbol.charAt(0)}</Text>
+                  <View style={st.coinLeft}>
+                    <View style={[st.coinCircle,{backgroundColor:c+"20"}]}>
+                      <Text style={[st.coinLetter,{color:c}]}>{t.symbol.charAt(0)}</Text>
                     </View>
                     <View>
-                      <Text style={[s.coinSym, { color: colors.foreground }]}>{t.symbol}</Text>
-                      <Text style={[s.coinQuote, { color: "#848E9C" }]}>/USDT</Text>
+                      <Text style={st.coinSym}>{t.symbol}</Text>
+                      <Text style={st.coinQuote}>/USDT</Text>
                     </View>
                   </View>
-                  <SparkLine data={spark} width={55} height={28} positive={isPos} id={`ho${t.symbol}`} />
-                  <Text style={[s.coinPrice, { color: colors.foreground, width: 75, textAlign: "right" }]}>${p}</Text>
-                  <View style={[s.chgPill, { backgroundColor: (isPos ? GREEN : RED) + "22", width: 68 }]}>
-                    <Text style={[s.chgText, { color: isPos ? GREEN : RED }]}>
-                      {isPos ? "+" : ""}{t.change24h.toFixed(2)}%
-                    </Text>
+                  <SparkLine data={spark} width={58} height={28} positive={isP} id={`ho${t.symbol}`}/>
+                  <Text style={[st.coinPrice,{color:"#EAECEF",width:78}]}>${p}</Text>
+                  <View style={[st.chgPill,{backgroundColor:(isP?GREEN:RED)+"20",width:68}]}>
+                    <Text style={[st.chgText,{color:isP?GREEN:RED}]}>{isP?"+":""}{t.change24h.toFixed(2)}%</Text>
                   </View>
                 </TouchableOpacity>
               );
             })}
-            {marketList.length === 0 && (
-              <View style={{ padding: 24, alignItems: "center" }}>
-                <Text style={{ color: "#848E9C", fontSize: 13 }}>Connecting to live markets…</Text>
-              </View>
-            )}
           </View>
+        </View>
+
+        {/* ── Learn / News strip ── */}
+        <View style={st.sec}>
+          <Text style={st.secTitle}>Did You Know?</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:10,paddingTop:12}}>
+            {[
+              {icon:"zap" as const, color:YELLOW, title:"Zero-Fee Trading",  body:"Makers pay 0% on all spot pairs. Takers pay just 0.1%."},
+              {icon:"shield" as const, color:GREEN, title:"100% Insured",     body:"All INR deposits insured by DICGC up to ₹5 lakh."},
+              {icon:"cpu" as const, color:PURPLE, title:"AI Signal Accuracy", body:"Our AI models have 74% directional accuracy on BTC."},
+              {icon:"gift" as const, color:RED, title:"Referral Bonus",       body:"Earn 30% of fees from everyone you invite — forever."},
+            ].map(n=>(
+              <View key={n.title} style={[st.newsCard,{backgroundColor:"#0E1317",borderColor:"#1E2730"}]}>
+                <View style={[st.newsIcon,{backgroundColor:n.color+"20"}]}>
+                  <Feather name={n.icon} size={18} color={n.color}/>
+                </View>
+                <Text style={st.newsTitle}>{n.title}</Text>
+                <Text style={st.newsBody}>{n.body}</Text>
+              </View>
+            ))}
+          </ScrollView>
         </View>
 
         {/* ── Compliance footer ── */}
-        <View style={s.footer}>
-          <View style={[s.footerBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="shield" size={12} color={GREEN} />
-            <Text style={[s.footerText, { color: "#848E9C" }]}>FIU-IND Registered · RBI Compliant · 256-bit SSL</Text>
-          </View>
+        <View style={[st.footer,{borderColor:"#1E2730"}]}>
+          <Feather name="shield" size={11} color={GREEN}/>
+          <Text style={st.footerText}>FIU-IND Registered · PMLA 2002 Compliant · 256-bit SSL Encrypted</Text>
         </View>
       </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1 },
-  header: { borderBottomWidth: StyleSheet.hairlineWidth },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
-  logoWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoMark: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  logoZ: { fontSize: 16, fontWeight: "900", color: "#000" },
-  logoText: { fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  headerIcons: { flexDirection: "row", gap: 8 },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+/* ─── Service tile sub-component ─────────────────────────────────────────── */
+function SvcTile({s,go}:{s:typeof SERVICES[0];go:(r:string)=>void}) {
+  return (
+    <TouchableOpacity style={st.svcTile} onPress={()=>go(s.route)} activeOpacity={0.7}>
+      <View style={[st.svcIcon,{backgroundColor:s.color+"20"}]}>
+        <Feather name={s.icon} size={22} color={s.color}/>
+        {s.badge?(
+          <View style={[st.svcBadge,{backgroundColor:s.color}]}>
+            <Text style={st.svcBadgeText}>{s.badge}</Text>
+          </View>
+        ):null}
+      </View>
+      <Text style={st.svcLabel}>{s.label}</Text>
+    </TouchableOpacity>
+  );
+}
 
-  portfolioCard: { marginHorizontal: 16, marginTop: 14, marginBottom: 16, borderRadius: 20, borderWidth: 1, padding: 20 },
-  portfolioTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
-  portfolioGreet: { fontSize: 12, fontWeight: "500", marginBottom: 4 },
-  balanceRow: { flexDirection: "row", alignItems: "center" },
-  balanceValue: { fontSize: 34, fontWeight: "900", color: "#EAECEF", letterSpacing: -1 },
-  balanceSub: { fontSize: 12, marginTop: 5 },
-  changeBubble: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  changeText: { fontSize: 13, fontWeight: "700" },
-  changeLabel: { fontSize: 11 },
-  quickRow: { flexDirection: "row", justifyContent: "space-between" },
-  quickItem: { alignItems: "center", flex: 1, gap: 6 },
-  quickIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  quickLabel: { fontSize: 10, fontWeight: "600" },
+/* ─── Styles ──────────────────────────────────────────────────────────────── */
+const st = StyleSheet.create({
+  root:{ flex:1, backgroundColor:"#080B0F" },
 
-  promoWrap: { paddingHorizontal: 16, marginBottom: 20 },
-  promoBanner: { borderRadius: 14, borderWidth: 1, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, overflow: "hidden" },
-  promoIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  promoTitle: { fontSize: 13, fontWeight: "800", marginBottom: 3 },
-  promoSub: { fontSize: 11, lineHeight: 15 },
-  promoDots: { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 10, alignItems: "center" },
-  promoDot: { height: 6, borderRadius: 3 },
+  /* hero */
+  hero:{ paddingHorizontal:0 },
+  topBar:{ flexDirection:"row", justifyContent:"space-between", alignItems:"center", paddingHorizontal:20, paddingBottom:10, paddingTop:6 },
+  topLeft:{ flexDirection:"row", alignItems:"center", gap:12 },
+  logoMark:{ width:34, height:34, borderRadius:10, backgroundColor:GREEN, alignItems:"center", justifyContent:"center" },
+  logoZ:{ fontSize:19, fontWeight:"900", color:"#000" },
+  greeting:{ fontSize:15, fontWeight:"700", color:"#EAECEF" },
+  subGreeting:{ fontSize:11, color:"#5D6B7A", marginTop:1 },
+  topRight:{ flexDirection:"row", gap:10 },
+  iconCircle:{ width:38, height:38, borderRadius:19, backgroundColor:"#111820", alignItems:"center", justifyContent:"center", position:"relative" },
+  notifDot:{ position:"absolute", top:9, right:9, width:7, height:7, borderRadius:4, backgroundColor:RED, borderWidth:1.5, borderColor:"#080B0F" },
+  avatarSmall:{ width:24, height:24, borderRadius:12, alignItems:"center", justifyContent:"center" },
+  avatarLetter:{ fontSize:12, fontWeight:"800" },
 
-  section: { paddingHorizontal: 16, marginBottom: 20 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: "800" },
-  sectionBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  sectionBadgeText: { fontSize: 11, fontWeight: "700" },
-  seeAll: { fontSize: 13, fontWeight: "600" },
-  servicesCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden", padding: 6 },
-  servicesGrid: { flexDirection: "row", flexWrap: "wrap" },
-  svcItem: { width: "25%", alignItems: "center", paddingVertical: 14, gap: 6 },
-  svcIconWrap: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  svcBadge: { position: "absolute", top: -4, right: -4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6 },
-  svcBadgeText: { fontSize: 7, fontWeight: "900", color: "#fff" },
-  svcLabel: { fontSize: 10, fontWeight: "600", textAlign: "center" },
+  /* balance card */
+  balanceCard:{ marginHorizontal:16, marginTop:6, marginBottom:20, backgroundColor:"#0E1317", borderRadius:22, borderWidth:1, borderColor:"#1A2530", padding:20 },
+  balanceTop:{ flexDirection:"row", alignItems:"flex-start", gap:10 },
+  balLabel:{ fontSize:11, color:"#5D6B7A", fontWeight:"600", textTransform:"uppercase", letterSpacing:0.6, marginBottom:4 },
+  balRow:{ flexDirection:"row", alignItems:"center", gap:8 },
+  balValue:{ fontSize:32, fontWeight:"900", color:"#EAECEF", letterSpacing:-1 },
+  eyeBtn:{ marginTop:4 },
+  balSub:{ fontSize:12, color:"#5D6B7A", marginTop:4 },
+  changeBubble:{ flexDirection:"row", alignItems:"center", gap:5, paddingHorizontal:10, paddingVertical:7, borderRadius:20, borderWidth:1 },
+  changeText:{ fontSize:13, fontWeight:"700" },
+  changeLabel:{ fontSize:10, color:"#5D6B7A" },
+  chartWrap:{ marginTop:14, marginHorizontal:2 },
 
-  hotCard: { width: 120, borderRadius: 14, borderWidth: 1, padding: 12, gap: 4, overflow: "hidden" },
-  hotTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  hotCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  hotLetter: { fontSize: 14, fontWeight: "800" },
-  hotChg: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
-  hotChgText: { fontSize: 9, fontWeight: "700" },
-  hotSym: { fontSize: 13, fontWeight: "700" },
-  hotPrice: { fontSize: 12, fontWeight: "600", marginBottom: 6 },
+  /* quick actions */
+  qaBtn:{ alignItems:"center", gap:7, minWidth:56 },
+  qaIcon:{ width:50, height:50, borderRadius:16, alignItems:"center", justifyContent:"center" },
+  qaLabel:{ fontSize:10, color:"#5D6B7A", fontWeight:"600" },
 
-  miniTabs: { flexDirection: "row", borderRadius: 10, padding: 3, marginBottom: 12, gap: 2 },
-  miniTab: { flex: 1, paddingVertical: 7, alignItems: "center", borderRadius: 8 },
-  miniTabText: { fontSize: 11, fontWeight: "700" },
-  marketCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-  marketColHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  colLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
-  marketRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 11 },
-  coinLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  coinCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  coinLetter: { fontSize: 14, fontWeight: "800" },
-  coinSym: { fontSize: 13, fontWeight: "700" },
-  coinQuote: { fontSize: 10, marginTop: 1 },
-  coinPrice: { fontSize: 13, fontWeight: "600" },
-  chgPill: { paddingVertical: 5, borderRadius: 6, alignItems: "center" },
-  chgText: { fontSize: 12, fontWeight: "700" },
+  /* sections */
+  sec:{ paddingHorizontal:16, marginBottom:22 },
+  secRow:{ flexDirection:"row", justifyContent:"space-between", alignItems:"center", marginBottom:12 },
+  secTitle:{ fontSize:16, fontWeight:"800", color:"#EAECEF" },
+  secLink:{ fontSize:13, fontWeight:"600" },
+  badge12:{ paddingHorizontal:8, paddingVertical:3, borderRadius:8, borderWidth:1 },
+  badge12Text:{ fontSize:10, fontWeight:"700" },
 
-  footer: { paddingHorizontal: 16, marginBottom: 8, alignItems: "center" },
-  footerBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
-  footerText: { fontSize: 10 },
+  /* top movers */
+  moverCard:{ width:126, borderRadius:15, borderWidth:1, padding:12, gap:4, overflow:"hidden", backgroundColor:"#0E1317" },
+  moverTop:{ flexDirection:"row", justifyContent:"space-between", alignItems:"center", marginBottom:6 },
+  moverCircle:{ width:32, height:32, borderRadius:16, alignItems:"center", justifyContent:"center" },
+  moverLetter:{ fontSize:14, fontWeight:"800" },
+  moverChg:{ paddingHorizontal:6, paddingVertical:2, borderRadius:6 },
+  moverChgText:{ fontSize:9, fontWeight:"700" },
+  moverSym:{ fontSize:13, fontWeight:"700", color:"#EAECEF" },
+  moverPrice:{ fontSize:11, color:"#848E9C", marginBottom:4 },
+
+  /* promo */
+  promoBanner:{ flexDirection:"row", alignItems:"center", gap:14, padding:16, borderRadius:18, overflow:"hidden", borderWidth:1, borderColor:"#1E2730", backgroundColor:"#0E1317" },
+  promoIconBox:{ width:50, height:50, borderRadius:14, alignItems:"center", justifyContent:"center", flexShrink:0 },
+  promoTitle:{ fontSize:14, fontWeight:"800", color:"#EAECEF", marginBottom:3 },
+  promoSub:{ fontSize:11, color:"#5D6B7A", lineHeight:16 },
+  promoArrow:{ width:30, height:30, borderRadius:15, alignItems:"center", justifyContent:"center", flexShrink:0 },
+  dotRow:{ flexDirection:"row", justifyContent:"center", gap:5, marginTop:10, alignItems:"center" },
+  dot:{ height:5, borderRadius:3 },
+
+  /* services */
+  servCard:{ borderRadius:18, borderWidth:1, overflow:"hidden" },
+  servRow:{ flexDirection:"row" },
+  servDivider:{ height:StyleSheet.hairlineWidth },
+  svcTile:{ flex:1, alignItems:"center", paddingVertical:18, gap:7 },
+  svcIcon:{ width:54, height:54, borderRadius:16, alignItems:"center", justifyContent:"center" },
+  svcBadge:{ position:"absolute", top:-5, right:-5, paddingHorizontal:4, paddingVertical:1.5, borderRadius:6 },
+  svcBadgeText:{ fontSize:7, fontWeight:"900", color:"#fff" },
+  svcLabel:{ fontSize:10, fontWeight:"600", color:"#848E9C", textAlign:"center" },
+
+  /* market */
+  mTabRow:{ flexDirection:"row", gap:8, marginBottom:12 },
+  mTabBtn:{ paddingHorizontal:13, paddingVertical:7, borderRadius:20, borderWidth:1, borderColor:"#1E2730" },
+  mTabText:{ fontSize:12, fontWeight:"700" },
+  coinListCard:{ borderRadius:16, borderWidth:1, overflow:"hidden" },
+  coinListHdr:{ flexDirection:"row", alignItems:"center", paddingHorizontal:14, paddingVertical:9, borderBottomWidth:StyleSheet.hairlineWidth },
+  colLbl:{ fontSize:10, fontWeight:"600", textTransform:"uppercase", letterSpacing:0.4 },
+  coinRow:{ flexDirection:"row", alignItems:"center", paddingHorizontal:14, paddingVertical:12, gap:2 },
+  coinLeft:{ flex:1, flexDirection:"row", alignItems:"center", gap:10 },
+  coinCircle:{ width:38, height:38, borderRadius:19, alignItems:"center", justifyContent:"center" },
+  coinLetter:{ fontSize:15, fontWeight:"800" },
+  coinSym:{ fontSize:13, fontWeight:"700", color:"#EAECEF" },
+  coinQuote:{ fontSize:10, color:"#5D6B7A", marginTop:1 },
+  coinPrice:{ fontSize:13, fontWeight:"600", textAlign:"right" },
+  chgPill:{ paddingVertical:5, borderRadius:7, alignItems:"center" },
+  chgText:{ fontSize:11, fontWeight:"700" },
+
+  /* news */
+  newsCard:{ width:186, borderRadius:14, borderWidth:1, padding:14, gap:8 },
+  newsIcon:{ width:40, height:40, borderRadius:12, alignItems:"center", justifyContent:"center" },
+  newsTitle:{ fontSize:13, fontWeight:"800", color:"#EAECEF" },
+  newsBody:{ fontSize:11, color:"#5D6B7A", lineHeight:17 },
+
+  /* footer */
+  footer:{ marginHorizontal:16, marginTop:4, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:6, paddingVertical:10, borderTopWidth:StyleSheet.hairlineWidth },
+  footerText:{ fontSize:10, color:"#3D4D5C" },
 });
