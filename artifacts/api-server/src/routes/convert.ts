@@ -5,8 +5,9 @@ import { Router, type IRouter } from "express";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
-  db, walletsTable, coinsTable, usersTable, convertQuotesTable, walletLedgerTable,
+  db, walletsTable, coinsTable, usersTable, convertQuotesTable, walletLedgerTable, settingsTable,
 } from "@workspace/db";
+import { COMPANY_ADDRESS, COMPANY_GST, COMPANY_PAN, COMPANY_CIN } from "../lib/company";
 import { requireAuth } from "../middlewares/auth";
 import { getConvertFeeRate } from "./fees";
 import { getCache, getInrRate } from "../lib/price-service";
@@ -271,6 +272,71 @@ router.post("/convert/execute", requireAuth, async (req, res): Promise<void> => 
     toAmount: Number(row.toAmount),
     rate: Number(row.rate),
     feeAmount: Number(row.feeAmount),
+  });
+});
+
+// ─── /convert/:id/invoice ────────────────────────────────────────────────────
+router.get("/convert/:id/invoice", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const quoteId = Number(req.params.id);
+  if (!Number.isFinite(quoteId) || quoteId <= 0) {
+    res.status(400).json({ message: "Invalid convert id" }); return;
+  }
+
+  const [q] = await db.select().from(convertQuotesTable)
+    .where(and(eq(convertQuotesTable.id, quoteId), eq(convertQuotesTable.userId, userId)))
+    .limit(1);
+  if (!q) { res.status(404).json({ message: "Convert record not found" }); return; }
+  if (q.status !== "executed") {
+    res.status(400).json({ message: "Invoice is only available for completed conversions" }); return;
+  }
+
+  const coins = await db.select().from(coinsTable);
+  const fromCoin = coins.find(c => c.id === q.fromCoinId);
+  const toCoin   = coins.find(c => c.id === q.toCoinId);
+
+  const [u] = await db.select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+
+  const settingsRows = await db.select().from(settingsTable);
+  const brandMap = new Map(settingsRows.map(r => [r.key, r.value]));
+  const brand = {
+    legalName:    brandMap.get("brand.legal_name")    || "Zebvix Technologies Private Limited",
+    tradingName:  brandMap.get("brand.trading_name")  || "Zebvix Exchange",
+    address:      brandMap.get("brand.address")       || COMPANY_ADDRESS,
+    gstin:        brandMap.get("brand.gstin")         || COMPANY_GST,
+    pan:          brandMap.get("brand.pan")           || COMPANY_PAN,
+    cin:          brandMap.get("brand.cin")           || COMPANY_CIN,
+    supportEmail: brandMap.get("brand.support_email") || "support@zebvix.com",
+    website:      brandMap.get("brand.website")       || "https://zebvix.com",
+  };
+
+  const fromAmt  = Number(q.fromAmount);
+  const toAmt    = Number(q.toAmount);
+  const feeAmt   = Number(q.feeAmount);
+  const rate     = Number(q.rate);
+  const feeBps   = q.feeBps ?? 0;
+
+  res.json({
+    invoiceNo: `CVT-${String(q.id).padStart(8, "0")}`,
+    issuedAt:  q.executedAt ?? q.createdAt,
+    brand,
+    customer:  { name: u?.name || "—", email: u?.email || "—", userId },
+    convert: {
+      id:        q.id,
+      uid:       q.uid,
+      fromCoin:  fromCoin?.symbol ?? "—",
+      toCoin:    toCoin?.symbol   ?? "—",
+      fromAmount: fromAmt,
+      toAmount:   toAmt,
+      rate,
+      feeAmount:  feeAmt,
+      feeBps,
+      feePercent: +(feeBps / 100).toFixed(4),
+      grossOut:   +(toAmt + feeAmt).toFixed(8),
+      executedAt: q.executedAt,
+      createdAt:  q.createdAt,
+    },
   });
 });
 

@@ -19,6 +19,7 @@ import Discover from "@/pages/Discover";
 import Wallet from "@/pages/Wallet";
 import Orders from "@/pages/Orders";
 import Invoice from "@/pages/Invoice";
+import ConvertInvoice from "@/pages/ConvertInvoice";
 import Portfolio from "@/pages/Portfolio";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -128,6 +129,9 @@ function App() {
 
                 <Route path="/orders/:id/invoice">
                   {() => <RequireAuth><Invoice /></RequireAuth>}
+                </Route>
+                <Route path="/convert/:id/invoice">
+                  {() => <RequireAuth><ConvertInvoice /></RequireAuth>}
                 </Route>
                 <Route path="/orders/statement">
                   {() => <RequireAuth><SpotStatement /></RequireAuth>}
