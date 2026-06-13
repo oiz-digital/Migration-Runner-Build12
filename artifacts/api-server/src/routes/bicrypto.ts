@@ -1078,6 +1078,10 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       metadata: { refId: w.refId ?? w.txHash ?? null },
       referenceId: w.refId ?? w.txHash ?? null,
       trxId: w.uid,
+      // Destination address — only present for on-chain crypto withdrawals
+      toAddress: w.toAddress ?? null,
+      memo: w.memo ?? null,
+      rejectReason: w.rejectReason ?? null,
       createdAt: w.createdAt,
       updatedAt: w.updatedAt ?? w.createdAt,
       wallet: { currency, type: walletType },

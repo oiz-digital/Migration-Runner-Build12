@@ -82,6 +82,10 @@ type Tx = {
   description: string;
   trxId?: string | null;
   referenceId?: string | null;
+  // On-chain crypto withdrawal destination
+  toAddress?: string | null;
+  memo?: string | null;
+  rejectReason?: string | null;
   createdAt: string;
   wallet: { currency: string; type: string };
 };
@@ -884,8 +888,15 @@ function TransactionHistory() {
                     </td>
                     <td className="px-4 py-3 text-right font-mono">{fmtNum(tx.amount, tx.wallet.currency === "INR" ? 2 : 6)}</td>
                     <td className="px-4 py-3 text-right font-mono text-muted-foreground">{fmtNum(tx.fee, tx.wallet.currency === "INR" ? 2 : 6)}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground" title={tx.referenceId || tx.trxId || ""}>
-                      {shortHash(tx.referenceId || tx.trxId)}
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {(tx.referenceId || tx.trxId) && (
+                        <div title={tx.referenceId || tx.trxId || ""}>{shortHash(tx.referenceId || tx.trxId)}</div>
+                      )}
+                      {tx.type === "WITHDRAW" && tx.toAddress && (
+                        <div className="text-[10px] text-sky-400/80 mt-0.5" title={tx.toAddress}>
+                          → {tx.toAddress.length > 20 ? tx.toAddress.slice(0, 10) + "…" + tx.toAddress.slice(-8) : tx.toAddress}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <StatusBadge status={tx.status} />
@@ -937,6 +948,11 @@ function TransactionHistory() {
                 {(tx.referenceId || tx.trxId) && (
                   <div className="mt-2 pt-2 border-t border-border text-[11px] text-muted-foreground font-mono break-all">
                     {tx.referenceId || tx.trxId}
+                  </div>
+                )}
+                {tx.type === "WITHDRAW" && tx.toAddress && (
+                  <div className="mt-1 text-[11px] text-sky-400/80 font-mono break-all">
+                    → {tx.toAddress}
                   </div>
                 )}
               </div>
@@ -1055,6 +1071,40 @@ function TxDetailsDialog({ tx, onClose }: { tx: Tx | null; onClose: () => void }
           {tx.description && (
             <DetailRow label="Description" value={<span className="text-foreground/90">{tx.description}</span>} />
           )}
+          {tx.type === "WITHDRAW" && tx.toAddress && (
+            <DetailRow
+              label="To Address"
+              value={
+                <button
+                  type="button"
+                  className="font-mono text-xs break-all text-left hover:text-sky-300 text-sky-400 transition-colors flex items-center gap-1"
+                  onClick={() => copy("addr", String(tx.toAddress))}
+                  data-testid="button-copy-address"
+                  title="Click to copy address"
+                >
+                  <span>{tx.toAddress}</span>
+                  {copied === "addr" ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <Copy className="h-3 w-3 opacity-60 shrink-0" />}
+                </button>
+              }
+            />
+          )}
+          {tx.type === "WITHDRAW" && tx.memo && (
+            <DetailRow
+              label="Memo / Tag"
+              value={
+                <button
+                  type="button"
+                  className="font-mono text-xs break-all text-left hover:text-primary transition-colors flex items-center gap-1"
+                  onClick={() => copy("memo", String(tx.memo))}
+                  data-testid="button-copy-memo"
+                  title="Click to copy memo"
+                >
+                  <span>{tx.memo}</span>
+                  {copied === "memo" ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <Copy className="h-3 w-3 opacity-60 shrink-0" />}
+                </button>
+              }
+            />
+          )}
           {tx.referenceId && (
             <DetailRow
               label="Reference"
@@ -1087,6 +1137,12 @@ function TxDetailsDialog({ tx, onClose }: { tx: Tx | null; onClose: () => void }
                   {copied === "trx" ? <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" /> : <Copy className="h-3 w-3 opacity-60 shrink-0" />}
                 </button>
               }
+            />
+          )}
+          {tx.rejectReason && (
+            <DetailRow
+              label="Reject Reason"
+              value={<span className="text-rose-400 text-xs">{tx.rejectReason}</span>}
             />
           )}
           <DetailRow
