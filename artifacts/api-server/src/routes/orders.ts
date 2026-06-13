@@ -571,8 +571,11 @@ export async function cancelSpotOrderById(userId: number, id: number): Promise<a
       const remainingQty = Number(o.qty) - Number(o.filledQty);
       const remainingPrice = Number(o.price);
       if (o.side === "buy") {
-        // Released amount = remainingQty * price (limit orders don't pre-pay maker fee)
-        const release = remainingQty * remainingPrice;
+        // The lock at placement was qty * price * (1 + takerFeeRate).
+        // Refund the full per-remaining-qty slice including the fee buffer.
+        const [u] = await tx.select({ vipTier: usersTable.vipTier }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+        const fees = await getSpotFeeRates(u?.vipTier ?? 0);
+        const release = remainingQty * remainingPrice * (1 + fees.taker);
         const w = await ensureWallet(tx, userId, pair.quoteCoinId, "spot");
         await tx.update(walletsTable).set({
           balance: sql`${walletsTable.balance} + ${release}`,
@@ -629,7 +632,10 @@ export async function adminCancelSpotOrderById(id: number): Promise<any> {
     const remainingQty = Number(o.qty) - Number(o.filledQty);
     const remainingPrice = Number(o.price);
     if (o.side === "buy") {
-      const release = remainingQty * remainingPrice;
+      // Full fee-buffered refund (mirrors placement lock)
+      const [u] = await tx.select({ vipTier: usersTable.vipTier }).from(usersTable).where(eq(usersTable.id, o.userId)).limit(1);
+      const fees = await getSpotFeeRates(u?.vipTier ?? 0);
+      const release = remainingQty * remainingPrice * (1 + fees.taker);
       const w = await ensureWallet(tx, o.userId, pair.quoteCoinId, "spot");
       await tx.update(walletsTable).set({
         balance: sql`${walletsTable.balance} + ${release}`,

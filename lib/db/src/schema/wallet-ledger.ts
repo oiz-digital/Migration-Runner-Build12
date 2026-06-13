@@ -13,6 +13,7 @@ export const ledgerTypeEnum = pgEnum("ledger_type", [
   "transfer_in",
   "transfer_out",
   "trade_fee",
+  "trade_tds",
   "trade_buy",
   "trade_sell",
   "earn_deposit",
