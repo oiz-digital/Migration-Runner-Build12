@@ -29,8 +29,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.setItem(STORAGE_KEY, t);
   };
 
-  if (!loaded) return null;
-
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
 

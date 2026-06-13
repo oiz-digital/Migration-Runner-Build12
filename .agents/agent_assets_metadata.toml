@@ -300,6 +300,12 @@ uri = "file://attached_assets/adv_onchain.png"
 type = "image"
 title = "advanced on-chain analytics"
 
+[[generated]]
+id = "FGsQ_MadhK9njPcAfN8eK"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "zebvix app icon"
+
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
 uri = "file://docs/MOBILE_API_GUIDE.md"

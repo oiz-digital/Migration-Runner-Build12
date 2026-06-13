@@ -9,6 +9,9 @@
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "expo-clipboard": "^8.0.8"
+  },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@expo-google-fonts/inter": "^0.4.0",
@@ -54,8 +57,5 @@
     "typescript": "~5.9.2",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
-  },
-  "dependencies": {
-    "expo-clipboard": "^8.0.8"
   }
 }

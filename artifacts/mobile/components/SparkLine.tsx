@@ -31,7 +31,7 @@ export function SparkLine({ data, width = 60, height = 32, positive = true, id =
 
   if (!linePath) return <View style={{ width, height }} />;
 
-  const color = positive ? "#22c55e" : "#e81515";
+  const color = positive ? "#0ECB81" : "#F6465D";
   const gradId = `${id}_grad`;
 
   return (
