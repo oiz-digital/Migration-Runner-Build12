@@ -98,7 +98,7 @@ async function runAccrual(): Promise<void> {
               eq(walletsTable.userId, pos.userId),
               eq(walletsTable.coinId, pos.coinId),
               eq(walletsTable.walletType, "spot"),
-            )).limit(1);
+            )).for("update").limit(1);
           if (spot) {
             await tx.update(walletsTable).set({
               balance: sql`${walletsTable.balance} + ${interest}`,

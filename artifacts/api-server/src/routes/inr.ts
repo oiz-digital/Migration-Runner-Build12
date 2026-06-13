@@ -111,23 +111,37 @@ router.post("/payments/inr/withdraw", requireAuth, async (req: any, res): Promis
     res.status(403).json({ error: "KYC verification required for INR withdrawals." }); return;
   }
 
+  // Pre-fetch coinId only (outside tx) — the actual wallet balance check
+  // happens INSIDE the transaction with FOR UPDATE so concurrent requests
+  // cannot double-spend the same balance.
   const inrData = await getInrWallet(userId);
-  const avail = inrData?.wallet ? parseFloat(inrData.wallet.balance as string ?? "0") : 0;
-  if (avail < amountInr) {
-    res.status(400).json({ error: `Insufficient INR balance. Have ₹${avail.toFixed(2)}, need ₹${amountInr.toFixed(2)}` }); return;
+  if (!inrData?.wallet) {
+    res.status(400).json({ error: "INR wallet not found. Please deposit first." }); return;
   }
 
   const rate = getInrRate();
   const usdAmount = (amountInr / rate).toFixed(8);
 
   await db.transaction(async (tx) => {
-    if (inrData?.wallet) {
-      await tx.update(walletsTable).set({
-        balance: sql`${walletsTable.balance} - ${amountInr}`,
-        locked:  sql`${walletsTable.locked}  + ${amountInr}`,
-        updatedAt: new Date(),
-      }).where(eq(walletsTable.id, inrData.wallet.id));
+    // Re-read with row-level lock so concurrent withdrawals cannot race.
+    const [w] = await tx.select().from(walletsTable)
+      .where(eq(walletsTable.id, inrData.wallet!.id))
+      .for("update").limit(1);
+    if (!w) { const e: any = new Error("INR wallet not found"); e.code = 400; throw e; }
+
+    const avail = parseFloat(w.balance ?? "0");
+    if (avail < amountInr) {
+      const e: any = new Error(`Insufficient INR balance. Have ₹${avail.toFixed(2)}, need ₹${amountInr.toFixed(2)}`);
+      e.code = 400;
+      throw e;
     }
+
+    await tx.update(walletsTable).set({
+      balance: sql`${walletsTable.balance} - ${amountInr}`,
+      locked:  sql`${walletsTable.locked}  + ${amountInr}`,
+      updatedAt: new Date(),
+    }).where(eq(walletsTable.id, w.id));
+
     const [inrTx] = await tx.insert(inrTransactionsTable).values({
       userId, type: "withdrawal",
       amountInr: String(amountInr), usdAmount,
@@ -135,15 +149,14 @@ router.post("/payments/inr/withdraw", requireAuth, async (req: any, res): Promis
       ifscCode: ifscCode ?? null, accountHolder: accountHolder ?? null,
       upiId: upiId ?? null, status: "pending",
     }).returning();
-    if (inrData?.wallet && inrData.coinId) {
-      await tx.insert(walletLedgerTable).values({
-        userId, coinId: inrData.coinId, walletType: "inr", type: "withdrawal_inr",
-        amount: (-amountInr).toFixed(8),
-        balanceBefore: Number(inrData.wallet.balance).toFixed(8),
-        balanceAfter: (Number(inrData.wallet.balance) - amountInr).toFixed(8),
-        refType: "inr_withdrawal", refId: String(inrTx.id), note: "INR withdrawal initiated",
-      });
-    }
+
+    await tx.insert(walletLedgerTable).values({
+      userId, coinId: inrData.coinId!, walletType: "inr", type: "withdrawal_inr",
+      amount: (-amountInr).toFixed(8),
+      balanceBefore: w.balance,
+      balanceAfter: (parseFloat(w.balance) - amountInr).toFixed(8),
+      refType: "inr_withdrawal", refId: String(inrTx.id), note: "INR withdrawal initiated",
+    });
   });
 
   res.status(201).json({ success: true, amountInr, method, status: "pending" });
