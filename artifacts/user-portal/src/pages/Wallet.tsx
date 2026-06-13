@@ -48,6 +48,8 @@ import {
   Wallet as WalletIcon,
   Building2,
   QrCode,
+  HelpCircle,
+  Loader2,
   Download,
   ScanLine,
   Shield,
@@ -1268,6 +1270,22 @@ function DepositDialog({
   const [addrExpanded, setAddrExpanded] = useState(false);
   const [showQr, setShowQr] = useState(true);
   const [qrDownloading, setQrDownloading] = useState(false);
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimTx, setClaimTx] = useState("");
+  const [claimAmt, setClaimAmt] = useState("");
+  const [claimFrom, setClaimFrom] = useState("");
+  const qc = useQueryClient();
+
+  const claimMut = useMutation({
+    mutationFn: (body: { symbol: string; networkId: number; txHash: string; amount: number; fromAddress?: string }) =>
+      post("/finance/deposit/claim", body),
+    onSuccess: () => {
+      toast.success("Claim submitted! Our team will review your transaction within 24 hours.");
+      setClaimTx(""); setClaimAmt(""); setClaimFrom(""); setClaimOpen(false);
+      qc.invalidateQueries({ queryKey: ["deposit-claims"] });
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Failed to submit claim"),
+  });
 
   const enabledQ = useQuery<{ currency: string; name?: string; networks: string[] }[]>({
     queryKey: ["enabled-coins", type === "FIAT" ? "fiat" : "spot", "deposit"],
@@ -1645,6 +1663,102 @@ function DepositDialog({
                       <li>Funds are credited after <strong className="text-amber-200">{activeNet?.confirmations} block confirmations</strong>.</li>
                     </ul>
                   </div>
+
+                  {/* ── Missed Deposit Claim ── */}
+                  {activeNet && (
+                    <div className="rounded-xl border border-border/50 bg-muted/10 overflow-hidden">
+                      <button
+                        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/20 transition-colors"
+                        onClick={() => setClaimOpen(p => !p)}
+                        data-testid="button-missed-deposit"
+                      >
+                        <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                          <HelpCircle className="h-3.5 w-3.5 shrink-0" />
+                          Deposit sent but not credited?
+                        </span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${claimOpen ? "bg-sky-500/15 text-sky-300 border-sky-500/30" : "bg-muted/30 text-muted-foreground border-border/40"}`}>
+                          {claimOpen ? "Hide" : "Submit TX claim"}
+                        </span>
+                      </button>
+
+                      {claimOpen && (
+                        <div className="px-4 pb-4 space-y-3 border-t border-border/40 pt-3">
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            If your on-chain transaction is confirmed but funds haven't arrived after{" "}
+                            <strong className="text-foreground">{activeNet.confirmations} confirmations</strong>, submit your TX hash below.
+                            Our team reviews claims within 24 hours.
+                          </p>
+
+                          <div className="space-y-2.5">
+                            <div>
+                              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                                Transaction Hash (TX ID) <span className="text-rose-400">*</span>
+                              </label>
+                              <Input
+                                value={claimTx}
+                                onChange={e => setClaimTx(e.target.value)}
+                                placeholder="0x... or base58 hash"
+                                className="font-mono text-xs h-9"
+                                data-testid="input-claim-txhash"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                                Amount you sent ({currency}) <span className="text-rose-400">*</span>
+                              </label>
+                              <Input
+                                value={claimAmt}
+                                onChange={e => setClaimAmt(e.target.value)}
+                                type="number"
+                                min={0}
+                                step="any"
+                                placeholder={`e.g. 0.005`}
+                                className="h-9 text-xs"
+                                data-testid="input-claim-amount"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                                Sender Address (optional)
+                              </label>
+                              <Input
+                                value={claimFrom}
+                                onChange={e => setClaimFrom(e.target.value)}
+                                placeholder="Your sending wallet address"
+                                className="font-mono text-xs h-9"
+                                data-testid="input-claim-from"
+                              />
+                            </div>
+                          </div>
+
+                          <Button
+                            size="sm"
+                            className="w-full h-9 text-xs"
+                            disabled={claimMut.isPending || claimTx.length < 20 || !claimAmt || Number(claimAmt) <= 0}
+                            onClick={() => {
+                              if (!activeNet) return;
+                              claimMut.mutate({
+                                symbol: currency,
+                                networkId: activeNet.id,
+                                txHash: claimTx.trim(),
+                                amount: Number(claimAmt),
+                                fromAddress: claimFrom.trim() || undefined,
+                              });
+                            }}
+                            data-testid="button-submit-claim"
+                          >
+                            {claimMut.isPending
+                              ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Submitting…</>
+                              : <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Submit Deposit Claim</>}
+                          </Button>
+
+                          <p className="text-[10px] text-muted-foreground text-center">
+                            Claims are reviewed by our compliance team. Do not submit duplicate claims.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="rounded-xl border border-border bg-muted/10 p-8 text-center text-sm text-muted-foreground">

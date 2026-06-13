@@ -275,6 +275,9 @@ export default function CryptoDepositsPage() {
               <TabsTrigger value="all" data-testid="tab-source-all">All sources</TabsTrigger>
               <TabsTrigger value="sweeper" data-testid="tab-source-sweeper">Auto</TabsTrigger>
               <TabsTrigger value="manual" data-testid="tab-source-manual">Manual</TabsTrigger>
+              <TabsTrigger value="user_claim" data-testid="tab-source-user-claim" className="text-amber-300 data-[state=active]:text-amber-200">
+                User Claims {stats && stats.pending > 0 && sourceTab !== "user_claim" ? "" : ""}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -374,9 +377,12 @@ export default function CryptoDepositsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium border inline-flex items-center gap-1",
-                        d.detectedBy === "sweeper" ? "bg-blue-500/15 text-blue-300 border-blue-500/30" : "bg-muted/40 border-border/60")}>
+                        d.detectedBy === "sweeper" ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+                        : d.detectedBy === "user_claim" ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                        : "bg-muted/40 border-border/60")}>
                         {d.detectedBy === "sweeper" && <Zap className="w-3 h-3" />}
-                        {d.detectedBy === "sweeper" ? "AUTO" : "MANUAL"}
+                        {d.detectedBy === "user_claim" && <AlertTriangle className="w-3 h-3" />}
+                        {d.detectedBy === "sweeper" ? "AUTO" : d.detectedBy === "user_claim" ? "USER CLAIM" : "MANUAL"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground" title={new Date(d.createdAt).toLocaleString("en-IN")}>{relTime(d.createdAt)}</td>

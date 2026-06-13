@@ -5,6 +5,7 @@
 
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { eq, or, and, desc, gt, sql } from "drizzle-orm";
+import { z } from "zod";
 import {
   db, usersTable, loginLogsTable, walletsTable, coinsTable, pairsTable, sessionsTable, otpCodesTable,
   networksTable, cryptoWithdrawalsTable, inrWithdrawalsTable, bankAccountsTable,
@@ -1314,6 +1315,89 @@ r.get("/finance/currency/:type/:currency", async (req: any, res): Promise<void> 
 });
 
 r.post("/finance/deposit/spot", bicryptoAuth, (_req, res) => res.json({ message: "Use one of the listed deposit addresses" }));
+
+// ─── User Deposit Claim (missed / not-credited TX) ───────────────────────────
+const depositClaimSchema = z.object({
+  symbol:      z.string().min(1).max(20).transform(s => s.toUpperCase()),
+  networkId:   z.number({ invalid_type_error: "networkId must be a number" }).int().positive(),
+  txHash:      z.string()
+    .min(20, "TX hash too short — must be at least 20 characters")
+    .max(128, "TX hash too long — maximum 128 characters")
+    .transform(s => s.trim()),
+  amount:      z.number({ invalid_type_error: "amount must be a number" }).positive("amount must be > 0"),
+  fromAddress: z.string().max(200).optional(),
+});
+
+r.post("/finance/deposit/claim", bicryptoAuth, async (req: any, res): Promise<void> => {
+  const userId = req.bcUser.id;
+  const parsed = depositClaimSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" }); return;
+  }
+  const { symbol, networkId, txHash, amount, fromAddress } = parsed.data;
+
+  const [coin] = await db.select().from(coinsTable).where(eq(coinsTable.symbol, symbol)).limit(1);
+  if (!coin) { res.status(400).json({ error: `Coin ${symbol} not configured on this exchange` }); return; }
+
+  const [net] = await db.select().from(networksTable).where(eq(networksTable.id, networkId)).limit(1);
+  if (!net) { res.status(400).json({ error: "Network not found" }); return; }
+
+  // Reject if the TX hash already exists in any state for this network
+  const [existing] = await db.select({
+    id: cryptoDepositsTable.id, status: cryptoDepositsTable.status, detectedBy: cryptoDepositsTable.detectedBy,
+  }).from(cryptoDepositsTable).where(
+    and(eq(cryptoDepositsTable.networkId, networkId), eq(cryptoDepositsTable.txHash, txHash)),
+  ).limit(1);
+
+  if (existing) {
+    if (existing.status === "completed") {
+      res.status(409).json({ error: "This transaction has already been credited to a wallet." }); return;
+    }
+    if (existing.detectedBy === "user_claim" && existing.status === "pending") {
+      res.status(409).json({ error: "A claim for this transaction is already under review. Please wait for admin approval." }); return;
+    }
+    res.status(409).json({ error: "This transaction is already being processed by our system." }); return;
+  }
+
+  // Fetch user's deposit address for this network (informational — may be empty for new users)
+  const [addrRow] = await db.select({ address: walletAddressesTable.address })
+    .from(walletAddressesTable)
+    .where(and(eq(walletAddressesTable.userId, userId), eq(walletAddressesTable.networkId, networkId)))
+    .limit(1);
+
+  const [row] = await db.insert(cryptoDepositsTable).values({
+    userId,
+    coinId: coin.id,
+    networkId,
+    amount: amount.toFixed(8),
+    address: addrRow?.address ?? "",
+    fromAddress: fromAddress ?? null,
+    txHash,
+    confirmations: 0,
+    requiredConfirmations: (net as any).confirmations ?? 12,
+    status: "pending",
+    detectedBy: "user_claim",
+  }).returning();
+
+  res.status(201).json({ ok: true, claim: row });
+});
+
+r.get("/finance/deposit/claims", bicryptoAuth, async (req: any, res): Promise<void> => {
+  const userId = req.bcUser.id;
+  const rows = await db.select({
+    id: cryptoDepositsTable.id,
+    coinId: cryptoDepositsTable.coinId,
+    networkId: cryptoDepositsTable.networkId,
+    amount: cryptoDepositsTable.amount,
+    txHash: cryptoDepositsTable.txHash,
+    status: cryptoDepositsTable.status,
+    createdAt: cryptoDepositsTable.createdAt,
+    processedAt: cryptoDepositsTable.processedAt,
+  }).from(cryptoDepositsTable).where(
+    and(eq(cryptoDepositsTable.userId, userId), eq(cryptoDepositsTable.detectedBy, "user_claim")),
+  ).orderBy(desc(cryptoDepositsTable.createdAt)).limit(20);
+  res.json({ claims: rows });
+});
 
 // ─── Bank accounts (needed by INR withdraw + admin) ──────────────────────
 r.get("/finance/bank/accounts", bicryptoAuth, async (req: any, res): Promise<void> => {
