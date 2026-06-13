@@ -9,6 +9,7 @@ import { getSpotFeeRates, loadFeeSettings } from "./fees";
 import { getInrRate } from "../lib/price-service";
 import { COMPANY_CIN, COMPANY_GST, COMPANY_PAN, COMPANY_ADDRESS } from "../lib/company";
 import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
+import { triggerCopyTrades } from "../lib/copy-engine";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────
 // Stricter than the historical placeSpotOrder() guard — we validate types &
@@ -384,6 +385,21 @@ export async function placeSpotOrder(opts: {
       getSpotFeeRates(vipTier).then(({ gstPercent }) => {
         const baseFeeAmt = grossFee / (1 + gstPercent / 100);
         return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee");
+      }).catch(() => null); // never block the order response
+    }
+  }
+
+  // ── Copy trading (fire-and-forget) ──────────────────────────────────────
+  if (matchRes.trades > 0) {
+    const filledQty = Number(final.filledQty ?? 0);
+    if (filledQty > 0 && pair.baseCoinId && pair.quoteCoinId) {
+      triggerCopyTrades(userId, {
+        pairId:       pair.id,
+        side:         final.side as "buy" | "sell",
+        filledQty,
+        price:        Number(final.avgPrice ?? final.price),
+        baseCoinId:   pair.baseCoinId,
+        quoteCoinId:  pair.quoteCoinId,
       }).catch(() => null); // never block the order response
     }
   }
