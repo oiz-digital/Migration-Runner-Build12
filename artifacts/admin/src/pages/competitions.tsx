@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Pencil, Trash2, Trophy, Star, Calendar, AlertTriangle, Eye, EyeOff,
+  RefreshCw, Zap, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +30,31 @@ type Competition = {
   status: string; isFeatured: boolean; isPublished: boolean; position: number;
 };
 
+const STANDARD_TIERS = [
+  { rank: "1",      label: "Champion",     prize: "10,000 USDT", extra: "+ Diamond Badge", tone: "amber"   },
+  { rank: "2",      label: "Runner-up",    prize: "5,000 USDT",  extra: "+ Gold Badge",    tone: "zinc"    },
+  { rank: "3",      label: "Third Place",  prize: "3,000 USDT",  extra: "+ Silver Badge",  tone: "orange"  },
+  { rank: "4-10",   label: "Top 10",       prize: "500 USDT",    extra: "+ Bronze Badge",  tone: "orange"  },
+  { rank: "11-50",  label: "Top 50",       prize: "50 USDT",     extra: "+ Participant Badge", tone: "emerald" },
+  { rank: "51-100", label: "Top 100",      prize: "25 USDT",     extra: "+ Participant NFT",   tone: "emerald" },
+];
+
+const STANDARD_RULES = [
+  "Valid for KYC Level 2 (Aadhaar + selfie) verified users only.",
+  "Trading volume from Spot, Futures and Convert all count.",
+  "Minimum 10 trades required to be eligible for prizes.",
+  "Season runs from 1st to last day of the month (IST).",
+  "Prize distributed within 7 days of season end to your USDT wallet.",
+  "TDS @ 1% applicable per Section 194S of the Income Tax Act.",
+  "Zebvix reserves the right to disqualify wash trading or bot activity.",
+];
+
 const blank = (): Partial<Competition> & { rewardTiers: any[]; rules: string[] } => ({
   title: "", subtitle: "", description: "",
-  prizePool: "0", prizeUnit: "USDT", topPrize: "0",
-  rewardTiers: [{ rank: "1", label: "Champion", prize: "1000 USDT" }],
-  rules: ["Valid for KYC-verified users only.", "Volume across Spot + Futures + Convert counts."],
-  heroIcon: "trophy", heroColor: "#fcd535", joinUrl: "/leagues", scoringRule: "roi",
+  prizePool: "25000", prizeUnit: "USDT", topPrize: "10000",
+  rewardTiers: STANDARD_TIERS,
+  rules: STANDARD_RULES,
+  heroIcon: "trophy", heroColor: "#fcd535", joinUrl: "/leagues", scoringRule: "volume",
   status: "upcoming", isFeatured: true, isPublished: true, position: 0,
 });
 
@@ -48,6 +68,8 @@ function toLocalInputValue(d: string | null): string {
   try { const dt = new Date(d); return new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16); } catch { return ""; }
 }
 
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 export default function CompetitionsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -60,6 +82,11 @@ export default function CompetitionsPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [tab, setTab] = useState("all");
   const [deleteFor, setDeleteFor] = useState<Competition | null>(null);
+  const [monthlyOpen, setMonthlyOpen] = useState(false);
+  const nowDate = new Date();
+  const [monthlyYear, setMonthlyYear] = useState(nowDate.getFullYear());
+  const [monthlyMonth, setMonthlyMonth] = useState(nowDate.getMonth() + 1);
+  const [monthlyScoringRule, setMonthlyScoringRule] = useState("volume");
 
   const inv = () => qc.invalidateQueries({ queryKey: ["/admin/competitions"] });
   const save = useMutation({
@@ -74,6 +101,15 @@ export default function CompetitionsPage() {
   const remove = useMutation({
     mutationFn: (id: number) => del(`/admin/competitions/${id}`),
     onSuccess: () => { inv(); setDeleteFor(null); toast({ title: "Deleted" }); },
+  });
+  const autoCreate = useMutation({
+    mutationFn: () => post<Competition>("/admin/competitions/monthly", { year: monthlyYear, month: monthlyMonth, scoringRule: monthlyScoringRule }),
+    onSuccess: (row: any) => {
+      inv();
+      setMonthlyOpen(false);
+      toast({ title: "Monthly competition created!", description: row.title });
+    },
+    onError: (e: Error) => toast({ title: "Auto-create failed", description: e.message, variant: "destructive" }),
   });
 
   const stats = useMemo(() => ({
@@ -95,8 +131,18 @@ export default function CompetitionsPage() {
       <PageHeader
         eyebrow="CMS"
         title="Competitions / Trading Leagues"
-        description="Trading contests shown at /leagues in the user-portal — prize pool, rules and reward tiers."
-        actions={<Button onClick={() => { setEditing(blank()); setOpen(true); }}><Plus className="w-3.5 h-3.5 mr-1.5" />New competition</Button>}
+        description="Trading contests shown at /leagues — 25,000 USDT prize pool, monthly seasons, live leaderboard."
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setMonthlyOpen(true)}>
+              <Zap className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+              Monthly Auto-Create
+            </Button>
+            <Button onClick={() => { setEditing(blank()); setOpen(true); }}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" />New competition
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -265,6 +311,98 @@ export default function CompetitionsPage() {
             <Button variant="ghost" onClick={() => { setOpen(false); setEditing(null); }}>Cancel</Button>
             <Button onClick={() => editing && save.mutate(editing)} disabled={!editing?.title || save.isPending}>
               {save.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Monthly Auto-Create dialog ──────────────────────────────────── */}
+      <Dialog open={monthlyOpen} onOpenChange={(o) => { setMonthlyOpen(o); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-amber-400" /> Monthly Auto-Create
+            </DialogTitle>
+            <DialogDescription>
+              Generates a "Zebvix Trading Champions" competition for the selected month with the standard <strong>25,000 USDT</strong> prize pool and 6-tier reward structure.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Prize pool preview */}
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/25 p-4 space-y-1.5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Standard Prize Structure</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                {STANDARD_TIERS.map((t, i) => (
+                  <div key={i} className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Rank {t.rank}</span>
+                    <span className="font-mono font-semibold text-amber-400">{t.prize}</span>
+                  </div>
+                ))}
+                <div className="col-span-2 border-t border-border/50 pt-1 flex justify-between">
+                  <span className="font-semibold">Total Pool</span>
+                  <span className="font-mono font-bold text-amber-400">25,000 USDT</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Month</Label>
+                <select
+                  value={monthlyMonth}
+                  onChange={e => setMonthlyMonth(Number(e.target.value))}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i} value={i + 1}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Year</Label>
+                <select
+                  value={monthlyYear}
+                  onChange={e => setMonthlyYear(Number(e.target.value))}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {[2025, 2026, 2027, 2028].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Scoring Rule</Label>
+              <select
+                value={monthlyScoringRule}
+                onChange={e => setMonthlyScoringRule(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="volume">Trading Volume (USDT)</option>
+                <option value="roi">Return on Investment (ROI %)</option>
+                <option value="pnl">Net Realized P&L (USDT)</option>
+              </select>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 border border-border px-3 py-2.5 text-xs text-muted-foreground">
+              Will create: <strong className="text-foreground">Zebvix Trading Champions — {MONTHS[monthlyMonth - 1]} {monthlyYear}</strong>
+              <br />Runs: 1 {MONTHS[monthlyMonth - 1]?.slice(0,3)} → {new Date(monthlyYear, monthlyMonth, 0).getDate()} {MONTHS[monthlyMonth - 1]?.slice(0,3)} {monthlyYear}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setMonthlyOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => autoCreate.mutate()}
+              disabled={autoCreate.isPending}
+              className="bg-amber-500 hover:bg-amber-400 text-black font-semibold"
+            >
+              {autoCreate.isPending
+                ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Creating…</>
+                : <><Zap className="w-3.5 h-3.5 mr-1.5" /> Create Season</>
+              }
             </Button>
           </DialogFooter>
         </DialogContent>

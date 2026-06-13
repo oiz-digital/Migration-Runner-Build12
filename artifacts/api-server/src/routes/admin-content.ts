@@ -230,6 +230,71 @@ router.delete("/admin/competitions/:id", adminOnly, async (req, res): Promise<vo
   res.json({ ok: true });
 });
 
+// ── Auto-create monthly competition (25 000 USDT standard template) ──────────
+router.post("/admin/competitions/monthly", adminOnly, async (req, res): Promise<void> => {
+  const b = req.body || {};
+
+  // Allow caller to override year/month; default to current UTC month
+  const now  = new Date();
+  const year  = Number(b.year  ?? now.getUTCFullYear());
+  const month = Number(b.month ?? now.getUTCMonth() + 1); // 1-based
+  if (month < 1 || month > 12 || year < 2024) { res.status(400).json({ error: "Invalid year/month" }); return; }
+
+  const monthName  = new Date(year, month - 1, 1).toLocaleString("en-IN", { month: "long" });
+  const startsAt   = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const lastDay    = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const endsAt     = new Date(Date.UTC(year, month - 1, lastDay, 23, 59, 59));
+  const isCurrentMonth = now.getUTCFullYear() === year && now.getUTCMonth() + 1 === month;
+  const status     = isCurrentMonth ? "active" : (startsAt > now ? "upcoming" : "finished");
+
+  // Count existing competitions to derive season number
+  const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)` }).from(competitionsTable);
+  const season = Number(cnt ?? 0) + 1;
+
+  const rewardTiers = [
+    { rank: "1",       label: "Champion",        prize: "10,000 USDT", extra: "+ Diamond Badge", tone: "amber"   },
+    { rank: "2",       label: "Runner-up",        prize: "5,000 USDT",  extra: "+ Gold Badge",    tone: "zinc"    },
+    { rank: "3",       label: "Third Place",      prize: "3,000 USDT",  extra: "+ Silver Badge",  tone: "orange"  },
+    { rank: "4-10",    label: "Top 10",           prize: "500 USDT",    extra: "+ Bronze Badge",  tone: "orange"  },
+    { rank: "11-50",   label: "Top 50",           prize: "50 USDT",     extra: "+ Participant Badge", tone: "emerald" },
+    { rank: "51-100",  label: "Top 100",          prize: "25 USDT",     extra: "+ Participant NFT",   tone: "emerald" },
+  ];
+
+  const rules = [
+    "Valid for KYC Level 2 (Aadhaar + selfie) verified users only.",
+    "Trading volume from Spot, Futures and Convert all count.",
+    "Minimum 10 trades required to be eligible for prizes.",
+    "Season runs from 1st to last day of the month (IST).",
+    "Prize distributed within 7 days of season end to your USDT wallet.",
+    "TDS @ 1% applicable per Section 194S of the Income Tax Act.",
+    "Zebvix reserves the right to disqualify wash trading or bot activity.",
+  ];
+
+  const [row] = await db.insert(competitionsTable).values({
+    title:           `Zebvix Trading Champions — ${monthName} ${year}`,
+    subtitle:        `Season ${season} · ${monthName} ${year}`,
+    description:     `Compete with India's top traders for ${monthName} ${year}. Highest trading volume wins a share of the ₹25,000 USDT prize pool. Spot, Futures & Convert — everything counts. Top 100 traders win!`,
+    prizePool:       "25000",
+    prizeUnit:       "USDT",
+    topPrize:        "10000",
+    rewardTiersJson: JSON.stringify(rewardTiers),
+    rulesJson:       JSON.stringify(rules),
+    heroIcon:        "trophy",
+    heroColor:       "#fcd535",
+    joinUrl:         "/leagues",
+    scoringRule:     String(b.scoringRule ?? "volume"),
+    startsAt,
+    endsAt,
+    status,
+    isFeatured:      true,
+    isPublished:     true,
+    position:        0,
+    updatedBy:       req.user?.id ?? null,
+  }).returning();
+
+  res.json(row);
+});
+
 // ─── Broadcast notifications ──────────────────────────────────────────────────
 router.get("/admin/broadcast-notifications", supportPlus, async (_req, res): Promise<void> => {
   const rows = await db

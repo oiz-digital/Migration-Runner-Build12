@@ -41,10 +41,12 @@ type LeaderRow = {
 type MyRank = { rank: number; volume: string; trades: number; prize: string };
 
 const DEFAULT_TIERS: RewardTier[] = [
-  { rank: "1",      prize: "5,000 USDT",  extra: "+ Diamond Badge", tone: "amber"   },
-  { rank: "2-3",    prize: "2,500 USDT",  extra: "+ Gold Badge",    tone: "zinc"    },
-  { rank: "4-10",   prize: "500 USDT",    extra: "+ Silver Badge",  tone: "orange"  },
-  { rank: "11-100", prize: "100 USDT",    extra: "+ Participant NFT",tone: "emerald" },
+  { rank: "1",      prize: "10,000 USDT", extra: "+ Diamond Badge",      tone: "amber"   },
+  { rank: "2",      prize: "5,000 USDT",  extra: "+ Gold Badge",          tone: "zinc"    },
+  { rank: "3",      prize: "3,000 USDT",  extra: "+ Silver Badge",        tone: "orange"  },
+  { rank: "4-10",   prize: "500 USDT",    extra: "+ Bronze Badge",        tone: "orange"  },
+  { rank: "11-50",  prize: "50 USDT",     extra: "+ Participant Badge",   tone: "emerald" },
+  { rank: "51-100", prize: "25 USDT",     extra: "+ Participant NFT",     tone: "emerald" },
 ];
 
 function fmtDate(iso?: string | null): string {
