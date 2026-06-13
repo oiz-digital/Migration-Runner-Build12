@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   ArrowLeft, Download, Loader2, AlertCircle,
   Bot, TrendingUp, TrendingDown, CheckCircle2,
@@ -99,6 +100,10 @@ export default function AIInvoice() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [imgW / 2, imgH / 2] });
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgW / 2, imgH / 2);
       pdf.save(`${inv.invoiceNo}.pdf`);
+      toast.success("Invoice downloaded successfully");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("Failed to generate PDF. Please try again.");
     } finally {
       setDownloading(false);
     }

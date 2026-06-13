@@ -12,6 +12,7 @@ import {
   ArrowLeft, Download, Loader2, AlertCircle,
   Bot, TrendingUp, TrendingDown, FileText, Zap,
 } from "lucide-react";
+import { toast } from "sonner";
 
 /* ── Types ── */
 interface AIStatementData {
@@ -95,6 +96,10 @@ export default function AIStatement() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width / 2, canvas.height / 2] });
       pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
       pdf.save(`${data.statementNo}.pdf`);
+      toast.success("Statement downloaded successfully");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("Failed to generate PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
