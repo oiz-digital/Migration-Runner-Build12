@@ -319,7 +319,7 @@ export default function Invoice() {
                       {isSell ? "Net Amount Credited" : "Net Amount Debited"}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      ≈ {fmtInr(breakdown.netInr)} at 1 USDT ≈ ₹{breakdown.inrRate.toFixed(2)}
+                      ≈ {fmtInr(breakdown.netInr)} at 1 USDT ≈ ₹{(breakdown.inrRate ?? 84).toFixed(2)}
                     </p>
                   </div>
                   <p
