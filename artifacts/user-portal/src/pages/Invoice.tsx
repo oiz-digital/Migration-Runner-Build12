@@ -90,6 +90,8 @@ export default function Invoice() {
     if (!printRef.current || !data) return;
     setDownloading(true);
     try {
+      // Wait 2 animation frames so browser paints the viewport-anchored printRef before capture
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
       const { downloadElementAsPdf } = await import("@/lib/download-pdf");
       await downloadElementAsPdf(printRef.current, `${data.invoiceNo}.pdf`, { backgroundColor: "#0f172a" });
       toast.success("Invoice downloaded successfully");
@@ -486,20 +488,15 @@ export default function Invoice() {
         </div>
       </div>
 
-      {/* Hidden fixed-width clone used ONLY for PDF capture — always 794px */}
+      {/* Invisible viewport-anchored wrapper — keeps printRef painted on mobile.
+          opacity:0 on the WRAPPER (not printRef) so html-to-image captures at full opacity. */}
       <div
-        ref={printRef}
-        style={{
-          position: "absolute",
-          left: -9999,
-          top: 0,
-          width: 794,
-          pointerEvents: "none",
-          zIndex: -1,
-        }}
         aria-hidden="true"
+        style={{ position: "fixed", top: 0, left: 0, opacity: 0, pointerEvents: "none", zIndex: -1 }}
       >
-        <InvoiceBody fixed />
+        <div ref={printRef} style={{ width: 794 }}>
+          <InvoiceBody fixed />
+        </div>
       </div>
 
       <style>{`
