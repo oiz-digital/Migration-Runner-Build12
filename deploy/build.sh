@@ -36,7 +36,7 @@ fi
 
 # ── 1. Install all dependencies ──────────────────────────────
 log "[1/7] Installing pnpm dependencies..."
-pnpm install --frozen-lockfile --prod=false
+pnpm install --no-frozen-lockfile --prod=false
 ok "Dependencies installed"
 
 # ── 2. Build shared libraries ────────────────────────────────
