@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { cn } from "@/lib/utils";
 import {
   TrendingUp, TrendingDown, RefreshCw, PlugZap, X, Search,
@@ -870,6 +871,7 @@ export default function SmartAPI() {
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("holdings");
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   const { data: accountData, refetch: refetchAccounts } = useQuery({
     queryKey: ["smartapi-accounts"],
@@ -896,7 +898,12 @@ export default function SmartAPI() {
       return d;
     },
     onSuccess: () => {
-      toast.success("Account disconnected");
+      setSuccessData({
+        kind: "generic", iconKind: "withdraw", accentColor: "#ef4444",
+        title: "Account Disconnected",
+        subtitle: "Your Angel One account has been unlinked from Zebvix.",
+        rows: [{ label: "Status", value: "Disconnected", accent: "#ef4444" }],
+      });
       qc.invalidateQueries({ queryKey: ["smartapi-accounts"] });
     },
     onError: (e: Error) => toast.error(e.message || "Disconnect failed"),
@@ -914,7 +921,12 @@ export default function SmartAPI() {
       return d;
     },
     onSuccess: () => {
-      toast.success("Token refreshed");
+      setSuccessData({
+        kind: "generic", iconKind: "paid", accentColor: "#10b981",
+        title: "Session Refreshed",
+        subtitle: "Your Angel One session token has been renewed.",
+        rows: [{ label: "Status", value: "Active ✓", accent: "#10b981" }],
+      });
       qc.invalidateQueries({ queryKey: ["smartapi-accounts"] });
     },
     onError: (e: Error) => toast.error(e.message || "Refresh failed"),
@@ -1051,6 +1063,7 @@ export default function SmartAPI() {
           }}
         />
       )}
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

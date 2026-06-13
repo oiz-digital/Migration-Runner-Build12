@@ -15,6 +15,7 @@ import { SectionCard } from "@/components/premium/SectionCard";
 import { EmptyState } from "@/components/premium/EmptyState";
 import { StatusPill } from "@/components/premium/StatusPill";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -59,6 +60,7 @@ export default function Notifications() {
   const qc = useQueryClient();
   const [tab, setTab] = useState<"all" | "alerts">("all");
   const [filter, setFilter] = useState<string>("");
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   const { data: notifsResp, isLoading } = useQuery({
     queryKey: ["/notifications/me", filter],
@@ -81,7 +83,7 @@ export default function Notifications() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/notifications/me"] });
       qc.invalidateQueries({ queryKey: ["/notifications/me/unread-count"] });
-      toast.success("All marked as read");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "emerald", title: "All Caught Up!", subtitle: "All notifications have been marked as read.", rows: [], primaryLabel: "Done" });
     },
   });
   const readOneMut = useMutation({
@@ -103,7 +105,7 @@ export default function Notifications() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/notifications/me"] });
       qc.invalidateQueries({ queryKey: ["/notifications/me/unread-count"] });
-      toast.success("Test notification sent");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "amber", title: "Test Sent!", subtitle: "A test notification has been delivered to your inbox.", rows: [], primaryLabel: "Check Inbox" });
     },
   });
 
@@ -241,6 +243,7 @@ export default function Notifications() {
           )}
         </TabsContent>
       </Tabs>
+      <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
     </div>
   );
 }
@@ -252,6 +255,7 @@ function CreateAlertDialog() {
   const [cond, setCond] = useState<"above" | "below">("above");
   const [target, setTarget] = useState("");
   const [note, setNote] = useState("");
+  const [alertSuccess, setAlertSuccess] = useState<GenericSuccess | null>(null);
 
   const createMut = useMutation({
     mutationFn: () => post("/alerts", {
@@ -263,12 +267,13 @@ function CreateAlertDialog() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/alerts/me"] });
       setOpen(false); setCoin("BTC"); setCond("above"); setTarget(""); setNote("");
-      toast.success("Alert created");
+      setAlertSuccess({ kind: "generic", iconKind: "paid", accentColor: "amber", title: "Alert Created!", subtitle: `You'll be notified when ${coin.toUpperCase()} ${cond === "above" ? "rises above" : "falls below"} $${Number(target).toLocaleString()}`, rows: [{ label: "Coin", value: coin.toUpperCase() }, { label: "Condition", value: cond === "above" ? "Above" : "Below" }, { label: "Target", value: `$${Number(target).toLocaleString()}` }], primaryLabel: "Done" });
     },
     onError: (err: any) => toast.error(err?.message || "Could not create alert"),
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm"><Plus className="h-3.5 w-3.5 mr-1.5" /> New price alert</Button>
@@ -309,6 +314,8 @@ function CreateAlertDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={alertSuccess !== null} payload={alertSuccess} onClose={() => setAlertSuccess(null)} />
+    </>
   );
 }
 

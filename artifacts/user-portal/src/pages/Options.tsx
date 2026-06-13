@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -316,6 +317,7 @@ export default function OptionsPage() {
 
   const [underlying, setUnderlying] = useState<string>("BTC");
   const [tab, setTab] = useState<"chain" | "positions" | "analytics" | "history">("chain");
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   const contractsQ = useQuery<{ contracts: Contract[] }>({
     queryKey: ["options-contracts", underlying],
@@ -390,8 +392,18 @@ export default function OptionsPage() {
   const placeOrder = useMutation({
     mutationFn: (vars: { contractId: number; side: "buy" | "sell"; qty: number }) =>
       post(`/options/orders`, vars),
-    onSuccess: () => {
-      toast.success("Order filled ✓ — position successfully opened");
+    onSuccess: (_r, vars) => {
+      const side = vars.side === "buy" ? "Long" : "Short";
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: vars.side === "buy" ? "#10b981" : "#f59e0b",
+        title: "Options Order Filled",
+        subtitle: `${side} position opened successfully.`,
+        rows: [
+          { label: "Side", value: side, accent: vars.side === "buy" ? "#10b981" : "#f59e0b" },
+          { label: "Quantity", value: `${vars.qty} contracts` },
+          { label: "Status", value: "Filled ✓", accent: "#10b981" },
+        ],
+      });
       setTicket(null); setQty("0.1");
       qc.invalidateQueries({ queryKey: ["options-positions"] });
       qc.invalidateQueries({ queryKey: ["options-history"] });
@@ -402,7 +414,16 @@ export default function OptionsPage() {
   const closePosition = useMutation({
     mutationFn: (id: number) => post(`/options/positions/${id}/close`, {}),
     onSuccess: (r: any) => {
-      toast.success(`Position closed — Realized PnL: ${r.pnl >= 0 ? "+" : ""}${fmtUsd(r.pnl)} USDT`);
+      const pnl = r?.pnl ?? 0;
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: pnl >= 0 ? "#10b981" : "#ef4444",
+        title: "Position Closed",
+        subtitle: "Your options position has been closed.",
+        rows: [
+          { label: "Realized PnL", value: `${pnl >= 0 ? "+" : ""}${fmtUsd(pnl)} USDT`, accent: pnl >= 0 ? "#10b981" : "#ef4444" },
+          { label: "Status", value: "Closed" },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["options-positions"] });
       qc.invalidateQueries({ queryKey: ["options-history"] });
     },
@@ -1115,6 +1136,7 @@ export default function OptionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

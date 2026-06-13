@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 import {
@@ -986,6 +987,8 @@ export default function Forex() {
   const { user } = useAuth();
   const qc = useQueryClient();
 
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
+
   // UI state
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [category, setCategory] = useState("Major");
@@ -1097,7 +1100,12 @@ export default function Forex() {
       return r.json();
     },
     onSuccess: () => {
-      toast.success("MT5 disconnected");
+      setSuccessData({
+        kind: "generic", iconKind: "withdraw", accentColor: "#ef4444",
+        title: "MT5 Disconnected",
+        subtitle: "Your MetaTrader 5 account has been unlinked.",
+        rows: [{ label: "Status", value: "Disconnected", accent: "#ef4444" }],
+      });
       setActiveMt5(null);
       qc.invalidateQueries({ queryKey: ["mt5-accounts"] });
     },
@@ -1115,7 +1123,15 @@ export default function Forex() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`MT5 Order Placed — Ticket: ${data.ticket}`);
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: "#10b981",
+        title: "MT5 Order Placed",
+        subtitle: "Your forex order was routed to MetaTrader 5.",
+        rows: [
+          { label: "Ticket", value: String(data.ticket ?? "") },
+          { label: "Status", value: "Filled ✓", accent: "#10b981" },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["mt5-positions"] });
       qc.invalidateQueries({ queryKey: ["mt5-orders"] });
     },
@@ -1135,11 +1151,16 @@ export default function Forex() {
     },
     onSuccess: (data) => {
       const pnl = data.realizedPnl ?? 0;
-      if (pnl >= 0) {
-        toast.success(`Position Closed +${pnl.toFixed(2)} — close price: ${data.closePrice} · Ticket: ${data.ticket?.slice(-8)}`);
-      } else {
-        toast.error(`Position Closed ${pnl.toFixed(2)} — close price: ${data.closePrice} · Ticket: ${data.ticket?.slice(-8)}`);
-      }
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: pnl >= 0 ? "#10b981" : "#ef4444",
+        title: "MT5 Position Closed",
+        subtitle: "Your MetaTrader 5 position has been closed.",
+        rows: [
+          { label: "Realized PnL", value: `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`, accent: pnl >= 0 ? "#10b981" : "#ef4444" },
+          { label: "Close Price", value: String(data.closePrice ?? "") },
+          { label: "Ticket", value: String(data.ticket ?? "").slice(-8) },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["mt5-positions"] });
       qc.invalidateQueries({ queryKey: ["mt5-orders"] });
     },
@@ -1209,7 +1230,17 @@ export default function Forex() {
   const placeMutation = useMutation({
     mutationFn: (body: object) => post("/instruments/orders", body),
     onSuccess: () => {
-      toast.success(`Order placed — ${side.toUpperCase()} ${qty} lots ${selectedSymbol}`);
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: side === "buy" ? "#10b981" : "#f59e0b",
+        title: "Forex Order Placed",
+        subtitle: "Your simulated forex order has been filled.",
+        rows: [
+          { label: "Symbol", value: selectedSymbol ?? "" },
+          { label: "Side", value: side.toUpperCase(), accent: side === "buy" ? "#10b981" : "#f59e0b" },
+          { label: "Quantity", value: `${qty} lots` },
+          { label: "Type", value: orderType },
+        ],
+      });
       if (!oneClick) { setQty("0.01"); setLimitPrice(""); }
       qc.invalidateQueries({ queryKey: ["instrument-positions"] });
       qc.invalidateQueries({ queryKey: ["instrument-orders"] });
@@ -1220,7 +1251,12 @@ export default function Forex() {
   const closeMutation = useMutation({
     mutationFn: (id: number) => post(`/instruments/positions/${id}/close`),
     onSuccess: () => {
-      toast.success("Position closed");
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: "#6366f1",
+        title: "Position Closed",
+        subtitle: "Your forex position has been closed.",
+        rows: [{ label: "Status", value: "Closed", accent: "#6366f1" }],
+      });
       qc.invalidateQueries({ queryKey: ["instrument-positions"] });
     },
   });
@@ -1997,6 +2033,7 @@ export default function Forex() {
           onConnected={(acct) => setActiveMt5(acct)}
         />
       )}
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

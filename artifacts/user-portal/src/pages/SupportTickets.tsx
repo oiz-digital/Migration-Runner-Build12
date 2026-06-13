@@ -6,6 +6,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { get, post } from "@/lib/api";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,11 +55,12 @@ const PRIORITY_CLS: Record<string, string> = {
 
 const CATEGORIES = ["general", "kyc", "deposit", "withdrawal", "trading", "technical", "account"];
 
-export default function SupportTickets() {
+export default function SupportTicketsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
   const [msgText, setMsgText] = useState("");
   const [form, setForm] = useState({ subject: "", message: "", category: "general", priority: "normal" });
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -84,9 +86,20 @@ export default function SupportTickets() {
     mutationFn: (body: object) => post("/support/tickets", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/support/tickets"] });
-      toast.success("Support ticket created!");
+      const subj = form.subject;
+      const cat = form.category;
       setShowForm(false);
       setForm({ subject: "", message: "", category: "general", priority: "normal" });
+      setSuccessData({
+        kind: "generic", iconKind: "paid", accentColor: "#6366f1",
+        title: "Support Ticket Created",
+        subtitle: "Our team will respond within 24 hours.",
+        rows: [
+          { label: "Subject", value: subj },
+          { label: "Category", value: cat },
+          { label: "Status", value: "Open", accent: "#10b981" },
+        ],
+      });
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to create ticket"),
   });
@@ -109,7 +122,15 @@ export default function SupportTickets() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/support/tickets"] });
       qc.invalidateQueries({ queryKey: ["/support/tickets", selected?.id] });
-      toast.success("Ticket closed");
+      setSuccessData({
+        kind: "generic", iconKind: "paid", accentColor: "#6366f1",
+        title: "Ticket Closed",
+        subtitle: "Your support ticket has been resolved and closed.",
+        rows: [
+          { label: "Ticket #", value: String(selected?.id ?? "") },
+          { label: "Status", value: "Closed", accent: "#6366f1" },
+        ],
+      });
     },
   });
 
@@ -348,6 +369,7 @@ export default function SupportTickets() {
           </form>
         </DialogContent>
       </Dialog>
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

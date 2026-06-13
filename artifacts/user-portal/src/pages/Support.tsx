@@ -22,6 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 type Faq = { q: string; a: string };
 type FaqCategory = { category: string; icon: string; questions: Faq[] };
@@ -511,6 +512,7 @@ function ThreadView({ id, onClose }: { id: number; onClose: () => void }) {
   const qc = useQueryClient();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const threadQ = useQuery<ThreadDetail>({
@@ -538,7 +540,15 @@ function ThreadView({ id, onClose }: { id: number; onClose: () => void }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/support/threads", id] });
       qc.invalidateQueries({ queryKey: ["/support/threads"] });
-      toast.success("Ticket closed");
+      setSuccessData({
+        kind: "generic", iconKind: "paid", accentColor: "#6366f1",
+        title: "Ticket Closed",
+        subtitle: "Your support ticket has been resolved and closed.",
+        rows: [
+          { label: "Ticket #", value: String(id) },
+          { label: "Status", value: "Closed", accent: "#6366f1" },
+        ],
+      });
     },
   });
 
@@ -622,6 +632,7 @@ function ThreadView({ id, onClose }: { id: number; onClose: () => void }) {
           This ticket is closed. Open a new one if you need further help.
         </div>
       )}
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

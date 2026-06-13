@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post, del } from "@/lib/api";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { SectionCard } from "@/components/premium/SectionCard";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
@@ -65,6 +66,7 @@ export default function WalletManager() {
   const [addMasterOpen, setAddMasterOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
   const [masterForm, setMasterForm] = useState({
     coin: "", network: "BEP20", label: "", depositAddress: "", notes: "",
   });
@@ -89,22 +91,39 @@ export default function WalletManager() {
   const addMasterMutation = useMutation({
     mutationFn: (data: object) => post("/admin/master-wallets", data),
     onSuccess: () => {
-      toast.success("Master wallet added");
       qc.invalidateQueries({ queryKey: ["admin-master-wallets"] });
       setAddMasterOpen(false);
+      const label = masterForm.label;
+      const coin = masterForm.coin;
+      const network = masterForm.network;
       setMasterForm({ coin: "", network: "BEP20", label: "", depositAddress: "", notes: "" });
+      setSuccessData({
+        kind: "generic", iconKind: "deposit", accentColor: "#10b981",
+        title: "Master Wallet Added",
+        subtitle: "New hot wallet registered successfully.",
+        rows: [
+          { label: "Coin", value: coin.toUpperCase() },
+          { label: "Network", value: network },
+          { label: "Label", value: label },
+        ],
+      });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Failed to add wallet"),
+    onError: (e: any) => { toast.error(e?.message ?? "Failed to add wallet"); },
   });
 
   const deleteMasterMutation = useMutation({
     mutationFn: (id: number) => del(`/admin/master-wallets/${id}`),
     onSuccess: () => {
-      toast.success("Master wallet deleted");
       qc.invalidateQueries({ queryKey: ["admin-master-wallets"] });
       setDeleteId(null);
+      setSuccessData({
+        kind: "generic", iconKind: "withdraw", accentColor: "#ef4444",
+        title: "Master Wallet Removed",
+        subtitle: "Hot wallet deleted from the system.",
+        rows: [{ label: "Status", value: "Deleted", accent: "#ef4444" }],
+      });
     },
-    onError: () => toast.error("Failed to delete wallet"),
+    onError: () => { toast.error("Failed to delete wallet"); },
   });
 
   const users = usersQ.data?.users ?? [];
@@ -600,6 +619,7 @@ export default function WalletManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

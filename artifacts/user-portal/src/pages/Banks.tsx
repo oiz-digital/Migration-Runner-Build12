@@ -19,6 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 type Bank = {
   id: number;
@@ -54,6 +55,7 @@ export default function Banks() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<Bank | null>(null);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   const banks = banksQ.data ?? [];
   const verified = banks.filter((b) => b.status === "verified");
@@ -196,6 +198,7 @@ export default function Banks() {
         onSuccess={() => {
           qc.invalidateQueries({ queryKey: ["/banks"] });
           setAddOpen(false);
+          setGenericSuccess({ kind: "generic", iconKind: "deposit", accentColor: "emerald", title: "Bank Account Added!", subtitle: "Your bank account is now under review. Verification usually completes within 2–24 hours.", rows: [{ label: "Status", value: "Under Review" }, { label: "Next step", value: "We'll notify you once verified" }], primaryLabel: "Done" });
         }}
       />
 
@@ -217,9 +220,9 @@ export default function Banks() {
                 if (!confirmDel) return;
                 try {
                   await del(`/banks/${confirmDel.id}`);
-                  toast.success("Bank account removed");
                   qc.invalidateQueries({ queryKey: ["/banks"] });
                   setConfirmDel(null);
+                  setGenericSuccess({ kind: "generic", iconKind: "withdraw", accentColor: "rose", title: "Bank Removed", subtitle: "Your bank account has been removed. You can add a new one anytime.", rows: [{ label: "Bank", value: confirmDel?.bankName ?? "" }, { label: "Account", value: confirmDel?.accountNumber ? "••••" + confirmDel.accountNumber.slice(-4) : "" }], primaryLabel: "Done" });
                 } catch (e: any) {
                   toast.error(e?.data?.error || e?.message || "Failed to remove bank — try again");
                 }
@@ -232,6 +235,7 @@ export default function Banks() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
     </div>
   );
 }
@@ -273,7 +277,6 @@ function AddBankDialog({
         ifsc: ifsc.toUpperCase(),
         holderName: holderName.trim(),
       });
-      toast.success("Bank account added and under review — verification usually completes in 2–24 hours.");
       reset();
       onSuccess();
     } catch (e: any) {

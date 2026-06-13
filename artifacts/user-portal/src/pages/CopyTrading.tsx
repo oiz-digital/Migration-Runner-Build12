@@ -20,6 +20,7 @@ import { StatusPill } from "@/components/premium/StatusPill";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 type Trader = {
   id: number; userId: number; displayName: string; bio: string;
@@ -185,6 +186,7 @@ function FollowDialog({ trader }: { trader: Trader }) {
   const [alloc, setAlloc] = useState("500");
   const [ratio, setRatio] = useState("1");
   const [maxRisk, setMaxRisk] = useState("5");
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   const followMut = useMutation({
     mutationFn: () => post("/copy/follow", {
@@ -197,12 +199,13 @@ function FollowDialog({ trader }: { trader: Trader }) {
       qc.invalidateQueries({ queryKey: ["/copy/leaderboard"] });
       qc.invalidateQueries({ queryKey: ["/copy/me/following"] });
       setOpen(false);
-      toast.success(`Now copying ${trader.displayName}`);
+      setGenericSuccess({ kind: "generic", iconKind: "p2p", accentColor: "amber", title: "Copy Trading Started!", subtitle: `You are now copying ${trader.displayName}. Their trades will be mirrored in your account.`, rows: [{ label: "Trader", value: trader.displayName }, { label: "Allocation", value: `${Number(alloc).toLocaleString()} USDT` }, { label: "Copy Ratio", value: `${Number(ratio).toFixed(1)}×` }, { label: "Max Risk / Trade", value: `${maxRisk}%` }], primaryLabel: "View Following" });
     },
     onError: (e: any) => toast.error(e?.message || "Could not follow"),
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" className="flex-shrink-0">
@@ -241,6 +244,8 @@ function FollowDialog({ trader }: { trader: Trader }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
+    </>
   );
 }
 
@@ -255,11 +260,12 @@ function Following() {
   const totalAlloc = active.reduce((s, i) => s + Number(i.relation.allocationUsd), 0);
   const totalPnl = active.reduce((s, i) => s + Number(i.relation.pnlUsd), 0);
 
+  const [stopSuccess, setStopSuccess] = useState<GenericSuccess | null>(null);
   const stopMut = useMutation({
     mutationFn: (id: number) => post(`/copy/relations/${id}/stop`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/copy/me/following"] });
-      toast.success("Stopped copying");
+      setStopSuccess({ kind: "generic", iconKind: "p2p", accentColor: "rose", title: "Copy Stopped", subtitle: "You've stopped copying this trader. Your existing positions remain open.", rows: [], primaryLabel: "Done" });
     },
   });
 
@@ -307,6 +313,7 @@ function Following() {
           ))}
         </div>
       )}
+      <SuccessModal open={stopSuccess !== null} payload={stopSuccess} onClose={() => setStopSuccess(null)} />
     </>
   );
 }
@@ -318,6 +325,7 @@ function BecomeTrader() {
   const [fee, setFee] = useState("10");
   const [tags, setTags] = useState("");
 
+  const [traderSuccess, setTraderSuccess] = useState<GenericSuccess | null>(null);
   const createMut = useMutation({
     mutationFn: () => post("/copy/become-trader", {
       displayName: name,
@@ -327,12 +335,13 @@ function BecomeTrader() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/copy/leaderboard"] });
-      toast.success("You're now a trader! Your profile is on the leaderboard.");
+      setTraderSuccess({ kind: "generic", iconKind: "p2p", accentColor: "amber", title: "Trader Profile Live!", subtitle: "You're now listed on the leaderboard. Followers can start copying your trades.", rows: [{ label: "Display Name", value: name }, { label: "Performance Fee", value: `${Number(fee).toFixed(1)}%` }], primaryLabel: "View Leaderboard" });
     },
     onError: (e: any) => toast.error(e?.message || "Could not register"),
   });
 
   return (
+    <>
     <SectionCard
       title="Become a copy trader"
       description="Publish your trader profile and earn a performance fee on every profitable trade others copy from you."
@@ -362,5 +371,7 @@ function BecomeTrader() {
         </Button>
       </div>
     </SectionCard>
+    <SuccessModal open={traderSuccess !== null} payload={traderSuccess} onClose={() => setTraderSuccess(null)} />
+    </>
   );
 }

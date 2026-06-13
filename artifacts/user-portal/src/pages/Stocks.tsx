@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +208,7 @@ const SECTOR_COLORS: Record<string, string> = {
 export default function Stocks() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -287,7 +289,17 @@ export default function Stocks() {
   const placeMutation = useMutation({
     mutationFn: (body: object) => post("/instruments/orders", body),
     onSuccess: () => {
-      toast.success(`Order placed — ${side.toUpperCase()} ${qty} shares of ${selectedSymbol}`);
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: side === "buy" ? "#10b981" : "#f59e0b",
+        title: "Order Placed",
+        subtitle: "Your stock order has been executed.",
+        rows: [
+          { label: "Symbol", value: selectedSymbol ?? "" },
+          { label: "Side", value: side.toUpperCase(), accent: side === "buy" ? "#10b981" : "#f59e0b" },
+          { label: "Quantity", value: `${qty} shares` },
+          { label: "Type", value: orderType },
+        ],
+      });
       setQty(""); setLimitPrice("");
       qc.invalidateQueries({ queryKey: ["instrument-positions"] });
       qc.invalidateQueries({ queryKey: ["instrument-orders"] });
@@ -297,7 +309,15 @@ export default function Stocks() {
 
   const closeMutation = useMutation({
     mutationFn: (id: number) => post(`/instruments/positions/${id}/close`),
-    onSuccess: () => { toast.success("Position closed"); qc.invalidateQueries({ queryKey: ["instrument-positions"] }); },
+    onSuccess: () => {
+      setSuccessData({
+        kind: "generic", iconKind: "futures", accentColor: "#6366f1",
+        title: "Position Closed",
+        subtitle: "Your stock position has been closed.",
+        rows: [{ label: "Status", value: "Closed", accent: "#6366f1" }],
+      });
+      qc.invalidateQueries({ queryKey: ["instrument-positions"] });
+    },
     onError: (e: Error) => toast.error(e.message || "Failed to close position"),
   });
 
@@ -687,6 +707,7 @@ export default function Stocks() {
           </div>
         </div>
       </div>
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

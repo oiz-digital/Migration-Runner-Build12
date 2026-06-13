@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { StatusPill } from "@/components/premium/StatusPill";
@@ -94,6 +95,7 @@ export default function CryptoWithdrawalsPage() {
   const [coinFilter, setCoinFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   const inv = () => {
     qc.invalidateQueries({ queryKey: ["/admin/crypto-withdrawals"] });
@@ -154,23 +156,53 @@ export default function CryptoWithdrawalsPage() {
 
   const submitAction = () => {
     if (!actionRow || !actionMode) return;
+    const coin = coinMap.get(actionRow.coinId)?.symbol ?? "?";
     if (actionMode === "manual") {
       update.mutate(
         { id: actionRow.id, body: { status: "completed", txHash: txHash.trim() || null } },
-        { onSuccess: () => { closeAction(); toast({ title: "Marked as sent" }); } },
+        { onSuccess: () => {
+          closeAction();
+          setSuccessData({
+            kind: "generic", iconKind: "withdraw", accentColor: "#10b981",
+            title: "Withdrawal Processed",
+            subtitle: "Transaction marked as sent successfully.",
+            rows: [
+              { label: "Amount", value: `${actionRow.amount} ${coin}` },
+              { label: "To Address", value: actionRow.toAddress.slice(0, 12) + "…" },
+              ...(txHash.trim() ? [{ label: "Tx Hash", value: txHash.trim().slice(0, 16) + "…" }] : []),
+              { label: "Status", value: "Completed", accent: "#10b981" },
+            ],
+          });
+        } },
       );
     } else if (actionMode === "reject") {
       if (!reason.trim()) return;
       update.mutate(
         { id: actionRow.id, body: { status: "rejected", rejectReason: reason.trim() } },
-        { onSuccess: () => { closeAction(); toast({ title: "Withdrawal rejected", description: "Funds refunded to user." }); } },
+        { onSuccess: () => {
+          closeAction();
+          setSuccessData({
+            kind: "generic", iconKind: "withdraw", accentColor: "#ef4444",
+            title: "Withdrawal Rejected",
+            subtitle: "Funds have been refunded to user's wallet.",
+            rows: [
+              { label: "Amount", value: `${actionRow.amount} ${coin}`, accent: "#ef4444" },
+              { label: "User", value: actionRow.uid ?? `#${actionRow.userId}` },
+              { label: "Reason", value: reason.trim() },
+            ],
+          });
+        } },
       );
     } else if (actionMode === "auto") {
-      autoSend.mutate(actionRow.id, { onSuccess: closeAction });
+      autoSend.mutate(actionRow.id, { onSuccess: () => {
+        closeAction();
+        toast({ title: "Broadcast started", description: "Transaction signed & broadcast." });
+      } });
     }
   };
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Treasury"
@@ -543,5 +575,7 @@ export default function CryptoWithdrawalsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
+    </>
   );
 }

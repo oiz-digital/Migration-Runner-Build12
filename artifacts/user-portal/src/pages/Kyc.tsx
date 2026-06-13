@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { SectionCard } from "@/components/premium/SectionCard";
@@ -695,6 +696,7 @@ function KycSubmitDialog({
   const [selfieUrl, setSelfieUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   useEffect(() => {
     if (level !== null && prevApproved) {
@@ -746,7 +748,7 @@ function KycSubmitDialog({
         selfieUrl: lvl >= 3 ? selfieUrl : undefined,
         address: lvl >= 3 ? address.trim() : undefined,
       });
-      toast.success("Submission received! ✓ We'll review and respond within 24 hours.");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "emerald", title: "Submission Received!", subtitle: "We'll review your documents within 24 hours. You'll be notified of the outcome.", rows: [{ label: "KYC Level", value: `Level ${level}` }, { label: "Status", value: "Under Review" }, { label: "ETA", value: "Within 24 hours" }], primaryLabel: "Track Status" });
       reset();
       onSuccess();
     } catch (e: any) {
@@ -766,6 +768,7 @@ function KycSubmitDialog({
   const levelColor = levelColors[lvl] ?? "amber";
 
   return (
+    <>
     <Dialog open={level !== null} onOpenChange={(v) => { if (!v) { reset(); onOpenChange(v); } }}>
       <DialogContent className="sm:max-w-lg max-h-[92vh] overflow-y-auto">
         <DialogHeader>
@@ -974,5 +977,7 @@ function KycSubmitDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
+    </>
   );
 }

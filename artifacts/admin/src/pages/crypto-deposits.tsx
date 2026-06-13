@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { StatusPill } from "@/components/premium/StatusPill";
@@ -76,6 +77,7 @@ export default function CryptoDepositsPage() {
   const [rejectFor, setRejectFor] = useState<D | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   useEffect(() => { if (approveFor) setApproveConf(String(approveFor.confirmations || approveFor.requiredConfirmations || 12)); }, [approveFor]);
 
@@ -158,18 +160,48 @@ export default function CryptoDepositsPage() {
 
   const approve = () => {
     if (!approveFor) return;
-    update.mutate({ id: approveFor.id, body: { status: "completed", confirmations: Number(approveConf) || approveFor.requiredConfirmations } }, {
-      onSuccess: () => { setApproveFor(null); toast({ title: "Deposit approved", description: `${fmt(approveFor.amount, 8)} credited.` }); },
+    const row = approveFor;
+    const coin = coinById.get(row.coinId)?.symbol ?? "?";
+    update.mutate({ id: row.id, body: { status: "completed", confirmations: Number(approveConf) || row.requiredConfirmations } }, {
+      onSuccess: () => {
+        setApproveFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "deposit", accentColor: "#10b981",
+          title: "Deposit Approved",
+          subtitle: "Funds have been credited to user's wallet.",
+          rows: [
+            { label: "Amount", value: `${fmt(row.amount, 8)} ${coin}`, accent: "#10b981" },
+            { label: "User", value: row.uid ?? `#${row.userId}` },
+            { label: "Tx Hash", value: row.txHash ? row.txHash.slice(0, 14) + "…" : "Manual" },
+            { label: "Status", value: "Credited", accent: "#10b981" },
+          ],
+        });
+      },
     });
   };
   const reject = () => {
     if (!rejectFor) return;
-    update.mutate({ id: rejectFor.id, body: { status: "rejected" } }, {
-      onSuccess: () => { setRejectFor(null); toast({ title: "Deposit rejected" }); },
+    const row = rejectFor;
+    const coin = coinById.get(row.coinId)?.symbol ?? "?";
+    update.mutate({ id: row.id, body: { status: "rejected" } }, {
+      onSuccess: () => {
+        setRejectFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "deposit", accentColor: "#ef4444",
+          title: "Deposit Rejected",
+          subtitle: "Transaction marked as rejected.",
+          rows: [
+            { label: "Amount", value: `${fmt(row.amount, 8)} ${coin}`, accent: "#ef4444" },
+            { label: "User", value: row.uid ?? `#${row.userId}` },
+            { label: "Status", value: "Rejected", accent: "#ef4444" },
+          ],
+        });
+      },
     });
   };
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Treasury"
@@ -462,5 +494,7 @@ export default function CryptoDepositsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
+    </>
   );
 }

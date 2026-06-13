@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import {
   ListOrdered, RefreshCw, FileText, X, Layers, ArrowLeftRight, Search,
   TrendingUp, TrendingDown, Clock, CheckCircle2, XCircle, AlertCircle,
@@ -76,6 +77,7 @@ function fmtNum(n: number | string | null | undefined, digits = 4) {
 export default function Orders() {
   const queryClient = useQueryClient();
   const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
   const [fillsOrderId, setFillsOrderId] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
@@ -145,9 +147,9 @@ export default function Orders() {
   const cancelMutation = useMutation({
     mutationFn: (id: number) => post(`/orders/${id}/cancel`),
     onSuccess: () => {
-      toast.success("Order cancelled");
       setConfirmId(null);
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setGenericSuccess({ kind: "generic", iconKind: "futures", accentColor: "rose", title: "Order Cancelled", subtitle: "Your order has been cancelled. Any locked funds have been released back to your wallet.", rows: [], primaryLabel: "Done" });
     },
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Failed to cancel order");
@@ -492,6 +494,7 @@ export default function Orders() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
     </div>
   );
 }

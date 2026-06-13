@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, post, del } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { SectionCard } from "@/components/premium/SectionCard";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
@@ -46,6 +47,7 @@ export default function Web3Page() {
   const qc = useQueryClient();
 
   const [tab, setTab] = useState<"swap" | "bridge" | "wallets" | "history">("swap");
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   const networksQ = useQuery<{ networks: Network[] }>({ queryKey: ["web3-networks"], queryFn: () => get(`/web3/networks`) });
   const networks = networksQ.data?.networks ?? [];
@@ -90,7 +92,19 @@ export default function Web3Page() {
       fromAmount: Number(swapAmount), slippageBps,
     }),
     onSuccess: (r: any) => {
-      toast.success(`Swap done! Got ~${fmtTok(Number(r.swap.toAmount))} ${tokens.find((t) => t.id === toTokId)?.symbol}`);
+      const toAmt = fmtTok(Number(r?.swap?.toAmount ?? 0));
+      const toSym = tokens.find((t) => t.id === toTokId)?.symbol ?? "";
+      const fromSym = tokens.find((t) => t.id === fromTokId)?.symbol ?? "";
+      setSuccessData({
+        kind: "generic", iconKind: "convert", accentColor: "#6366f1",
+        title: "Swap Completed",
+        subtitle: "Your on-chain token swap was successful.",
+        rows: [
+          { label: "You Sent", value: `${swapAmount} ${fromSym}` },
+          { label: "You Got", value: `~${toAmt} ${toSym}`, accent: "#10b981" },
+          { label: "Status", value: "Confirmed ✓", accent: "#10b981" },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["web3-swaps"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Swap failed — please try again"),
@@ -122,7 +136,19 @@ export default function Web3Page() {
       fromNetworkId: brFrom, toNetworkId: brTo, tokenSymbol: brToken, fromAmount: Number(brAmt),
     }),
     onSuccess: () => {
-      toast.success("Bridge initiated — cross-chain transfer is underway.");
+      const fromNet = networks.find(n => n.id === brFrom)?.displayName ?? "";
+      const toNet = networks.find(n => n.id === brTo)?.displayName ?? "";
+      setSuccessData({
+        kind: "generic", iconKind: "transfer", accentColor: "#8b5cf6",
+        title: "Bridge Initiated",
+        subtitle: "Cross-chain transfer is underway — usually takes 2–10 minutes.",
+        rows: [
+          { label: "Asset", value: `${brAmt} ${brToken}` },
+          { label: "From", value: fromNet },
+          { label: "To", value: toNet, accent: "#10b981" },
+          { label: "Status", value: "Pending", accent: "#f59e0b" },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["web3-bridges"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Bridge failed — please try again"),
@@ -145,8 +171,20 @@ export default function Web3Page() {
   const addWallet = useMutation({
     mutationFn: () => post(`/web3/wallets`, newWallet),
     onSuccess: () => {
-      toast.success("Wallet added — address is now being tracked.");
+      const addr = newWallet.address;
+      const label = newWallet.label;
+      const net = networks.find(n => n.id === newWallet.networkId)?.displayName ?? "";
       setNewWallet({ ...newWallet, address: "", label: "" });
+      setSuccessData({
+        kind: "generic", iconKind: "deposit", accentColor: "#10b981",
+        title: "Wallet Tracked",
+        subtitle: "This address is now being monitored on-chain.",
+        rows: [
+          { label: "Label", value: label || "Unnamed" },
+          { label: "Network", value: net },
+          { label: "Address", value: `${addr.slice(0, 8)}…${addr.slice(-6)}` },
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["web3-wallets"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to add wallet — please try again"),
@@ -472,6 +510,7 @@ export default function Web3Page() {
           </SectionCard>
         </TabsContent>
       </Tabs>
+      <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
     </div>
   );
 }

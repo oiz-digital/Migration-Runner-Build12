@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { StatusPill } from "@/components/premium/StatusPill";
@@ -56,6 +57,7 @@ export default function InrWithdrawalsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   useEffect(() => { if (paidFor) setPaidUtr(""); }, [paidFor]);
   useEffect(() => { if (rejectFor) setRejectReason(""); }, [rejectFor]);
@@ -102,18 +104,47 @@ export default function InrWithdrawalsPage() {
 
   const markPaid = () => {
     if (!paidFor) return;
-    update.mutate({ id: paidFor.id, body: { status: "completed", refId: paidUtr.trim() || paidFor.refId } }, {
-      onSuccess: () => { setPaidFor(null); toast({ title: "Marked paid", description: `₹${fmtINR(paidFor.amount)} debited.` }); },
+    const row = paidFor;
+    const bank = bankById.get(row.bankId);
+    update.mutate({ id: row.id, body: { status: "completed", refId: paidUtr.trim() || row.refId } }, {
+      onSuccess: () => {
+        setPaidFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "inr_withdraw", accentColor: "#10b981",
+          title: "INR Withdrawal Processed",
+          subtitle: "Payment marked as sent successfully.",
+          rows: [
+            { label: "Amount", value: `₹${fmtINR(row.amount)}`, accent: "#10b981" },
+            { label: "Account", value: bank ? `${bank.holderName} · ${bank.accountNo.slice(-4).padStart(bank.accountNo.length, "•")}` : `Bank #${row.bankId}` },
+            { label: "UTR / Ref", value: paidUtr.trim() || row.refId },
+            { label: "Status", value: "Completed", accent: "#10b981" },
+          ],
+        });
+      },
     });
   };
   const reject = () => {
     if (!rejectFor || !rejectReason.trim()) return;
-    update.mutate({ id: rejectFor.id, body: { status: "rejected", rejectReason: rejectReason.trim() } }, {
-      onSuccess: () => { setRejectFor(null); toast({ title: "Withdrawal rejected", description: "Funds refund kar diye gaye." }); },
+    const row = rejectFor;
+    update.mutate({ id: row.id, body: { status: "rejected", rejectReason: rejectReason.trim() } }, {
+      onSuccess: () => {
+        setRejectFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "inr_withdraw", accentColor: "#ef4444",
+          title: "Withdrawal Rejected",
+          subtitle: "Funds refunded to user's INR wallet.",
+          rows: [
+            { label: "Amount", value: `₹${fmtINR(row.amount)}`, accent: "#ef4444" },
+            { label: "User", value: row.uid ?? `#${row.userId}` },
+            { label: "Reason", value: rejectReason.trim() },
+          ],
+        });
+      },
     });
   };
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Treasury"
@@ -294,5 +325,7 @@ export default function InrWithdrawalsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
+    </>
   );
 }

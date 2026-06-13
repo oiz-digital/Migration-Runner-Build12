@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { StatusPill } from "@/components/premium/StatusPill";
@@ -55,6 +56,7 @@ export default function InrDepositsPage() {
   const [rejectNotes, setRejectNotes] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<PageSizeOption>(20);
+  const [successData, setSuccessData] = useState<GenericSuccess | null>(null);
 
   useEffect(() => { if (rejectFor) setRejectNotes(""); }, [rejectFor]);
 
@@ -98,18 +100,46 @@ export default function InrDepositsPage() {
 
   const approve = () => {
     if (!approveFor) return;
-    update.mutate({ id: approveFor.id, body: { status: "completed" } }, {
-      onSuccess: () => { setApproveFor(null); toast({ title: "Deposit approved", description: `₹${fmtINR(approveFor.amount)} credited.` }); },
+    const row = approveFor;
+    update.mutate({ id: row.id, body: { status: "completed" } }, {
+      onSuccess: () => {
+        setApproveFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "inr_deposit", accentColor: "#10b981",
+          title: "INR Deposit Approved",
+          subtitle: "Funds have been credited to user's wallet.",
+          rows: [
+            { label: "Amount", value: `₹${fmtINR(row.amount)}`, accent: "#10b981" },
+            { label: "User", value: row.uid ?? `#${row.userId}` },
+            { label: "UTR", value: row.utr || row.refId },
+            { label: "Status", value: "Credited", accent: "#10b981" },
+          ],
+        });
+      },
     });
   };
   const reject = () => {
     if (!rejectFor || !rejectNotes.trim()) return;
-    update.mutate({ id: rejectFor.id, body: { status: "rejected", notes: rejectNotes.trim() } }, {
-      onSuccess: () => { setRejectFor(null); toast({ title: "Deposit rejected" }); },
+    const row = rejectFor;
+    update.mutate({ id: row.id, body: { status: "rejected", notes: rejectNotes.trim() } }, {
+      onSuccess: () => {
+        setRejectFor(null);
+        setSuccessData({
+          kind: "generic", iconKind: "inr_deposit", accentColor: "#ef4444",
+          title: "INR Deposit Rejected",
+          subtitle: "Deposit marked as rejected.",
+          rows: [
+            { label: "Amount", value: `₹${fmtINR(row.amount)}`, accent: "#ef4444" },
+            { label: "User", value: row.uid ?? `#${row.userId}` },
+            { label: "Reason", value: rejectNotes.trim() },
+          ],
+        });
+      },
     });
   };
 
   return (
+    <>
     <div className="space-y-6">
       <PageHeader
         eyebrow="Treasury"
@@ -270,5 +300,7 @@ export default function InrDepositsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    <SuccessModal open={successData !== null} payload={successData} onClose={() => setSuccessData(null)} />
+    </>
   );
 }

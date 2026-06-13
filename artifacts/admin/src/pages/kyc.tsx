@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 import { PageHeader } from "@/components/premium/PageHeader";
 import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { StatusPill } from "@/components/premium/StatusPill";
@@ -336,14 +337,27 @@ function UserDossierSheet({
   const [reasonNote, setReasonNote] = useState("");
   const [aiReasons, setAiReasons] = useState<string[] | null>(null);
   const [pickedReason, setPickedReason] = useState<string | null>(null);
+  const [kycSuccess, setKycSuccess] = useState<GenericSuccess | null>(null);
 
   const moderate = useMutation({
     mutationFn: ({ id, body }: { id: number; body: { status: string; rejectReason?: string } }) =>
       patch(`/admin/kyc/${id}`, body),
     onSuccess: (_d, vars) => {
-      toast({ title: vars.body.status === "approved" ? "KYC approved" : "KYC rejected", description: `Record #${vars.id} updated.` });
       qc.invalidateQueries({ queryKey: ["/admin/kyc"] });
       qc.invalidateQueries({ queryKey: ["/admin/users", userId, "full"] });
+      const approved = vars.body.status === "approved";
+      setKycSuccess({
+        kind: "generic",
+        iconKind: approved ? "paid" : "dispute",
+        accentColor: approved ? "#10b981" : "#ef4444",
+        title: approved ? "KYC Approved" : "KYC Rejected",
+        subtitle: approved ? "User's KYC record has been approved and level upgraded." : "User notified. KYC level held.",
+        rows: [
+          { label: "Record", value: `#${vars.id}` },
+          { label: "Decision", value: approved ? "Approved" : "Rejected", accent: approved ? "#10b981" : "#ef4444" },
+          ...(vars.body.rejectReason ? [{ label: "Reason", value: vars.body.rejectReason }] : []),
+        ],
+      });
       setRejectMode(false);
       setRejectReason("");
       setReasonNote("");
@@ -403,6 +417,7 @@ function UserDossierSheet({
   }, [data, current]);
 
   return (
+    <>
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="right"
@@ -640,6 +655,8 @@ function UserDossierSheet({
         )}
       </SheetContent>
     </Sheet>
+    <SuccessModal open={kycSuccess !== null} payload={kycSuccess} onClose={() => setKycSuccess(null)} />
+    </>
   );
 }
 

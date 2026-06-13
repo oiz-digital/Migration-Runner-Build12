@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { get, patch, post } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { PaginationBar, type PageSizeOption } from "@/components/premium/PaginationBar";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -93,6 +94,7 @@ function initials(name: string, email: string): string {
 export default function UsersPage() {
   const { user: me } = useAuth();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [view, setView] = useState<number | null>(null);
   const [fundUser, setFundUser] = useState<User | null>(null);
@@ -155,9 +157,11 @@ export default function UsersPage() {
   const verify = useMutation({
     mutationFn: (vars: { id: number; channel: "email" | "phone"; value: boolean }) =>
       post(`/admin/users/${vars.id}/verify`, { channel: vars.channel, value: vars.value }),
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["/admin/users", view, "full"] });
       qc.invalidateQueries({ queryKey: ["/admin/users-search"] });
+      const ch = vars.channel === "email" ? "Email" : "Phone";
+      toast({ title: `${ch} ${vars.value ? "verified" : "unverified"}`, description: `${ch} verification ${vars.value ? "granted" : "revoked"}.` });
     },
   });
 
@@ -166,14 +170,16 @@ export default function UsersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/admin/users", view, "full"] });
       qc.invalidateQueries({ queryKey: ["/admin/users-search"] });
+      toast({ title: "2FA disabled", description: "User's two-factor authentication has been removed." });
     },
   });
   const freeze = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       post<{ ok: boolean; status: string; sessionsRevoked: number }>(`/admin/users/${id}/freeze`, { reason }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/admin/users", view, "full"] });
       qc.invalidateQueries({ queryKey: ["/admin/users-search"] });
+      toast({ title: "Account frozen", description: `${data.sessionsRevoked} session(s) revoked. User is now locked out.` });
     },
   });
   const unfreeze = useMutation({
@@ -181,12 +187,14 @@ export default function UsersPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/admin/users", view, "full"] });
       qc.invalidateQueries({ queryKey: ["/admin/users-search"] });
+      toast({ title: "Account unfrozen", description: "User can now log in and trade normally." });
     },
   });
   const forceLogout = useMutation({
     mutationFn: (id: number) => post<{ ok: boolean; revoked: number }>(`/admin/users/${id}/force-logout`, {}),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/admin/users", view, "full"] });
+      toast({ title: "Sessions revoked", description: `${data.revoked} active session(s) terminated.` });
     },
   });
 

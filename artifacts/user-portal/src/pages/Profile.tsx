@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 type ProfileResp = {
   id: string;
@@ -111,6 +112,7 @@ export default function Profile() {
 
   // Edit mode
   const [editing, setEditing] = useState(false);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -125,9 +127,9 @@ export default function Profile() {
   const saveProfile = useMutation({
     mutationFn: () => put("/user/profile", { firstName, lastName, phone }),
     onSuccess: () => {
-      toast.success("Profile updated");
       setEditing(false);
       qc.invalidateQueries({ queryKey: ["/user/profile"] });
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "emerald", title: "Profile Updated!", subtitle: "Your profile information has been saved successfully.", rows: [{ label: "Name", value: [firstName, lastName].filter(Boolean).join(" ") || "—" }, { label: "Phone", value: phone || "—" }], primaryLabel: "Done" });
     },
     onError: (e: any) => toast.error(e?.data?.message || e.message || "Update failed"),
   });
@@ -391,6 +393,7 @@ export default function Profile() {
           })}
         </div>
       </div>
+      <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
     </div>
   );
 }
@@ -582,13 +585,14 @@ function LoginPrefsCard({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const [loginPrefSuccess, setLoginPrefSuccess] = useState<GenericSuccess | null>(null);
   const m = useMutation({
     mutationFn: (body: { loginEmailOtpEnabled?: boolean; loginPhoneOtpEnabled?: boolean }) =>
       patch("/security/login-prefs", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/security/me"] });
       onSaved();
-      toast.success("Login preferences updated");
+      setLoginPrefSuccess({ kind: "generic", iconKind: "paid", accentColor: "emerald", title: "Preferences Saved!", subtitle: "Your login security preferences have been updated.", rows: [], primaryLabel: "Done" });
     },
     onError: (e: any) =>
       toast.error(e?.data?.error || e?.message || "Couldn't update"),
@@ -649,6 +653,7 @@ function LoginPrefsCard({
       <div className="text-[11px] text-muted-foreground mt-3">
         2FA: <span className={sec?.twoFaEnabled ? "text-emerald-400 font-semibold" : ""}>{sec?.twoFaEnabled ? "Enabled" : "Off"}</span> — manage from Settings → Security.
       </div>
+      <SuccessModal open={loginPrefSuccess !== null} payload={loginPrefSuccess} onClose={() => setLoginPrefSuccess(null)} />
     </Card>
   );
 }

@@ -14,6 +14,7 @@ import { PremiumStatCard } from "@/components/premium/PremiumStatCard";
 import { SectionCard } from "@/components/premium/SectionCard";
 import { EmptyState } from "@/components/premium/EmptyState";
 import { StatusPill } from "@/components/premium/StatusPill";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 interface PriceAlert {
   id: number;
@@ -31,6 +32,7 @@ export default function PriceAlerts() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ symbol: "BTC", condition: "above", targetPrice: "", note: "" });
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   const alertsQ = useQuery<PriceAlert[]>({
     queryKey: ["/price-alerts"],
@@ -42,7 +44,17 @@ export default function PriceAlerts() {
     mutationFn: (data: object) => post("/price-alerts", data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/price-alerts"] });
-      toast.success("Price alert created");
+      setGenericSuccess({
+        kind: "generic", iconKind: "paid", accentColor: "amber",
+        title: "Alert Created!",
+        subtitle: `You'll be notified when ${form.symbol.toUpperCase()} ${form.condition === "above" ? "rises above" : "falls below"} $${Number(form.targetPrice).toLocaleString()}`,
+        rows: [
+          { label: "Coin", value: form.symbol.toUpperCase() },
+          { label: "Condition", value: form.condition === "above" ? "Above" : "Below" },
+          { label: "Target", value: `$${Number(form.targetPrice).toLocaleString(undefined, { maximumFractionDigits: 2 })}` },
+        ],
+        primaryLabel: "Done",
+      });
       setShowForm(false);
       setForm({ symbol: "BTC", condition: "above", targetPrice: "", note: "" });
     },
@@ -53,7 +65,7 @@ export default function PriceAlerts() {
     mutationFn: (id: number) => del(`/price-alerts/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/price-alerts"] });
-      toast.success("Alert deleted");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "rose", title: "Alert Removed", subtitle: "Your price alert has been deleted.", rows: [], primaryLabel: "Done" });
     },
     onError: () => toast.error("Failed to delete alert"),
   });
@@ -65,7 +77,7 @@ export default function PriceAlerts() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/price-alerts"] });
-      toast.success("Alert disabled");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "amber", title: "Alert Paused", subtitle: "This alert won't fire while paused. You can re-enable it anytime.", rows: [], primaryLabel: "Got it" });
     },
   });
 
@@ -228,6 +240,7 @@ export default function PriceAlerts() {
           </form>
         </DialogContent>
       </Dialog>
+      <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
     </div>
   );
 }

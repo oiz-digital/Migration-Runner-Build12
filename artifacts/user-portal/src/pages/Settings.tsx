@@ -25,6 +25,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { SuccessModal, type GenericSuccess } from "@/components/SuccessModal";
 
 type SecurityResp = {
   twoFaEnabled: boolean;
@@ -306,6 +307,7 @@ function TwoFaDialog({
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   useEffect(() => {
     if (mode === null) {
@@ -343,7 +345,7 @@ function TwoFaDialog({
       // 2. Enable / disable
       const path = mode === "enable" ? "/security/2fa/enable" : "/security/2fa/disable";
       await post(path, { otpId });
-      toast.success(mode === "enable" ? "2FA enabled — you'll be asked for a code on your next sign-in." : "Two-factor authentication is now off.");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: mode === "enable" ? "emerald" : "rose", title: mode === "enable" ? "2FA Enabled!" : "2FA Disabled", subtitle: mode === "enable" ? "Your account is now protected with two-factor authentication. You'll be asked for a code on every sign-in." : "Two-factor authentication has been turned off. Enable it again anytime for extra security.", rows: [], primaryLabel: "Done" });
       onSuccess();
     } catch (e: any) {
       const msg = e instanceof ApiError ? (e.data?.error || e.message) : e?.message;
@@ -354,6 +356,7 @@ function TwoFaDialog({
   };
 
   return (
+    <>
     <Dialog open={mode !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -418,6 +421,8 @@ function TwoFaDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
+    </>
   );
 }
 
@@ -427,6 +432,7 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
 
   useEffect(() => { if (!open) { setCurrent(""); setNext(""); setConfirm(""); setLoading(false); } }, [open]);
 
@@ -442,7 +448,7 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
     setLoading(true);
     try {
       await post("/auth/change-password", { currentPassword: current, newPassword: next });
-      toast.success("Password changed — use your new password next time you sign in.");
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "emerald", title: "Password Changed!", subtitle: "Your new password is now active. Use it the next time you sign in.", rows: [], primaryLabel: "Done" });
       onOpenChange(false);
     } catch (e: any) {
       const msg = e instanceof ApiError ? (e.data?.message || e.data?.error || e.message) : e?.message;
@@ -453,6 +459,7 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -488,6 +495,8 @@ function ChangePasswordDialog({ open, onOpenChange }: { open: boolean; onOpenCha
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
+    </>
   );
 }
 
@@ -496,11 +505,12 @@ function RevokeSessionsDialog({
   open, onOpenChange, onSuccess,
 }: { open: boolean; onOpenChange: (v: boolean) => void; onSuccess: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
   const submit = async () => {
     setLoading(true);
     try {
       const r = await post<{ removed: number }>("/security/sessions/revoke-others", {});
-      toast.success(`Signed out of ${r.removed} other device${r.removed === 1 ? "" : "s"}.`);
+      setGenericSuccess({ kind: "generic", iconKind: "paid", accentColor: "rose", title: "Sessions Revoked!", subtitle: `You've been signed out of ${r.removed} other device${r.removed === 1 ? "" : "s"}. Only your current session remains active.`, rows: [{ label: "Devices removed", value: String(r.removed) }], primaryLabel: "Done" });
       onSuccess();
     } catch (e: any) {
       toast.error(e?.message || "Failed — please try again");
@@ -509,6 +519,7 @@ function RevokeSessionsDialog({
     }
   };
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -526,6 +537,8 @@ function RevokeSessionsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <SuccessModal open={genericSuccess !== null} payload={genericSuccess} onClose={() => setGenericSuccess(null)} />
+    </>
   );
 }
 
