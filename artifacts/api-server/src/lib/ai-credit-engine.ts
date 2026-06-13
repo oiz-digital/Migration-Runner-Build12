@@ -35,8 +35,21 @@ import { loadReferralConfig } from "../routes/admin-referrals";
 /** Absolute daily return cap — no plan ever earns more than this per day */
 const MAX_DAILY_PCT = 1.3;
 
-/** Engine fires every hour */
-const TICK_MS = 60 * 60 * 1000;
+/** How often the engine wakes up to check which subs are due */
+const CHECK_INTERVAL_MS = 5 * 60 * 1000;   // every 5 minutes
+
+/** Target credit interval per subscription — one credit per hour */
+const CREDIT_INTERVAL_MS = 60 * 60 * 1000; // 60 minutes
+
+/**
+ * Spread credits across the full hour so they don't all fire at once.
+ * Each subscription gets a deterministic minute-offset in [0, 55] based on
+ * its id (12 buckets × 5 min = 60 min coverage).
+ * Example: sub id=1 → 0 min offset, id=5 → 20 min, id=12 → 55 min.
+ */
+function subCreditOffsetMs(subId: number): number {
+  return (subId % 12) * 5 * 60_000; // 0 – 55 min in 5-min steps
+}
 
 // ─── Risk profiles ────────────────────────────────────────────────────────────
 interface RiskProfile {
@@ -181,8 +194,8 @@ async function creditTick(): Promise<void> {
   if (!isLeader()) return;
 
   const now = new Date();
-  // Unique integer per hour — deterministic seed for this tick
-  const tickKey = Math.floor(now.getTime() / TICK_MS);
+  // Unique integer per HOUR — deterministic seed (independent of check interval)
+  const tickKey = Math.floor(now.getTime() / CREDIT_INTERVAL_MS);
   const dayKey  = Math.floor(now.getTime() / 86_400_000);
 
   const usdtCoinId = await getUsdtCoinId();
@@ -210,10 +223,21 @@ async function creditTick(): Promise<void> {
       // ── Hard cap: never above MAX_DAILY_PCT regardless of plan setting ──
       const effectiveDailyPct = Math.min(planDailyPct, MAX_DAILY_PCT);
 
-      const lastCredited = sub.lastCreditedAt ?? sub.startedAt;
+      // ── Staggered due-time: spread credits evenly across the hour ────────
+      // First credit = startedAt + subOffset (so bots started together still
+      // diverge). Subsequent credits = lastCreditedAt + 60 min.
+      // This ensures 24 bots never all credit at the same moment.
+      const lastCreditedAt = sub.lastCreditedAt;
+      const offsetMs = subCreditOffsetMs(sub.id);
+      const nextDueMs = lastCreditedAt
+        ? new Date(lastCreditedAt).getTime() + CREDIT_INTERVAL_MS
+        : new Date(sub.startedAt).getTime() + offsetMs;
+      if (now.getTime() < nextDueMs) continue;
+
+      // Compute elapsed for baseTick (how many hours since last credit)
+      const lastCredited = lastCreditedAt ?? sub.startedAt;
       const elapsedMs    = now.getTime() - new Date(lastCredited).getTime();
       const elapsedHours = elapsedMs / (1000 * 60 * 60);
-      if (elapsedHours < 0.5) continue;
 
       // ── Risk profile ─────────────────────────────────────────────────────
       const riskKey = (plan.riskLevel ?? "medium").toLowerCase();
@@ -399,7 +423,7 @@ export function startAICreditEngine(): void {
       creditTick().catch(err =>
         logger.warn({ err: (err as Error)?.message }, "ai-credit: tick failed"),
       ),
-    TICK_MS,
+    CHECK_INTERVAL_MS,
   );
 
   logger.info(
