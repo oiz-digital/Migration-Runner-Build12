@@ -729,7 +729,7 @@ function CoinFormDialog({
   }, [open, initial?.id]);
 
   const set = <K extends keyof Coin>(k: K, val: Coin[K] | null | undefined) =>
-    setV((p) => ({ ...p, [k]: val as any }));
+    setV((p) => ({ ...p, [k]: val } as Partial<Coin>));
 
   const isManual = v.priceSource === "manual";
   const symValid = !!v.symbol && /^[A-Z0-9]{2,15}$/.test(v.symbol);
@@ -756,7 +756,7 @@ function CoinFormDialog({
             <Field label="Symbol *" hint="Uppercase, 2–15 chars (e.g. BTC, USDT)">
               <Input
                 value={v.symbol ?? ""}
-                onChange={(e) => set("symbol", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") as any)}
+                onChange={(e) => set("symbol", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                 placeholder="BTC"
                 data-testid="input-coin-symbol"
               />
@@ -764,13 +764,13 @@ function CoinFormDialog({
             <Field label="Name *">
               <Input
                 value={v.name ?? ""}
-                onChange={(e) => set("name", e.target.value as any)}
+                onChange={(e) => set("name", e.target.value)}
                 placeholder="Bitcoin"
                 data-testid="input-coin-name"
               />
             </Field>
             <Field label="Type">
-              <Select value={v.type ?? "crypto"} onValueChange={(t) => set("type", t as any)}>
+              <Select value={v.type ?? "crypto"} onValueChange={(t) => set("type", t)}>
                 <SelectTrigger data-testid="select-coin-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="crypto">Crypto</SelectItem>
@@ -783,7 +783,7 @@ function CoinFormDialog({
               <Input
                 type="number" min={0} max={18}
                 value={v.decimals ?? 8}
-                onChange={(e) => set("decimals", Number(e.target.value) as any)}
+                onChange={(e) => set("decimals", Number(e.target.value))}
                 data-testid="input-coin-decimals"
               />
             </Field>
@@ -792,7 +792,7 @@ function CoinFormDialog({
           {/* Pricing */}
           <FormSection icon={CircleDollarSign} title="Pricing">
             <Field label="Price source">
-              <Select value={v.priceSource ?? "binance"} onValueChange={(t) => set("priceSource", t as any)}>
+              <Select value={v.priceSource ?? "binance"} onValueChange={(t) => set("priceSource", t)}>
                 <SelectTrigger data-testid="select-price-source"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="binance">Live (CoinGecko/Binance)</SelectItem>
@@ -804,14 +804,14 @@ function CoinFormDialog({
               <Input
                 value={v.binanceSymbol ?? ""}
                 placeholder="e.g. BTCUSDT"
-                onChange={(e) => set("binanceSymbol", e.target.value.toUpperCase() as any)}
+                onChange={(e) => set("binanceSymbol", e.target.value.toUpperCase())}
                 data-testid="input-binance-symbol"
               />
             </Field>
             <Field label="Manual price (USDT)" hint={isManual ? "Used as live price" : "Only when source = manual"}>
               <Input
                 value={v.manualPrice ?? ""}
-                onChange={(e) => set("manualPrice", e.target.value as any)}
+                onChange={(e) => set("manualPrice", e.target.value)}
                 placeholder="0.00"
                 disabled={!isManual}
                 data-testid="input-manual-price"
@@ -820,14 +820,14 @@ function CoinFormDialog({
             <Field label="Current price (USDT)" hint="Auto-updated by feeds">
               <Input
                 value={v.currentPrice ?? "0"}
-                onChange={(e) => set("currentPrice", e.target.value as any)}
+                onChange={(e) => set("currentPrice", e.target.value)}
                 data-testid="input-current-price"
               />
             </Field>
             <Field label="24h change %">
               <Input
                 value={v.change24h ?? "0"}
-                onChange={(e) => set("change24h", e.target.value as any)}
+                onChange={(e) => set("change24h", e.target.value)}
                 placeholder="0.00"
                 data-testid="input-change-24h"
               />
@@ -836,7 +836,7 @@ function CoinFormDialog({
               <Input
                 type="number"
                 value={v.marketCapRank ?? ""}
-                onChange={(e) => set("marketCapRank", e.target.value ? Number(e.target.value) as any : null)}
+                onChange={(e) => set("marketCapRank", e.target.value ? Number(e.target.value) : null)}
                 placeholder="—"
                 data-testid="input-market-rank"
               />
@@ -846,7 +846,7 @@ function CoinFormDialog({
           {/* Listing & visibility */}
           <FormSection icon={ListChecks} title="Listing & Visibility">
             <Field label="Status">
-              <Select value={v.status ?? "active"} onValueChange={(t) => set("status", t as any)}>
+              <Select value={v.status ?? "active"} onValueChange={(t) => set("status", t)}>
                 <SelectTrigger data-testid="select-coin-status"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
@@ -859,7 +859,7 @@ function CoinFormDialog({
               <Input
                 type="datetime-local"
                 value={v.listingAt ? new Date(v.listingAt).toISOString().slice(0, 16) : ""}
-                onChange={(e) => set("listingAt", (e.target.value || null) as any)}
+                onChange={(e) => set("listingAt", e.target.value || null)}
                 data-testid="input-listing-at"
               />
             </Field>
@@ -871,7 +871,7 @@ function CoinFormDialog({
                 </div>
                 <Switch
                   checked={v.isListed ?? true}
-                  onCheckedChange={(c) => set("isListed", c as any)}
+                  onCheckedChange={(c) => set("isListed", Boolean(c))}
                   data-testid="switch-coin-listed"
                 />
               </div>
@@ -884,7 +884,7 @@ function CoinFormDialog({
               <div className="flex items-center gap-3">
                 <Input
                   value={v.logoUrl ?? ""}
-                  onChange={(e) => set("logoUrl", (e.target.value || null) as any)}
+                  onChange={(e) => set("logoUrl", e.target.value || null)}
                   placeholder="https://…"
                   data-testid="input-logo-url"
                 />
@@ -901,7 +901,7 @@ function CoinFormDialog({
                 <Input
                   className="pl-8"
                   value={v.infoUrl ?? ""}
-                  onChange={(e) => set("infoUrl", (e.target.value || null) as any)}
+                  onChange={(e) => set("infoUrl", e.target.value || null)}
                   placeholder="https://bitcoin.org"
                   data-testid="input-info-url"
                 />
@@ -911,7 +911,7 @@ function CoinFormDialog({
               <Textarea
                 rows={3}
                 value={v.description ?? ""}
-                onChange={(e) => set("description", (e.target.value || null) as any)}
+                onChange={(e) => set("description", e.target.value || null)}
                 placeholder="Short description users will see…"
                 data-testid="textarea-coin-description"
               />

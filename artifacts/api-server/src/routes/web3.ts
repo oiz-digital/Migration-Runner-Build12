@@ -21,11 +21,35 @@
  */
 import { Router, type IRouter } from "express";
 import { and, eq, desc, sql, asc, inArray } from "drizzle-orm";
+import { z } from "zod";
 import { db, web3NetworksTable, web3TokensTable, web3WalletsTable, web3SwapsTable, web3BridgesTable, walletsTable, coinsTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getSwapQuote, getBridgeQuote, fakeTxHash } from "../lib/web3-quote";
 
 const router: IRouter = Router();
+
+// ─── Zod schemas ─────────────────────────────────────────────────────────────
+const saveWalletSchema = z.object({
+  networkId: z.number({ invalid_type_error: "networkId must be a number" }).int().positive(),
+  address:   z.string().min(24).max(100),
+  label:     z.string().max(80).optional(),
+  kind:      z.enum(["watch", "external"]).default("watch"),
+});
+
+const swapInputSchema = z.object({
+  networkId:   z.number({ invalid_type_error: "networkId must be a number" }).int().positive(),
+  fromTokenId: z.number({ invalid_type_error: "fromTokenId must be a number" }).int().positive(),
+  toTokenId:   z.number({ invalid_type_error: "toTokenId must be a number" }).int().positive(),
+  fromAmount:  z.number({ invalid_type_error: "fromAmount must be a number" }).positive("fromAmount must be > 0"),
+  slippageBps: z.number().int().min(0).max(3000).optional(),
+});
+
+const bridgeInputSchema = z.object({
+  fromNetworkId: z.number({ invalid_type_error: "fromNetworkId must be a number" }).int().positive(),
+  toNetworkId:   z.number({ invalid_type_error: "toNetworkId must be a number" }).int().positive(),
+  tokenSymbol:   z.string().min(1).max(20).transform(s => s.toUpperCase()),
+  fromAmount:    z.number({ invalid_type_error: "fromAmount must be a number" }).positive("fromAmount must be > 0"),
+});
 
 // ─── Networks & tokens (public) ──────────────────────────────────────────────
 router.get("/web3/networks", async (_req, res): Promise<void> => {
@@ -64,11 +88,11 @@ router.get("/web3/wallets", requireAuth, async (req, res): Promise<void> => {
 
 router.post("/web3/wallets", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const { networkId, address, label, kind } = req.body ?? {};
-  const nId = Number(networkId);
-  const addr = String(address ?? "").trim();
-  if (!nId || !addr) { res.status(400).json({ error: "networkId and address required" }); return; }
-  if (addr.length < 24 || addr.length > 100) { res.status(400).json({ error: "address looks invalid" }); return; }
+  const walletParsed = saveWalletSchema.safeParse(req.body);
+  if (!walletParsed.success) {
+    res.status(400).json({ error: walletParsed.error.errors[0]?.message ?? "Invalid request body" }); return;
+  }
+  const { networkId: nId, address: addr, label, kind } = walletParsed.data;
   const [n] = await db.select().from(web3NetworksTable).where(eq(web3NetworksTable.id, nId)).limit(1);
   if (!n) { res.status(400).json({ error: "network not found" }); return; }
 
@@ -78,8 +102,8 @@ router.post("/web3/wallets", requireAuth, async (req, res): Promise<void> => {
 
   try {
     const [row] = await db.insert(web3WalletsTable).values({
-      userId, networkId: nId, address: addr, label: String(label ?? "").slice(0, 80),
-      kind: kind === "external" ? "external" : "watch",
+      userId, networkId: nId, address: addr, label: label ?? "",
+      kind,
     }).returning();
     res.status(201).json(row);
   } catch (e: any) {
@@ -98,12 +122,10 @@ router.delete("/web3/wallets/:id", requireAuth, async (req, res): Promise<void> 
 
 // ─── Swap quote + execute ────────────────────────────────────────────────────
 router.post("/web3/quote", async (req, res): Promise<void> => {
-  const { networkId, fromTokenId, toTokenId, fromAmount, slippageBps } = req.body ?? {};
+  const swapQ = swapInputSchema.safeParse(req.body);
+  if (!swapQ.success) { res.status(400).json({ error: swapQ.error.errors[0]?.message ?? "Invalid request body" }); return; }
   try {
-    const q = await getSwapQuote({
-      networkId: Number(networkId), fromTokenId: Number(fromTokenId), toTokenId: Number(toTokenId),
-      fromAmount: Number(fromAmount), slippageBps: slippageBps !== undefined ? Number(slippageBps) : undefined,
-    });
+    const q = await getSwapQuote(swapQ.data);
     res.json(q);
   } catch (e: any) {
     res.status(400).json({ error: e.message ?? "quote failed" });
@@ -112,14 +134,12 @@ router.post("/web3/quote", async (req, res): Promise<void> => {
 
 router.post("/web3/swap", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const { networkId, fromTokenId, toTokenId, fromAmount, slippageBps } = req.body ?? {};
+  const swapP = swapInputSchema.safeParse(req.body);
+  if (!swapP.success) { res.status(400).json({ error: swapP.error.errors[0]?.message ?? "Invalid request body" }); return; }
 
   try {
     // Get authoritative quote server-side
-    const quote = await getSwapQuote({
-      networkId: Number(networkId), fromTokenId: Number(fromTokenId), toTokenId: Number(toTokenId),
-      fromAmount: Number(fromAmount), slippageBps: slippageBps !== undefined ? Number(slippageBps) : undefined,
-    });
+    const quote = await getSwapQuote(swapP.data);
 
     const result = await db.transaction(async (tx) => {
       const [fromTok] = await tx.select().from(web3TokensTable).where(eq(web3TokensTable.id, quote.fromTokenId)).limit(1);
@@ -160,7 +180,7 @@ router.post("/web3/swap", requireAuth, async (req, res): Promise<void> => {
       const [swap] = await tx.insert(web3SwapsTable).values({
         userId, networkId: quote.networkId, fromTokenId: quote.fromTokenId, toTokenId: quote.toTokenId,
         fromAmount: String(quote.fromAmount), toAmount: String(quote.toAmount), rate: String(quote.rate),
-        slippageBps: slippageBps !== undefined ? Number(slippageBps) : 50,
+        slippageBps: swapP.data.slippageBps ?? 50,
         feeUsd: String(quote.feeUsd), gasUsd: String(quote.gasUsd),
         txHash: fakeTxHash(net?.family ?? "evm"),
         status: "completed",
@@ -177,12 +197,10 @@ router.post("/web3/swap", requireAuth, async (req, res): Promise<void> => {
 
 // ─── Bridge quote + execute ──────────────────────────────────────────────────
 router.post("/web3/bridge/quote", async (req, res): Promise<void> => {
-  const { fromNetworkId, toNetworkId, tokenSymbol, fromAmount } = req.body ?? {};
+  const bq = bridgeInputSchema.safeParse(req.body);
+  if (!bq.success) { res.status(400).json({ error: bq.error.errors[0]?.message ?? "Invalid request body" }); return; }
   try {
-    const q = await getBridgeQuote({
-      fromNetworkId: Number(fromNetworkId), toNetworkId: Number(toNetworkId),
-      tokenSymbol: String(tokenSymbol ?? ""), fromAmount: Number(fromAmount),
-    });
+    const q = await getBridgeQuote(bq.data);
     res.json(q);
   } catch (e: any) {
     res.status(400).json({ error: e.message ?? "quote failed" });
@@ -191,12 +209,10 @@ router.post("/web3/bridge/quote", async (req, res): Promise<void> => {
 
 router.post("/web3/bridge", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const { fromNetworkId, toNetworkId, tokenSymbol, fromAmount } = req.body ?? {};
+  const bp = bridgeInputSchema.safeParse(req.body);
+  if (!bp.success) { res.status(400).json({ error: bp.error.errors[0]?.message ?? "Invalid request body" }); return; }
   try {
-    const quote = await getBridgeQuote({
-      fromNetworkId: Number(fromNetworkId), toNetworkId: Number(toNetworkId),
-      tokenSymbol: String(tokenSymbol ?? ""), fromAmount: Number(fromAmount),
-    });
+    const quote = await getBridgeQuote(bp.data);
 
     const result = await db.transaction(async (tx) => {
       // For bridge we use a single ledger row per token-symbol — the priceCoinSymbol on

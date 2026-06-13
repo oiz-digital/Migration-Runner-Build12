@@ -118,8 +118,15 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
         })
 }
 
+const (
+        wsPingInterval = 30 * time.Second
+        wsPongTimeout  = 65 * time.Second // slightly more than 2× ping interval
+)
+
 // WebSocket: clients subscribe via {type:"subscribe",channel:"futures.orderbook:1"}
 // and we push frames whenever broadcast(channel,...) is called.
+// Server-side ping/pong keeps dead TCP connections from lingering — the server
+// sends a WS Ping every 30s and drops the connection if no Pong arrives within 65s.
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
         c, err := upgrader.Upgrade(w, r, nil)
         if err != nil {
@@ -131,6 +138,26 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
         defer func() {
                 s.removeClient(cli)
                 c.Close()
+        }()
+
+        // Reset the read deadline every time a pong arrives.
+        _ = c.SetReadDeadline(time.Now().Add(wsPongTimeout))
+        c.SetPongHandler(func(string) error {
+                return c.SetReadDeadline(time.Now().Add(wsPongTimeout))
+        })
+
+        // Periodic server-initiated pings to detect dead connections early.
+        go func() {
+                ticker := time.NewTicker(wsPingInterval)
+                defer ticker.Stop()
+                for range ticker.C {
+                        cli.sendMu.Lock()
+                        err := c.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+                        cli.sendMu.Unlock()
+                        if err != nil {
+                                return // connection gone; read loop will clean up
+                        }
+                }
         }()
 
         for {

@@ -104,7 +104,9 @@ const GROUPS: Group[] = [
       { method: "POST", path: "/finance/withdraw", desc: "Generic withdraw (admin-managed)", auth: "user", status: "not-implemented" },
       { method: "POST", path: "/finance/withdraw/spot", desc: "Crypto withdraw", auth: "user", status: "not-implemented" },
       { method: "POST", path: "/finance/withdraw/fiat", desc: "Fiat (INR) withdraw", auth: "user", status: "not-implemented" },
-      { method: "POST", path: "/finance/transfer", desc: "Internal transfer between wallets", auth: "user", status: "not-implemented" },
+      { method: "POST", path: "/finance/transfer", desc: "Internal transfer between wallets (spot↔futures↔earn↔inr)", auth: "user", status: "live",
+        detail: "Moves funds between the user's own wallets atomically. Writes wallet_ledger double-entry. Supported pairs: spot↔futures, spot↔earn, spot↔inr, etc.",
+        sampleReq: { fromWallet: "spot", toWallet: "futures", coinSymbol: "USDT", amount: 100 } },
     ],
   },
   {

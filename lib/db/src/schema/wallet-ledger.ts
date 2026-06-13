@@ -26,6 +26,8 @@ export const ledgerTypeEnum = pgEnum("ledger_type", [
   "convert",
   "options_pnl",
   "futures_pnl",
+  "instruments_margin",
+  "instruments_pnl",
 ]);
 
 export const walletLedgerTable = pgTable("wallet_ledger", {

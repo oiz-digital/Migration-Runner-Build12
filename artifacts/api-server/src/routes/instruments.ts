@@ -20,6 +20,7 @@
  */
 import { Router, type IRouter } from "express";
 import { eq, and, desc, asc, inArray, sql } from "drizzle-orm";
+import { z } from "zod";
 import {
   db,
   instrumentsTable,
@@ -27,6 +28,7 @@ import {
   instrumentPositionsTable,
   brokerConfigTable,
   walletsTable,
+  walletLedgerTable,
 } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
 
@@ -35,6 +37,16 @@ import { getQuote, placeOrder, loginAngelOne, invalidateBrokerConfigCache } from
 const adminOnly = [requireAuth, requireRole("admin", "superadmin")];
 
 const router: IRouter = Router();
+
+// ─── Zod schemas ─────────────────────────────────────────────────────────────
+const placeOrderSchema = z.object({
+  symbol:   z.string().min(1).max(20).transform(s => s.toUpperCase()),
+  side:     z.enum(["buy", "sell"]),
+  qty:      z.number({ invalid_type_error: "qty must be a number" }).positive("qty must be > 0"),
+  price:    z.number().positive().optional(),
+  type:     z.enum(["MARKET", "LIMIT", "STOPLOSS"]).default("MARKET"),
+  leverage: z.number().int().min(1).max(200).default(1),
+});
 
 // ─── Public: List instruments ─────────────────────────────────────────────────
 router.get("/instruments", async (req, res): Promise<void> => {
@@ -94,19 +106,13 @@ router.get("/instruments/:symbol/quote", async (req, res): Promise<void> => {
 // ─── Auth: Place order ────────────────────────────────────────────────────────
 router.post("/instruments/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const { symbol, side, qty, price, type = "MARKET", leverage = 1 } = req.body as {
-    symbol: string;
-    side: "buy" | "sell";
-    qty: number;
-    price?: number;
-    type?: "MARKET" | "LIMIT" | "STOPLOSS";
-    leverage?: number;
-  };
 
-  if (!symbol || !side || !qty) {
-    res.status(400).json({ error: "symbol, side, qty required" });
+  const parsed = placeOrderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
     return;
   }
+  const { symbol, side, qty, price, type, leverage } = parsed.data;
 
   const [instrument] = await db
     .select()
@@ -221,11 +227,26 @@ router.post("/instruments/orders", requireAuth, async (req, res): Promise<void> 
       }
     }
 
-    // Deduct margin from wallet
+    // Deduct margin from wallet + write ledger debit
     if (wallet && side === "buy") {
+      const deduction = marginRequired + fee;
+      const balBefore = Number(wallet.balance);
+      const balAfter = balBefore - deduction;
       await db.update(walletsTable).set({
-        balance: String(Number(wallet.balance) - marginRequired - fee),
+        balance: String(balAfter),
       }).where(eq(walletsTable.id, wallet.id));
+      await db.insert(walletLedgerTable).values({
+        userId,
+        coinId: wallet.coinId,
+        walletType: "spot",
+        type: "instruments_margin",
+        amount: String(-deduction),
+        balanceBefore: String(balBefore),
+        balanceAfter: String(balAfter),
+        refType: "instrument_order",
+        refId: String(order.id),
+        note: `${symbol} ${side} ×${qty} margin+fee`,
+      });
     }
   }
 
@@ -358,8 +379,22 @@ router.post("/instruments/positions/:id/close", requireAuth, async (req, res): P
     .limit(1);
   if (wallet) {
     const credit = Number(position.marginUsed) + netPnl;
-    await db.update(walletsTable).set({ balance: String(Math.max(0, Number(wallet.balance) + credit)) })
+    const balBefore = Number(wallet.balance);
+    const balAfter = Math.max(0, balBefore + credit);
+    await db.update(walletsTable).set({ balance: String(balAfter) })
       .where(eq(walletsTable.id, wallet.id));
+    await db.insert(walletLedgerTable).values({
+      userId,
+      coinId: wallet.coinId,
+      walletType: "spot",
+      type: "instruments_pnl",
+      amount: String(credit),
+      balanceBefore: String(balBefore),
+      balanceAfter: String(balAfter),
+      refType: "instrument_position",
+      refId: String(posId),
+      note: `Close ${instrument.symbol} PnL=${netPnl.toFixed(4)}`,
+    });
   }
 
   res.json({ message: "Position closed", realizedPnl: netPnl, fee });
