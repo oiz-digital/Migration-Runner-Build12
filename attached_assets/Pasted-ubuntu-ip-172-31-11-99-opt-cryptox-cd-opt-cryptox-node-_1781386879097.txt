@@ -1,0 +1,43 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox && node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('.env','utf8').split('\n');
+const dbUrl = lines.find(l=>l.startsWith('DATABASE_URL=')).split('=').slice(1).join('=').trim().replace(/^\"|\"$/g,'');
+const { Client } = require('./artifacts/api-server/node_modules/pg');
+const c = new Client({ connectionString: dbUrl });
+c.connect().then(() => c.query(\`
+INSERT INTO users (email, name, password_hash, role, kyc_level, status, uid, referral_code, email_verified, created_at, updated_at)
+VALUES
+  ('arjun.sharma.trader@zebvix.com','Arjun Sharma','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-01','ARJUN001',true,now()-'180 days'::interval,now()),
+  ('priya.kapoor.trader@zebvix.com','Priya Kapoor','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-02','PRIYA001',true,now()-'220 days'::interval,now()),
+  ('rahul.mehta.trader@zebvix.com','Rahul Mehta','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-03','RAHUL001',true,now()-'150 days'::interval,now()),
+  ('deepak.verma.trader@zebvix.com','Deepak Verma','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-04','DEEPK001',true,now()-'300 days'::interval,now()),
+  ('sneha.patel.trader@zebvix.com','Sneha Patel','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-05','SNEHA001',true,now()-'90 days'::interval,now()),
+  ('vikram.singh.trader@zebvix.com','Vikram Singh','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-06','VIKRM001',true,now()-'400 days'::interval,now()),
+  ('ananya.gupta.trader@zebvix.com','Ananya Gupta','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-07','ANANM001',true,now()-'120 days'::interval,now()),
+  ('karan.malhotra.trader@zebvix.com','Karan Malhotra','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-08','KARAN001',true,now()-'250 days'::interval,now())
+ON CONFLICT (email) DO NOTHING RETURNING id, email
+\`)).then(r=>{ console.log('Done:', r.rows); c.end(); }).catch(e=>{ console.error(e.message); c.end(); });
+"
+node:internal/modules/cjs/loader:1503
+  throw err;
+  ^
+
+Error: Cannot find module './artifacts/api-server/node_modules/pg'
+Require stack:
+- /opt/cryptox/[eval]
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1500:15)
+    at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+    at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1095:10)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1116:12)
+    at Module._load (node:internal/modules/cjs/loader:1285:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1600:12)
+    at require (node:internal/modules/helpers:153:16)
+    at [eval]:5:20
+    at runScriptInThisContext (node:internal/vm:219:10) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/opt/cryptox/[eval]' ]
+}
+
+Node.js v24.16.0
+ubuntu@ip-172-31-11-99:/opt/cryptox$
