@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/auth";
 import { rZadd, rZrem, rPublish, rLpush, rSet } from "../lib/redis";
 import { tryMatch, getDepth, getRecentTrades } from "../lib/matching-engine";
 import { getSpotFeeRates, loadFeeSettings } from "./fees";
+import { getInrRate } from "../lib/price-service";
 import { COMPANY_CIN, COMPANY_GST, COMPANY_PAN, COMPANY_ADDRESS } from "../lib/company";
 import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
 
@@ -510,6 +511,10 @@ router.get("/orders/:id/invoice", requireAuth, async (req, res): Promise<void> =
       tdsAmount: +tdsAmount.toFixed(8),
       netAmount: +grandTotal.toFixed(8),
       direction: isSell ? "credit" : "debit",
+      inrRate: getInrRate(),
+      netInr: quoteSym === "INR"
+        ? +grandTotal.toFixed(2)
+        : +(grandTotal * getInrRate()).toFixed(2),
     },
     fills: fills.map(f => ({
       id: f.id,
