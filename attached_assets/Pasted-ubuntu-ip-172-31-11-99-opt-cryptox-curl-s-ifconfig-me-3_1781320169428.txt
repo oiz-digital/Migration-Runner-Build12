@@ -1,0 +1,25 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ curl -s ifconfig.me
+3.109.123.10ubuntu@ip-172-31-11-99:/osudo nginx -tudo nginx -t
+sudo ss -tlnp | grep -E '80|443'
+sudo tail -20 /var/log/nginx/error.log
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=80648,fd=18))                  
+LISTEN 0      511        127.0.0.1:6379       0.0.0.0:*    users:(("redis-server",pid=80672,fd=8))                      
+LISTEN 0      511          0.0.0.0:80         0.0.0.0:*    users:(("nginx",pid=130352,fd=7),("nginx",pid=130351,fd=7),("nginx",pid=81103,fd=7))
+LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=80655,fd=3),("systemd",pid=1,fd=188))     
+LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=80648,fd=20))                  
+LISTEN 0      200        127.0.0.1:5432       0.0.0.0:*    users:(("postgres",pid=80737,fd=6))                          
+LISTEN 0      511                *:8080             *:*    users:(("node /opt/crypt",pid=132277,fd=22))                 
+LISTEN 0      511             [::]:80            [::]:*    users:(("nginx",pid=130352,fd=8),("nginx",pid=130351,fd=8),("nginx",pid=81103,fd=8))
+LISTEN 0      4096            [::]:22            [::]:*    users:(("sshd",pid=80655,fd=4),("systemd",pid=1,fd=193))     
+LISTEN 0      511            [::1]:6379          [::]:*    users:(("redis-server",pid=80672,fd=9))                      
+2026/06/13 00:38:23 [error] 81105#81105: *10169 "/usr/share/nginx/html/geoserver/web/index.html" is not found (2: No such file or directory), client: 64.62.156.94, server: zebvix.com, request: "GET /geoserver/web/ HTTP/1.1", host: "3.109.123.10"
+2026/06/13 00:44:50 [error] 81105#81105: *10173 open() "/usr/share/nginx/html/.git/config" failed (2: No such file or directory), client: 64.62.156.94, server: zebvix.com, request: "GET /.git/config HTTP/1.1", host: "3.109.123.10"
+2026/06/13 01:56:00 [error] 81106#81106: *10264 open() "/usr/share/nginx/html/user" failed (2: No such file or directory), client: 192.133.77.15, server: zebvix.com, request: "GET /user HTTP/1.1", host: "zebvix.com"
+2026/06/13 02:31:35 [error] 81105#81105: *10302 open() "/usr/share/nginx/html/login" failed (2: No such file or directory), client: 20.98.164.209, server: zebvix.com, request: "GET /login HTTP/1.1", host: "3.109.123.10"
+2026/06/13 02:57:10 [error] 130351#130351: *10310 open() "/usr/share/nginx/html/.env" failed (2: No such file or directory), client: 163.61.91.104, server: zebvix.com, request: "GET /.env HTTP/1.1", host: "3.109.123.10"
+2026/06/13 03:02:55 [error] 130351#130351: *10313 "/usr/share/nginx/html/webui/index.html" is not found (2: No such file or directory), client: 65.49.1.162, server: zebvix.com, request: "GET /webui/ HTTP/1.1", host: "3.109.123.10"
+2026/06/13 03:04:46 [error] 130351#130351: *10321 open() "/opt/cryptox/dist/user/favicon.ico" failed (2: No such file or directory), client: 65.49.1.166, server: zebvix.com, request: "GET /favicon.ico HTTP/1.1", host: "3.109.123.10"
+2026/06/13 03:06:22 [error] 130351#130351: *10324 "/usr/share/nginx/html/geoserver/web/index.html" is not found (2: No such file or directory), client: 65.49.1.162, server: zebvix.com, request: "GET /geoserver/web/ HTTP/1.1", host: "3.109.123.10"
+ubuntu@ip-172-31-11-99:/opt/cryptox$
