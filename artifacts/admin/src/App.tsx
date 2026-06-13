@@ -65,6 +65,7 @@ import SupportAdminPage from "@/pages/support-admin";
 import SystemStatusPage from "@/pages/system-status";
 import TeamPage from "@/pages/team";
 import CompanyMediaPage from "@/pages/company-media";
+import SeoPage from "@/pages/seo";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
@@ -178,6 +179,7 @@ function Protected() {
         <Route path="/system-status" component={SystemStatusPage} />
         <Route path="/team" component={TeamPage} />
         <Route path="/company-media" component={CompanyMediaPage} />
+        <Route path="/seo" component={SeoPage} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

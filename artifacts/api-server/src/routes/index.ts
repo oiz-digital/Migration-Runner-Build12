@@ -65,6 +65,7 @@ import aiChatRouter from "./ai-chat";
 import tradingLeaguesRouter from "./trading-leagues";
 import koinxRouter from "./koinx";
 import adminFeaturesRouter from "./admin-features";
+import adminSeoRouter from "./admin-seo";
 import { createReadStream, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { requireAuth } from "../middlewares/auth";
@@ -146,6 +147,7 @@ router.use(aiChatRouter);
 router.use(tradingLeaguesRouter);
 router.use(koinxRouter);
 router.use(adminFeaturesRouter);
+router.use(adminSeoRouter);
 
 // ── KYC document file serve ────────────────────────────────────────────────
 // Serves files uploaded via POST /api/upload/kyc-document.

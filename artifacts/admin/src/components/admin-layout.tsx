@@ -137,6 +137,13 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    id: "seo",
+    label: "SEO",
+    items: [
+      { href: "/seo",           label: "SEO Manager",        icon: Search,      roles: ["marketing", "admin", "superadmin"] as Role[] },
+    ],
+  },
+  {
     id: "system",
     label: "System",
     items: [
