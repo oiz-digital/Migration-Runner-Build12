@@ -1,0 +1,517 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox
+git checkout -- artifacts/go-service/server pnpm-lock.yaml
+git pull origin main
+bash deploy/build.sh
+remote: Enumerating objects: 28, done.
+remote: Counting objects: 100% (28/28), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 15 (delta 12), reused 15 (delta 12), pack-reused 0 (from 0)
+Unpacking objects: 100% (15/15), 102.23 KiB | 6.01 MiB/s, done.
+From https://github.com/oiz-digital/Migration-Runner-Build12
+ * branch            main       -> FETCH_HEAD
+   87e5afe..d28c7a5  main       -> origin/main
+Updating 7aa1232..d28c7a5
+Fast-forward
+ .agents/agent_assets_metadata.toml                                          |  390 ++++++++
+ .agents/memory/MEMORY.md                                                    |    3 +
+ .agents/memory/zebvix-admin-role-gate.md                                    |   26 +
+ .agents/memory/zebvix-go-prod-binary.md                                     |   19 +
+ .agents/memory/zebvix-trading-audit.md                                      |   50 +
+ .agents/memory/zebvix-wallet-p2p-audit.md                                   |   46 +
+ .replit                                                                     |    5 +
+ artifacts/admin/src/App.tsx                                                 |    8 +-
+ artifacts/admin/src/components/SuccessModal.tsx                             |  341 +++++++
+ artifacts/admin/src/components/admin-layout.tsx                             |   13 +-
+ artifacts/admin/src/pages/competitions.tsx                                  |  149 ++-
+ artifacts/admin/src/pages/copy-trading-admin.tsx                            |  263 +++++
+ artifacts/admin/src/pages/crypto-deposits.tsx                               |   42 +-
+ artifacts/admin/src/pages/crypto-withdrawals.tsx                            |   40 +-
+ artifacts/admin/src/pages/features.tsx                                      |  274 ++++++
+ artifacts/admin/src/pages/inr-deposits.tsx                                  |   40 +-
+ artifacts/admin/src/pages/inr-withdrawals.tsx                               |   41 +-
+ artifacts/admin/src/pages/kyc.tsx                                           |   19 +-
+ artifacts/admin/src/pages/options-admin.tsx                                 |   96 +-
+ artifacts/admin/src/pages/seo.tsx                                           | 1167 ++++++++++++++++++++++
+ artifacts/admin/src/pages/users.tsx                                         |   14 +-
+ artifacts/admin/src/pages/wallet-manager.tsx                                |   28 +-
+ artifacts/api-server/src/index.ts                                           |    2 +
+ artifacts/api-server/src/lib/ai-credit-engine.ts                            |   30 +-
+ artifacts/api-server/src/lib/copy-engine.ts                                 |  297 ++++++
+ artifacts/api-server/src/lib/earn-engine.ts                                 |    2 +-
+ artifacts/api-server/src/lib/inmem-engine/prod/settler.ts                   |    7 +-
+ artifacts/api-server/src/lib/matching-engine.ts                             |  160 +++-
+ artifacts/api-server/src/lib/options-daily-creator.ts                       |  228 +++++
+ artifacts/api-server/src/lib/price-service.ts                               |   42 +-
+ artifacts/api-server/src/lib/referral-signup-bonus.ts                       |  153 +++
+ artifacts/api-server/src/lib/trading-fee-referral.ts                        |   79 +-
+ artifacts/api-server/src/routes/admin-content.ts                            |   64 ++
+ artifacts/api-server/src/routes/admin-features.ts                           |  100 ++
+ artifacts/api-server/src/routes/admin-seo.ts                                |   98 ++
+ artifacts/api-server/src/routes/admin.ts                                    |   13 +
+ artifacts/api-server/src/routes/ai-chat.ts                                  |    2 +-
+ artifacts/api-server/src/routes/ai-trading.ts                               |  176 +++-
+ artifacts/api-server/src/routes/auth.ts                                     |   46 +-
+ artifacts/api-server/src/routes/bicrypto.ts                                 |   45 +-
+ artifacts/api-server/src/routes/content.ts                                  |    2 +-
+ artifacts/api-server/src/routes/copy-trading.ts                             |   50 +-
+ artifacts/api-server/src/routes/earn-user.ts                                |    2 +-
+ artifacts/api-server/src/routes/fees.ts                                     |   29 +-
+ artifacts/api-server/src/routes/futures.ts                                  |   20 +-
+ artifacts/api-server/src/routes/index.ts                                    |    4 +
+ artifacts/api-server/src/routes/inr.ts                                      |   49 +-
+ artifacts/api-server/src/routes/instruments.ts                              |   85 +-
+ artifacts/api-server/src/routes/options-admin.ts                            |   13 +
+ artifacts/api-server/src/routes/orders.ts                                   |   45 +-
+ artifacts/api-server/src/routes/p2p.ts                                      |   38 +-
+ artifacts/go-service/.replit-artifact/artifact.toml                         |    4 +-
+ artifacts/go-service/cryptox-go-service                                     |  Bin 7516022 -> 8965049 bytes
+ artifacts/go-service/server                                                 |  Bin 7517668 -> 6164664 bytes
+ artifacts/mobile/app.json                                                   |   38 -
+ artifacts/mobile/app/(tabs)/_layout.tsx                                     |  139 ---
+ artifacts/mobile/app/(tabs)/index.tsx                                       |  413 --------
+ artifacts/mobile/app/(tabs)/markets.tsx                                     |  295 ------
+ artifacts/mobile/app/(tabs)/profile.tsx                                     |  341 -------
+ artifacts/mobile/app/(tabs)/trade.tsx                                       |  171 ----
+ artifacts/mobile/app/(tabs)/wallet.tsx                                      |  344 -------
+ artifacts/mobile/app/+not-found.tsx                                         |   45 -
+ artifacts/mobile/app/_layout.tsx                                            |   98 --
+ artifacts/mobile/app/ai-invoice/[id].tsx                                    |  389 --------
+ artifacts/mobile/app/ai-trading/index.tsx                                   |  547 -----------
+ artifacts/mobile/app/bots/index.tsx                                         |  395 --------
+ artifacts/mobile/app/convert/index.tsx                                      |  315 ------
+ artifacts/mobile/app/copy-trading/index.tsx                                 |  315 ------
+ artifacts/mobile/app/discover/index.tsx                                     |  289 ------
+ artifacts/mobile/app/earn/index.tsx                                         |  477 ---------
+ artifacts/mobile/app/futures-invoice/[id].tsx                               |  397 --------
+ artifacts/mobile/app/futures/index.tsx                                      |  641 -------------
+ artifacts/mobile/app/inr-payments/index.tsx                                 |  462 ---------
+ artifacts/mobile/app/invite/index.tsx                                       |  337 -------
+ artifacts/mobile/app/kyc/index.tsx                                          |  691 -------------
+ artifacts/mobile/app/ledger/index.tsx                                       |  241 -----
+ artifacts/mobile/app/legal/[page].tsx                                       |  162 ----
+ artifacts/mobile/app/login.tsx                                              |  170 ----
+ artifacts/mobile/app/notifications/index.tsx                                |  155 ---
+ artifacts/mobile/app/options/index.tsx                                      |  446 ---------
+ artifacts/mobile/app/orders.tsx                                             |  235 -----
+ artifacts/mobile/app/p2p/index.tsx                                          |  198 ----
+ artifacts/mobile/app/portfolio/index.tsx                                    |  287 ------
+ artifacts/mobile/app/price-alerts/index.tsx                                 |  356 -------
+ artifacts/mobile/app/register.tsx                                           |  152 ---
+ artifacts/mobile/app/settings/index.tsx                                     |  484 ----------
+ artifacts/mobile/app/support/index.tsx                                      |  426 --------
+ artifacts/mobile/app/trade-invoice/[id].tsx                                 |  332 -------
+ artifacts/mobile/app/trade/[symbol].tsx                                     |  473 ---------
+ artifacts/mobile/app/wallet/[symbol].tsx                                    |  319 ------
+ artifacts/mobile/assets/images/icon.png                                     |  Bin 725381 -> 0 bytes
+ artifacts/mobile/babel.config.js                                            |    6 -
+ artifacts/mobile/components/AnimatedPrice.tsx                               |   54 --
+ artifacts/mobile/components/CandleChart.tsx                                 |  223 -----
+ artifacts/mobile/components/CoinRow.tsx                                     |   92 --
+ artifacts/mobile/components/CoinRowWithSpark.tsx                            |   99 --
+ artifacts/mobile/components/EmptyState.tsx                                  |   27 -
+ artifacts/mobile/components/ErrorBoundary.tsx                               |   54 --
+ artifacts/mobile/components/ErrorFallback.tsx                               |  278 ------
+ artifacts/mobile/components/GoDepth.tsx                                     |  113 ---
+ artifacts/mobile/components/KeyboardAwareScrollViewCompat.tsx               |   29 -
+ artifacts/mobile/components/MarketSummary.tsx                               |   75 --
+ artifacts/mobile/components/PriceChange.tsx                                 |   23 -
+ artifacts/mobile/components/SparkLine.tsx                                   |   49 -
+ artifacts/mobile/components/StatsBar.tsx                                    |   45 -
+ artifacts/mobile/components/ZButton.tsx                                     |   74 --
+ artifacts/mobile/components/ZInput.tsx                                      |   45 -
+ artifacts/mobile/constants/colors.ts                                        |   49 -
+ artifacts/mobile/contexts/AuthContext.tsx                                   |  167 ----
+ artifacts/mobile/contexts/ThemeContext.tsx                                  |   39 -
+ artifacts/mobile/hooks/useApi.ts                                            |   54 --
+ artifacts/mobile/hooks/useColors.ts                                         |   11 -
+ artifacts/mobile/hooks/useFavorites.ts                                      |   37 -
+ artifacts/mobile/hooks/useGoFuturesWs.ts                                    |  107 ---
+ artifacts/mobile/hooks/usePrices.ts                                         |   70 --
+ artifacts/mobile/metro.config.js                                            |    3 -
+ artifacts/mobile/package.json                                               |   61 --
+ artifacts/mobile/scripts/build.js                                           |  573 -----------
+ artifacts/mobile/server/serve.js                                            |  135 ---
+ artifacts/mobile/server/templates/landing-page.html                         |  460 ---------
+ artifacts/mobile/tsconfig.json                                              |   25 -
+ artifacts/user-portal/public/opengraph.jpg                                  |  Bin 99868 -> 100298 bytes
+ artifacts/user-portal/src/App.tsx                                           |  101 +-
+ artifacts/user-portal/src/components/SuccessModal.tsx                       |  341 +++++++
+ artifacts/user-portal/src/components/layout/AppHeader.tsx                   |    1 +
+ artifacts/user-portal/src/lib/download-pdf.ts                               |    8 +-
+ artifacts/user-portal/src/lib/features.ts                                   |   52 +
+ artifacts/user-portal/src/lib/siteConfig.tsx                                |    2 +-
+ artifacts/user-portal/src/pages/AIInvoice.tsx                               |   45 +-
+ artifacts/user-portal/src/pages/AIStatement.tsx                             |    2 +-
+ artifacts/user-portal/src/pages/AITrading.tsx                               |   29 +-
+ artifacts/user-portal/src/pages/About.tsx                                   |    4 +-
+ artifacts/user-portal/src/pages/Aml.tsx                                     |   17 +-
+ artifacts/user-portal/src/pages/Banks.tsx                                   |    7 +-
+ artifacts/user-portal/src/pages/Bots.tsx                                    |   14 +-
+ artifacts/user-portal/src/pages/ComingSoon.tsx                              |  102 ++
+ artifacts/user-portal/src/pages/Commodities.tsx                             |   25 +-
+ artifacts/user-portal/src/pages/Convert.tsx                                 |   22 +-
+ artifacts/user-portal/src/pages/CopyTrading.tsx                             |  970 ++++++++++++++++---
+ artifacts/user-portal/src/pages/Earn.tsx                                    |   50 +-
+ artifacts/user-portal/src/pages/Forex.tsx                                   |   55 +-
+ artifacts/user-portal/src/pages/Futures.tsx                                 |   24 +-
+ artifacts/user-portal/src/pages/INRPayments.tsx                             |   40 +-
+ artifacts/user-portal/src/pages/Invoice.tsx                                 |   52 +-
+ artifacts/user-portal/src/pages/Kyc.tsx                                     |    7 +-
+ artifacts/user-portal/src/pages/Leagues.tsx                                 |   11 +-
+ artifacts/user-portal/src/pages/Notifications.tsx                           |   13 +-
+ artifacts/user-portal/src/pages/Options.tsx                                 |   28 +-
+ artifacts/user-portal/src/pages/Orders.tsx                                  |    5 +-
+ artifacts/user-portal/src/pages/P2P.tsx                                     |   93 +-
+ artifacts/user-portal/src/pages/Press.tsx                                   |    6 +-
+ artifacts/user-portal/src/pages/PriceAlerts.tsx                             |   19 +-
+ artifacts/user-portal/src/pages/Profile.tsx                                 |    9 +-
+ artifacts/user-portal/src/pages/Settings.tsx                                |   19 +-
+ artifacts/user-portal/src/pages/SmartAPI.tsx                                |   17 +-
+ artifacts/user-portal/src/pages/SpotStatement.tsx                           |    3 +-
+ artifacts/user-portal/src/pages/Stocks.tsx                                  |   25 +-
+ artifacts/user-portal/src/pages/Support.tsx                                 | 1216 ++++++++++++++---------
+ artifacts/user-portal/src/pages/SupportTickets.tsx                          |   28 +-
+ artifacts/user-portal/src/pages/Terms.tsx                                   |   11 +-
+ artifacts/user-portal/src/pages/Trade.tsx                                   |   35 +-
+ artifacts/user-portal/src/pages/Tutorials.tsx                               | 1812 +++++++++++++++++++++++++++++++++++
+ artifacts/user-portal/src/pages/Wallet.tsx                                  |   48 +-
+ artifacts/user-portal/src/pages/Web3.tsx                                    |   45 +-
+ attached_assets/INV-01499883_(3)_1781335145246.pdf                          |  Bin 0 -> 597160 bytes
+ attached_assets/INV-01499883_(3)_1781335531612.pdf                          |  Bin 0 -> 597160 bytes
+ ...ll-6-bugs-fixed-DB-migrated-typechecks-clean-server-ru_1781359075756.txt |   46 +
+ attached_assets/adv_algo.png                                                |  Bin 0 -> 863088 bytes
+ attached_assets/adv_chart_pro.png                                           |  Bin 0 -> 1088229 bytes
+ attached_assets/adv_dom.png                                                 |  Bin 0 -> 898555 bytes
+ attached_assets/adv_home_premium.png                                        |  Bin 0 -> 1189401 bytes
+ attached_assets/adv_liquidation.png                                         |  Bin 0 -> 924017 bytes
+ attached_assets/adv_onchain.png                                             |  Bin 0 -> 935304 bytes
+ attached_assets/adv_risk.png                                                |  Bin 0 -> 924437 bytes
+ attached_assets/adv_terminal.png                                            |  Bin 0 -> 1101624 bytes
+ attached_assets/coindcx_deposit.png                                         |  Bin 0 -> 615856 bytes
+ attached_assets/coindcx_futures.png                                         |  Bin 0 -> 835905 bytes
+ attached_assets/coindcx_home.png                                            |  Bin 0 -> 627600 bytes
+ attached_assets/coindcx_login.png                                           |  Bin 0 -> 601547 bytes
+ attached_assets/coindcx_markets.png                                         |  Bin 0 -> 675530 bytes
+ attached_assets/coindcx_portfolio.png                                       |  Bin 0 -> 639421 bytes
+ attached_assets/coindcx_profile.png                                         |  Bin 0 -> 563457 bytes
+ attached_assets/coindcx_trade.png                                           |  Bin 0 -> 716493 bytes
+ attached_assets/file_000000000064720ba7bf898cc88a2547_1781349060338.png     |  Bin 0 -> 1310324 bytes
+ attached_assets/file_000000000554720b9f881c206b6f27ed_1781349060572.png     |  Bin 0 -> 1135448 bytes
+ attached_assets/file_0000000007a0720ba9f8ca4777f6b885_1781349060532.png     |  Bin 0 -> 1460491 bytes
+ attached_assets/file_0000000042c4720ba6aedca6ef85719f_1781349060261.png     |  Bin 0 -> 1297212 bytes
+ attached_assets/file_00000000816c720ba4a34c4e7ecd3c7e_1781349060297.png     |  Bin 0 -> 1209828 bytes
+ attached_assets/file_00000000a274720b92695e3c37a94b0c_1781349060371.png     |  Bin 0 -> 1220411 bytes
+ attached_assets/file_00000000a5c4720b8f3acb80ad772403_1781349060188.png     |  Bin 0 -> 1210529 bytes
+ attached_assets/file_00000000cb8071f8af2cb1e5b6acc624_1781349060488.png     |  Bin 0 -> 1413879 bytes
+ attached_assets/file_00000000cdd8720babc377a30da9f4b6_1781349060433.png     |  Bin 0 -> 1531784 bytes
+ attached_assets/file_00000000fa54720bb67ef0931dac9dca_1781349060402.png     |  Bin 0 -> 1222702 bytes
+ attached_assets/flutter_futures.png                                         |  Bin 0 -> 962326 bytes
+ attached_assets/flutter_home.png                                            |  Bin 0 -> 832674 bytes
+ attached_assets/flutter_markets.png                                         |  Bin 0 -> 899175 bytes
+ attached_assets/flutter_orderbook.png                                       |  Bin 0 -> 907401 bytes
+ attached_assets/flutter_p2p.png                                             |  Bin 0 -> 949240 bytes
+ attached_assets/flutter_profile.png                                         |  Bin 0 -> 898587 bytes
+ attached_assets/flutter_trade_chart.png                                     |  Bin 0 -> 1014947 bytes
+ attached_assets/flutter_wallet.png                                          |  Bin 0 -> 917283 bytes
+ attached_assets/premium_ai_trading.png                                      |  Bin 0 -> 854530 bytes
+ attached_assets/premium_chart.png                                           |  Bin 0 -> 981123 bytes
+ attached_assets/premium_dashboard.png                                       |  Bin 0 -> 961162 bytes
+ attached_assets/premium_futures.png                                         |  Bin 0 -> 1078619 bytes
+ attached_assets/premium_home.png                                            |  Bin 0 -> 887815 bytes
+ attached_assets/premium_markets.png                                         |  Bin 0 -> 933769 bytes
+ attached_assets/premium_order.png                                           |  Bin 0 -> 939612 bytes
+ attached_assets/premium_portfolio.png                                       |  Bin 0 -> 932185 bytes
+ lib/db/src/schema/ai-trading.ts                                             |    3 +
+ lib/db/src/schema/copy-trading.ts                                           |    2 +
+ lib/db/src/schema/wallet-ledger.ts                                          |    1 +
+ pnpm-lock.yaml                                                              |   18 +-
+ replit.md                                                                   |    2 +-
+ 214 files changed, 9430 insertions(+), 15666 deletions(-)
+ create mode 100644 .agents/memory/zebvix-admin-role-gate.md
+ create mode 100644 .agents/memory/zebvix-go-prod-binary.md
+ create mode 100644 .agents/memory/zebvix-trading-audit.md
+ create mode 100644 .agents/memory/zebvix-wallet-p2p-audit.md
+ create mode 100644 artifacts/admin/src/components/SuccessModal.tsx
+ create mode 100644 artifacts/admin/src/pages/copy-trading-admin.tsx
+ create mode 100644 artifacts/admin/src/pages/features.tsx
+ create mode 100644 artifacts/admin/src/pages/seo.tsx
+ create mode 100644 artifacts/api-server/src/lib/copy-engine.ts
+ create mode 100644 artifacts/api-server/src/lib/options-daily-creator.ts
+ create mode 100644 artifacts/api-server/src/lib/referral-signup-bonus.ts
+ create mode 100644 artifacts/api-server/src/routes/admin-features.ts
+ create mode 100644 artifacts/api-server/src/routes/admin-seo.ts
+ delete mode 100644 artifacts/mobile/app.json
+ delete mode 100644 artifacts/mobile/app/(tabs)/_layout.tsx
+ delete mode 100644 artifacts/mobile/app/(tabs)/index.tsx
+ delete mode 100644 artifacts/mobile/app/(tabs)/markets.tsx
+ delete mode 100644 artifacts/mobile/app/(tabs)/profile.tsx
+ delete mode 100644 artifacts/mobile/app/(tabs)/trade.tsx
+ delete mode 100644 artifacts/mobile/app/(tabs)/wallet.tsx
+ delete mode 100644 artifacts/mobile/app/+not-found.tsx
+ delete mode 100644 artifacts/mobile/app/_layout.tsx
+ delete mode 100644 artifacts/mobile/app/ai-invoice/[id].tsx
+ delete mode 100644 artifacts/mobile/app/ai-trading/index.tsx
+ delete mode 100644 artifacts/mobile/app/bots/index.tsx
+ delete mode 100644 artifacts/mobile/app/convert/index.tsx
+ delete mode 100644 artifacts/mobile/app/copy-trading/index.tsx
+ delete mode 100644 artifacts/mobile/app/discover/index.tsx
+ delete mode 100644 artifacts/mobile/app/earn/index.tsx
+ delete mode 100644 artifacts/mobile/app/futures-invoice/[id].tsx
+ delete mode 100644 artifacts/mobile/app/futures/index.tsx
+ delete mode 100644 artifacts/mobile/app/inr-payments/index.tsx
+ delete mode 100644 artifacts/mobile/app/invite/index.tsx
+ delete mode 100644 artifacts/mobile/app/kyc/index.tsx
+ delete mode 100644 artifacts/mobile/app/ledger/index.tsx
+ delete mode 100644 artifacts/mobile/app/legal/[page].tsx
+ delete mode 100644 artifacts/mobile/app/login.tsx
+ delete mode 100644 artifacts/mobile/app/notifications/index.tsx
+ delete mode 100644 artifacts/mobile/app/options/index.tsx
+ delete mode 100644 artifacts/mobile/app/orders.tsx
+ delete mode 100644 artifacts/mobile/app/p2p/index.tsx
+ delete mode 100644 artifacts/mobile/app/portfolio/index.tsx
+ delete mode 100644 artifacts/mobile/app/price-alerts/index.tsx
+ delete mode 100644 artifacts/mobile/app/register.tsx
+ delete mode 100644 artifacts/mobile/app/settings/index.tsx
+ delete mode 100644 artifacts/mobile/app/support/index.tsx
+ delete mode 100644 artifacts/mobile/app/trade-invoice/[id].tsx
+ delete mode 100644 artifacts/mobile/app/trade/[symbol].tsx
+ delete mode 100644 artifacts/mobile/app/wallet/[symbol].tsx
+ delete mode 100644 artifacts/mobile/assets/images/icon.png
+ delete mode 100644 artifacts/mobile/babel.config.js
+ delete mode 100644 artifacts/mobile/components/AnimatedPrice.tsx
+ delete mode 100644 artifacts/mobile/components/CandleChart.tsx
+ delete mode 100644 artifacts/mobile/components/CoinRow.tsx
+ delete mode 100644 artifacts/mobile/components/CoinRowWithSpark.tsx
+ delete mode 100644 artifacts/mobile/components/EmptyState.tsx
+ delete mode 100644 artifacts/mobile/components/ErrorBoundary.tsx
+ delete mode 100644 artifacts/mobile/components/ErrorFallback.tsx
+ delete mode 100644 artifacts/mobile/components/GoDepth.tsx
+ delete mode 100644 artifacts/mobile/components/KeyboardAwareScrollViewCompat.tsx
+ delete mode 100644 artifacts/mobile/components/MarketSummary.tsx
+ delete mode 100644 artifacts/mobile/components/PriceChange.tsx
+ delete mode 100644 artifacts/mobile/components/SparkLine.tsx
+ delete mode 100644 artifacts/mobile/components/StatsBar.tsx
+ delete mode 100644 artifacts/mobile/components/ZButton.tsx
+ delete mode 100644 artifacts/mobile/components/ZInput.tsx
+ delete mode 100644 artifacts/mobile/constants/colors.ts
+ delete mode 100644 artifacts/mobile/contexts/AuthContext.tsx
+ delete mode 100644 artifacts/mobile/contexts/ThemeContext.tsx
+ delete mode 100644 artifacts/mobile/hooks/useApi.ts
+ delete mode 100644 artifacts/mobile/hooks/useColors.ts
+ delete mode 100644 artifacts/mobile/hooks/useFavorites.ts
+ delete mode 100644 artifacts/mobile/hooks/useGoFuturesWs.ts
+ delete mode 100644 artifacts/mobile/hooks/usePrices.ts
+ delete mode 100644 artifacts/mobile/metro.config.js
+ delete mode 100644 artifacts/mobile/package.json
+ delete mode 100644 artifacts/mobile/scripts/build.js
+ delete mode 100644 artifacts/mobile/server/serve.js
+ delete mode 100644 artifacts/mobile/server/templates/landing-page.html
+ delete mode 100644 artifacts/mobile/tsconfig.json
+ create mode 100644 artifacts/user-portal/src/components/SuccessModal.tsx
+ create mode 100644 artifacts/user-portal/src/lib/features.ts
+ create mode 100644 artifacts/user-portal/src/pages/ComingSoon.tsx
+ create mode 100644 artifacts/user-portal/src/pages/Tutorials.tsx
+ create mode 100644 attached_assets/INV-01499883_(3)_1781335145246.pdf
+ create mode 100644 attached_assets/INV-01499883_(3)_1781335531612.pdf
+ create mode 100644 attached_assets/Pasted-All-6-bugs-fixed-DB-migrated-typechecks-clean-server-ru_1781359075756.txt
+ create mode 100644 attached_assets/adv_algo.png
+ create mode 100644 attached_assets/adv_chart_pro.png
+ create mode 100644 attached_assets/adv_dom.png
+ create mode 100644 attached_assets/adv_home_premium.png
+ create mode 100644 attached_assets/adv_liquidation.png
+ create mode 100644 attached_assets/adv_onchain.png
+ create mode 100644 attached_assets/adv_risk.png
+ create mode 100644 attached_assets/adv_terminal.png
+ create mode 100644 attached_assets/coindcx_deposit.png
+ create mode 100644 attached_assets/coindcx_futures.png
+ create mode 100644 attached_assets/coindcx_home.png
+ create mode 100644 attached_assets/coindcx_login.png
+ create mode 100644 attached_assets/coindcx_markets.png
+ create mode 100644 attached_assets/coindcx_portfolio.png
+ create mode 100644 attached_assets/coindcx_profile.png
+ create mode 100644 attached_assets/coindcx_trade.png
+ create mode 100644 attached_assets/file_000000000064720ba7bf898cc88a2547_1781349060338.png
+ create mode 100644 attached_assets/file_000000000554720b9f881c206b6f27ed_1781349060572.png
+ create mode 100644 attached_assets/file_0000000007a0720ba9f8ca4777f6b885_1781349060532.png
+ create mode 100644 attached_assets/file_0000000042c4720ba6aedca6ef85719f_1781349060261.png
+ create mode 100644 attached_assets/file_00000000816c720ba4a34c4e7ecd3c7e_1781349060297.png
+ create mode 100644 attached_assets/file_00000000a274720b92695e3c37a94b0c_1781349060371.png
+ create mode 100644 attached_assets/file_00000000a5c4720b8f3acb80ad772403_1781349060188.png
+ create mode 100644 attached_assets/file_00000000cb8071f8af2cb1e5b6acc624_1781349060488.png
+ create mode 100644 attached_assets/file_00000000cdd8720babc377a30da9f4b6_1781349060433.png
+ create mode 100644 attached_assets/file_00000000fa54720bb67ef0931dac9dca_1781349060402.png
+ create mode 100644 attached_assets/flutter_futures.png
+ create mode 100644 attached_assets/flutter_home.png
+ create mode 100644 attached_assets/flutter_markets.png
+ create mode 100644 attached_assets/flutter_orderbook.png
+ create mode 100644 attached_assets/flutter_p2p.png
+ create mode 100644 attached_assets/flutter_profile.png
+ create mode 100644 attached_assets/flutter_trade_chart.png
+ create mode 100644 attached_assets/flutter_wallet.png
+ create mode 100644 attached_assets/premium_ai_trading.png
+ create mode 100644 attached_assets/premium_chart.png
+ create mode 100644 attached_assets/premium_dashboard.png
+ create mode 100644 attached_assets/premium_futures.png
+ create mode 100644 attached_assets/premium_home.png
+ create mode 100644 attached_assets/premium_markets.png
+ create mode 100644 attached_assets/premium_order.png
+ create mode 100644 attached_assets/premium_portfolio.png
+[build] ═══════════════════════════════════════════
+[build]   Zebvix — Production Build
+[build]   Root : /opt/cryptox
+[build]   Node : v24.16.0
+[build]   Go   : go1.22.4
+[build]   pnpm : 9.15.9
+[build] ═══════════════════════════════════════════
+[build] Environment loaded from .env
+[build] [1/7] Installing pnpm dependencies...
+Scope: all 11 workspace projects
+
+   ╭──────────────────────────────────────────────────────────────────╮
+   │                                                                  │
+   │                Update available! 9.15.9 → 11.6.0.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.6.0   │
+   │                Run "pnpm add -g pnpm" to update.                 │
+   │                                                                  │
+   ╰──────────────────────────────────────────────────────────────────╯
+
+artifacts/admin                          |  WARN  deprecated recharts@2.15.4
+artifacts/api-server                     |  WARN  deprecated @types/bcryptjs@3.0.0
+ WARN  3 deprecated subdependencies found: @esbuild-kit/core-utils@3.3.2, @esbuild-kit/esm-loader@2.6.5, glob@10.5.0
+Packages: +3 -91
++++-------------------------------------------------------------------------------------------
+Progress: resolved 793, reused 654, downloaded 0, added 3, done
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm…
+└─ Done in 24ms
+ WARN  Issues with peer dependencies found
+artifacts/api-server
+└─┬ esbuild-plugin-pino 2.3.3
+  └── ✕ unmet peer esbuild@">=0.25.0 <=0.25.8": found 0.27.3
+
+Done in 7.2s using pnpm v9.15.9
+[  OK  ] Dependencies installed
+[build] [2/7] Building shared libraries (TypeScript composite build)...
+
+> workspace@0.0.0 typecheck:libs /opt/cryptox
+> tsc --build
+
+[  OK  ] Libraries built
+[build] [3/7] Building API server...
+
+> @workspace/api-server@0.0.0 build /opt/cryptox/artifacts/api-server
+> node ./build.mjs
+
+
+  dist/index.mjs                       6.4mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.0kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                  11.7mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+
+⚡ Done in 1592ms
+[  OK  ] API server built → artifacts/api-server/dist/index.mjs
+[build] [4/7] Building user portal...
+
+> @workspace/user-portal@0.0.0 build /opt/cryptox/artifacts/user-portal
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/dropdown-menu.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/avatar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 3238 modules transformed.
+dist/public/index.html                                     1.61 kB │ gzip:   0.78 kB
+dist/public/assets/index-Cv-nD481.css                    353.37 kB │ gzip:  43.03 kB
+dist/public/assets/download-pdf-VQZk9caO.js                1.27 kB │ gzip:   0.74 kB
+dist/public/assets/index-C0CYiP6s.js                      13.03 kB │ gzip:   5.20 kB
+dist/public/assets/purify.es-Da2JFxT4.js                  27.96 kB │ gzip:  10.48 kB
+dist/public/assets/jspdf.plugin.autotable-B0IxatYY.js     31.04 kB │ gzip:   9.90 kB
+dist/public/assets/index.es-BFBnKzQx.js                  158.83 kB │ gzip:  53.04 kB
+dist/public/assets/html2canvas.esm-DXEQVQnt.js           201.04 kB │ gzip:  47.43 kB
+dist/public/assets/jspdf.es.min-Cgd_riHz.js              386.01 kB │ gzip: 126.33 kB
+dist/public/assets/index-hiJEGatu.js                   2,709.02 kB │ gzip: 727.58 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 12.76s
+[  OK  ] User portal built → artifacts/user-portal/dist/
+[build] [5/7] Building admin panel...
+
+> @workspace/admin@0.0.0 build /opt/cryptox/artifacts/admin
+> vite build --config vite.config.ts
+
+vite v7.3.3 building client environment for production...
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/avatar.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/dropdown-menu.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/sheet.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/command.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/progress.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2546 modules transformed.
+dist/public/index.html                           1.30 kB │ gzip:   0.68 kB
+dist/public/assets/zebvix-mark-CLM6YkG7.png  1,010.25 kB
+dist/public/assets/index-wtR-PGF1.css          190.60 kB │ gzip:  27.37 kB
+dist/public/assets/index-C2ryaStW.js         1,944.82 kB │ gzip: 491.60 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.75s
+[  OK  ] Admin panel built → artifacts/admin/dist/
+[build] [6/7] Building Go order matching engine...
+[  OK  ] Go service built → artifacts/go-service/server
+[build] [7/7] Copying static files to /opt/cryptox/dist/...
+[  OK  ] Static files copied to /opt/cryptox/dist
+[build] Running database migrations (drizzle migrate)...
+
+> @workspace/db@0.0.0 migrate /opt/cryptox/lib/db
+> drizzle-kit migrate --config ./drizzle.config.ts
+
+Reading config file '/opt/cryptox/lib/db/drizzle.config.ts'
+Using 'pg' driver for database querying
+[✓] migrations applied successfully![  OK  ] Database schema up to date
+[build] Seeding brand / company settings...
+INSERT 0 0
+[  OK  ] Brand settings seeded
+[build] Restarting PM2 processes...
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [all](ids: [ 0, 1 ])
+[PM2] [cryptox-api](0) ✓
+[PM2] [cryptox-go](1) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 45   │ online    │ 0%       │ 84.8mb   │
+│ 1  │ cryptox-go         │ fork     │ 20   │ online    │ 0%       │ 6.8mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+[  OK  ] PM2 restarted
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ cryptox-api        │ fork     │ 45   │ online    │ 0%       │ 130.3mb  │
+│ 1  │ cryptox-go         │ fork     │ 20   │ online    │ 0%       │ 6.8mb    │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+
+════════════════════════════════════════════
+  Build Complete!
+════════════════════════════════════════════
+
+  API server : artifacts/api-server/dist/index.mjs
+  User portal: /opt/cryptox/dist/user/
+  Admin panel: /opt/cryptox/dist/admin/
+  Go service : artifacts/go-service/server
+
+ubuntu@ip-172-31-11-99:/opt/cryptox$
