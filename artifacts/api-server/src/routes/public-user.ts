@@ -18,6 +18,7 @@ import {
   depositAddressesTable,
   referralsTable,
 } from "@workspace/db";
+import { loadReferralConfig } from "./admin-referrals";
 import { requireAuth } from "../middlewares/auth";
 import { consumeVerifiedOtp } from "./otp";
 import { getBankPolicy } from "./admin";
@@ -554,13 +555,14 @@ router.post("/kyc/submit", requireAuth, async (req, res): Promise<void> => {
 router.get("/refer/stats", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
 
-  const [me, countRows, referredUsers, bonusRows] = await Promise.all([
+  const [me, countRows, referredUsers, bonusRows, referralConfig] = await Promise.all([
     db.select({ code: usersTable.referralCode }).from(usersTable).where(eq(usersTable.id, userId)).limit(1),
     db.select({ c: sql<number>`count(*)::int` }).from(usersTable).where(eq(usersTable.referredBy, userId)),
     db.select({ id: usersTable.id, name: usersTable.name, kycLevel: usersTable.kycLevel, createdAt: usersTable.createdAt })
       .from(usersTable).where(eq(usersTable.referredBy, userId)).orderBy(desc(usersTable.createdAt)).limit(50),
     db.select({ bonusAmount: referralsTable.bonusAmount, bonusCredited: referralsTable.bonusCredited })
       .from(referralsTable).where(eq(referralsTable.referrerId, userId)),
+    loadReferralConfig(),
   ]);
 
   // Sum all credited bonuses (bonusCredited=true means wallet was already topped up)
@@ -599,6 +601,7 @@ router.get("/refer/stats", requireAuth, async (req, res): Promise<void> => {
     referredKycCount:  referredUsers.filter(u => (u.kycLevel ?? 0) >= 1).length,
     estimatedEarnings: parseFloat(totalEarnings.toFixed(4)),
     creditedEarnings:  parseFloat(creditedEarnings.toFixed(4)),
+    commissionPct:     referralConfig.trading["1"] ?? 30,
     recent:            referredUsers,
     commissions:       allBonusRows.map(r => ({
       id:           r.id,

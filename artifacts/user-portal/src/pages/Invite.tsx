@@ -18,6 +18,7 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useAuth } from "@/lib/auth";
+import { useInrRate } from "@/lib/marketSocket";
 import { toast } from "sonner";
 
 type CommissionRow = {
@@ -37,11 +38,10 @@ type ReferStats = {
   referredKycCount: number;
   estimatedEarnings: number;
   creditedEarnings: number;
+  commissionPct: number;
   recent: Array<{ id: number; name: string; kycLevel: number; createdAt: string }>;
   commissions: CommissionRow[];
 };
-
-const COMMISSION_PCT = 20;
 
 function timeAgo(iso: string): string {
   const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -54,6 +54,7 @@ function timeAgo(iso: string): string {
 
 export default function Invite() {
   const { user } = useAuth();
+  const inrRate = useInrRate();
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
@@ -72,10 +73,13 @@ export default function Invite() {
   const shareTitle = "Join me on Zebvix Exchange";
   const shareText = `Trade Bitcoin, Ethereum & 100+ coins on Zebvix Exchange. Use my referral code ${code} to get bonus rewards on signup!`;
 
-  const totalInvites = referQ.data?.referredCount ?? 0;
-  const kycInvites = referQ.data?.referredKycCount ?? 0;
-  const earnings = referQ.data?.estimatedEarnings ?? 0;
+  const totalInvites   = referQ.data?.referredCount ?? 0;
+  const kycInvites     = referQ.data?.referredKycCount ?? 0;
+  const earningsUsdt   = referQ.data?.estimatedEarnings ?? 0;
+  const creditedUsdt   = referQ.data?.creditedEarnings ?? 0;
+  const commissionPct  = referQ.data?.commissionPct ?? 30;
   const conversionRate = totalInvites > 0 ? Math.round((kycInvites / totalInvites) * 100) : 0;
+  const earningsInr    = inrRate > 0 ? earningsUsdt * inrRate : null;
 
   function copy(text: string, kind: "code" | "link") {
     navigator.clipboard.writeText(text).then(() => {
@@ -124,7 +128,7 @@ export default function Invite() {
                   <Sparkles className="h-3 w-3 mr-1" /> Affiliate Program
                 </Badge>
                 <h1 className="text-2xl md:text-4xl font-bold leading-tight tracking-tight text-white drop-shadow-2xl">
-                  Earn <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">{COMMISSION_PCT}% commission</span><br />
+                  Earn <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">{commissionPct}% commission</span><br />
                   on every friend's trade
                 </h1>
                 <p className="mt-3 text-sm md:text-base text-zinc-200/90 max-w-lg drop-shadow-md">
@@ -224,8 +228,8 @@ export default function Invite() {
           <StatCard
             icon={<TrendingUp className="h-5 w-5" />}
             label="Total earned"
-            value={`₹${earnings.toFixed(2)}`}
-            sub="Lifetime commission"
+            value={`${earningsUsdt.toFixed(4)} USDT`}
+            sub={earningsInr != null ? `≈ ₹${earningsInr.toFixed(2)}` : "Lifetime commission"}
             color="amber"
             testId="stat-earned"
           />
@@ -233,7 +237,7 @@ export default function Invite() {
             icon={<Trophy className="h-5 w-5" />}
             label="Tier"
             value={totalInvites >= 50 ? "Gold" : totalInvites >= 10 ? "Silver" : "Bronze"}
-            sub={totalInvites >= 50 ? `${COMMISSION_PCT + 5}% boost` : totalInvites >= 10 ? `${COMMISSION_PCT + 2}% boost` : `${COMMISSION_PCT}% standard`}
+            sub={totalInvites >= 50 ? `${commissionPct + 5}% boost` : totalInvites >= 10 ? `${commissionPct + 2}% boost` : `${commissionPct}% standard`}
             color="violet"
             testId="stat-tier"
           />
@@ -264,7 +268,7 @@ export default function Invite() {
               n={3}
               icon={<Wallet className="h-5 w-5" />}
               title="You earn forever"
-              desc={`Every time they trade Spot or Futures, you earn ${COMMISSION_PCT}% of the trading fee — credited instantly to your spot wallet.`}
+              desc={`Every time they trade Spot or Futures, you earn ${commissionPct}% of the trading fee — credited instantly to your spot wallet.`}
               accent="emerald"
             />
           </div>
@@ -278,9 +282,9 @@ export default function Invite() {
               <h3 className="font-bold">Commission tiers</h3>
             </div>
             <div className="space-y-2.5">
-              <TierRow name="Bronze" range="0–9 invites" pct={`${COMMISSION_PCT}%`} active={totalInvites < 10} color="amber" />
-              <TierRow name="Silver" range="10–49 invites" pct={`${COMMISSION_PCT + 2}%`} active={totalInvites >= 10 && totalInvites < 50} color="zinc" />
-              <TierRow name="Gold" range="50+ invites" pct={`${COMMISSION_PCT + 5}%`} active={totalInvites >= 50} color="amber" highlight />
+              <TierRow name="Bronze" range="0–9 invites" pct={`${commissionPct}%`} active={totalInvites < 10} color="amber" />
+              <TierRow name="Silver" range="10–49 invites" pct={`${commissionPct + 2}%`} active={totalInvites >= 10 && totalInvites < 50} color="zinc" />
+              <TierRow name="Gold" range="50+ invites" pct={`${commissionPct + 5}%`} active={totalInvites >= 50} color="amber" highlight />
             </div>
             <Separator className="my-4" />
             <div className="space-y-2 text-xs text-muted-foreground">
