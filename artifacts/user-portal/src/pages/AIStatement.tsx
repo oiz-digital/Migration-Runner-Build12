@@ -3,7 +3,7 @@
  * Route: /ai-trading/statement
  * Download PDF via html2canvas + jsPDF.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { get } from "@/lib/api";
@@ -95,10 +95,34 @@ export default function AIStatement() {
   const applyPreset = (p: typeof PRESETS[0]) => { setFrom(p.from); setTo(p.to); setActivePreset(p.label); };
   const handleGenerate = () => { refetch(); };
 
-  const downloadPdf = () => {
-    if (!data) return;
-    toast.info("Print dialog will open — select 'Save as PDF'");
-    setTimeout(() => window.print(), 300);
+  const stmtRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPdf = async () => {
+    if (!stmtRef.current || !data) return;
+    setDownloading(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const { default: jsPDF } = await import("jspdf");
+      const dataUrl = await toPng(stmtRef.current, {
+        cacheBust: true, pixelRatio: 2, quality: 1,
+        backgroundColor: "#0f172a",
+      });
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>(r => { img.onload = () => r(); });
+      const w = img.naturalWidth / 2;
+      const h = img.naturalHeight / 2;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [w, h] });
+      pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+      pdf.save(`${data.statementNo}.pdf`);
+      toast.success("Statement downloaded successfully");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("PDF generation failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const { brand, customer, summary, subscriptions, earnings, statementNo, generatedAt, period } = data ?? {};
@@ -142,7 +166,7 @@ export default function AIStatement() {
         <Button size="sm" onClick={downloadPdf} disabled={!data}
           style={{ background: "linear-gradient(135deg,#8B5CF6,#7C3AED)", color: "white" }}
           className="font-bold hover:opacity-90 disabled:opacity-50 shadow-lg shadow-violet-500/25 gap-2">
-          <><Download className="w-3.5 h-3.5" />Download PDF</>
+          {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</> : <><Download className="w-3.5 h-3.5" />Download PDF</>}
         </Button>
       </div>
 
@@ -206,7 +230,7 @@ export default function AIStatement() {
       {/* ── Statement Paper ── */}
       {data && (
         <div className="container mx-auto px-4 max-w-5xl">
-          <div className="rounded-3xl overflow-hidden shadow-2xl"
+          <div ref={stmtRef} className="rounded-3xl overflow-hidden shadow-2xl"
             style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.2)" }}>
 
             {/* Top accent */}

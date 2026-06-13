@@ -3,7 +3,7 @@
  * Route: /ai-trading/:id/invoice
  * Download PDF via html2canvas + jsPDF.
  */
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { get } from "@/lib/api";
@@ -81,10 +81,34 @@ export default function AIInvoice() {
     return () => { document.title = prev; };
   }, [inv?.invoiceNo]);
 
-  const downloadPdf = () => {
-    if (!inv) return;
-    toast.info("Print dialog will open — select 'Save as PDF'");
-    setTimeout(() => window.print(), 300);
+  const invoiceRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const downloadPdf = async () => {
+    if (!invoiceRef.current || !inv) return;
+    setDownloading(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const { default: jsPDF } = await import("jspdf");
+      const dataUrl = await toPng(invoiceRef.current, {
+        cacheBust: true, pixelRatio: 2, quality: 1,
+        backgroundColor: "#0f172a",
+      });
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>(r => { img.onload = () => r(); });
+      const w = img.naturalWidth / 2;
+      const h = img.naturalHeight / 2;
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [w, h] });
+      pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+      pdf.save(`${inv.invoiceNo}.pdf`);
+      toast.success("Invoice downloaded successfully");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("PDF generation failed. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (isLoading) {
@@ -145,14 +169,14 @@ export default function AIInvoice() {
           <Button size="sm" onClick={downloadPdf}
             style={{ background: "linear-gradient(135deg,#8B5CF6,#7C3AED)", color: "white" }}
             className="font-bold hover:opacity-90 disabled:opacity-70 shadow-lg shadow-violet-500/25 gap-2">
-            <><Download className="w-3.5 h-3.5" />Download PDF</>
+            {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</> : <><Download className="w-3.5 h-3.5" />Download PDF</>}
           </Button>
         </div>
       </div>
 
       {/* ── Invoice Card ── */}
       <div className="container mx-auto px-4 max-w-3xl">
-        <div className="rounded-3xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
+        <div ref={invoiceRef} className="rounded-3xl overflow-hidden shadow-2xl print:rounded-none print:shadow-none"
           style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.2)" }}>
 
           {/* Top violet accent bar */}
