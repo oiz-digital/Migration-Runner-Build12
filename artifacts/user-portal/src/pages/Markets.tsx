@@ -17,6 +17,7 @@ import {
   BarChart3,
   Activity,
   Coins,
+  Trophy,
 } from "lucide-react";
 import { useTickers, encodeSymbol, type NormalizedTicker } from "@/lib/marketSocket";
 import { useMarketCatalog } from "@/lib/marketCatalog";
@@ -535,6 +536,38 @@ export default function Markets() {
             </div>
           )}
         </div>
+      </section>
+
+      {/* ── Trading Leagues promo banner ───────────────────── */}
+      <section className="container mx-auto px-4 pt-5 pb-0">
+        <Link href="/leagues">
+          <div className="relative overflow-hidden rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent hover:border-amber-500/50 transition-colors cursor-pointer">
+            <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-amber-500/10 blur-2xl pointer-events-none" />
+            <div className="relative flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
+                  <Trophy className="h-4 w-4 text-black" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold">Trading Leagues</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 text-[10px] font-bold border border-rose-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse inline-block" />
+                      LIVE NOW
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">Season 1 · June 2026 — Win a share of ₹20,00,000 prize pool</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="hidden sm:block text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-lg">
+                  Join Now →
+                </span>
+                <ChevronRight className="h-4 w-4 text-amber-400 sm:hidden" />
+              </div>
+            </div>
+          </div>
+        </Link>
       </section>
 
       {/* ── Top movers strip ───────────────────────────────── */}

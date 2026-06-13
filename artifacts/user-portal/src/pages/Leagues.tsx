@@ -110,10 +110,10 @@ export default function LeaguesPage() {
   const comp = selected;
   const heroTitle       = comp?.title       ?? "Zebvix Trading Champions";
   const heroTagline     = comp?.subtitle    ?? "Season 1 · June 2026";
-  const heroDescription = comp?.description ?? "Compete with India's top traders. Highest trading volume wins a share of the prize pool. Spot, Futures & Convert — everything counts.";
+  const heroDescription = comp?.description ?? "A 30-day competition for India's top traders. The highest trading volume across Spot, Futures, and Convert wins a share of the ₹20,00,000 prize pool. Open to all KYC Level 2+ users.";
   const prizePool       = comp?.prizePool && Number(comp.prizePool) > 0
     ? `${Number(comp.prizePool).toLocaleString("en-IN")} ${comp.prizeUnit || "USDT"}`
-    : "1,000 USDT";
+    : "₹20,00,000";
   const duration  = durationDays(comp?.startsAt, comp?.endsAt);
   const dateRange = comp?.startsAt && comp?.endsAt
     ? `${fmtDate(comp.startsAt)} → ${fmtDate(comp.endsAt)}`
@@ -121,11 +121,11 @@ export default function LeaguesPage() {
   const tiers    = comp?.rewardTiers?.length ? comp.rewardTiers : DEFAULT_TIERS;
   const topPrize = comp?.topPrize && Number(comp.topPrize) > 0
     ? `${Number(comp.topPrize).toLocaleString()} ${comp.prizeUnit || "USDT"}`
-    : tiers[0]?.prize ?? "5,000 USDT";
+    : tiers[0]?.prize ?? "500 USDT";
   const statusLabel = comp?.status === "active"   ? "Live now"
     : comp?.status === "upcoming" ? "Starting soon"
     : comp?.status === "finished" ? "Season ended"
-    : "Coming soon";
+    : "Live now";
 
   const displayLeaderboard = leaderboard.length > 0 ? leaderboard : [];
 
