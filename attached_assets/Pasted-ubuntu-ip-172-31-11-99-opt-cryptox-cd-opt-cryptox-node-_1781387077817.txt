@@ -1,0 +1,22 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox && node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('.env','utf8').split('\n');
+const dbUrl = lines.find(l=>l.startsWith('DATABASE_URL=')).split('=').slice(1).join('=').trim().replace(/^\"|\"$/g,'');
+const { Client } = require('./node_modules/.pnpm/pg@8.20.0/node_modules/pg');
+const c = new Client({ connectionString: dbUrl });
+c.connect().then(() => c.query(\`
+INSERT INTO trader_profiles (user_id, display_name, bio, avatar, total_return_pct, monthly_return_pct, win_rate, total_trades, followers_count, aum_usdt, risk_level, strategy_tag, is_verified, is_active, max_drawdown_pct, created_at)
+VALUES
+  (5,  'Arjun Sharma',    'Momentum + breakout specialist. Crypto native since 2019.',          'https://api.dicebear.com/7.x/avataaars/svg?seed=arjun',   47.3, 6.2, 71.4, 1847, 312, 284000, 'medium', 'momentum',    true, true, 12.4, now()-'180 days'::interval),
+  (6,  'Priya Kapoor',    'Risk-first approach. Capital preservation + steady compounding.',    'https://api.dicebear.com/7.x/avataaars/svg?seed=priya',   38.6, 4.9, 68.2, 1203, 189, 176000, 'low',    'conservative', true, true, 8.1,  now()-'220 days'::interval),
+  (7,  'Rahul Mehta',     'Swing trader. BTC/ETH pairs specialist. Macro + on-chain data.',    'https://api.dicebear.com/7.x/avataaars/svg?seed=rahul',   29.1, 3.8, 64.7,  892, 143, 128000, 'low',    'swing',        true, true, 9.6,  now()-'150 days'::interval),
+  (8,  'Deepak Verma',    'Veteran trader since 2017. DeFi + altcoin rotation plays.',         'https://api.dicebear.com/7.x/avataaars/svg?seed=deepak',  18.4, 2.1, 58.3,  634,  97,  82000, 'low',    'value',        true, true, 7.2,  now()-'300 days'::interval),
+  (9,  'Sneha Patel',     'Short-term scalper. High win-rate focus. INR pair specialist.',     'https://api.dicebear.com/7.x/avataaars/svg?seed=sneha',   35.2, 5.4, 74.1, 3421, 267, 215000, 'medium', 'scalping',     true, true, 14.8, now()-'90 days'::interval),
+  (10, 'Vikram Singh',    'Top performer. Algo + discretionary hybrid. 52%+ annual returns.',  'https://api.dicebear.com/7.x/avataaars/svg?seed=vikram',  52.7, 7.8, 76.3, 2934, 487, 412000, 'high',   'aggressive',   true, true, 19.3, now()-'400 days'::interval),
+  (11, 'Ananya Gupta',    'Options + spot combo. Volatility plays. Risk-managed position sizing.','https://api.dicebear.com/7.x/avataaars/svg?seed=ananya', 22.8, 3.1, 61.9,  743, 108,  94000, 'medium', 'options',      true, true, 10.7, now()-'120 days'::interval),
+  (12, 'Karan Malhotra',  'Quant-driven. Futures + spot arbitrage. Low drawdown style.',       'https://api.dicebear.com/7.x/avataaars/svg?seed=karan',   41.5, 5.7, 69.8, 1562, 234, 198000, 'medium', 'arbitrage',    true, true, 11.2, now()-'250 days'::interval)
+ON CONFLICT (user_id) DO NOTHING RETURNING id, display_name;
+\`)).then(r=>{ console.log('Trader profiles:', r.rows); c.end(); }).catch(e=>{ console.error(e.message); c.end(); });
+"
+column "avatar" of relation "trader_profiles" does not exist
+ubuntu@ip-172-31-11-99:/opt/cryptox$
