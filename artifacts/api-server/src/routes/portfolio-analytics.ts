@@ -235,6 +235,10 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
   const grossPnl      = totalSellUsd - totalBuyUsd;
   const taxableProfit = Math.max(0, grossPnl);
   const incomeTax     = taxableProfit * 0.30;
+  // Net payable = income tax (30%) minus TDS already deducted at source (1% per sell).
+  // If TDS credit exceeds income tax, refund is claimable at filing.
+  const netTaxPayable  = Math.max(0, incomeTax - tdsPaidUsd);
+  const tdsRefundable  = Math.max(0, tdsPaidUsd - incomeTax);
 
   res.json({
     fyStart: fyStart.toISOString(),
@@ -247,13 +251,16 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
       buyCount, sellCount, tradeCount: rows.length,
     },
     tax: {
-      tdsPaidUsd,           tdsPaidInr:           tdsPaidUsd    * inrRate,
-      taxableProfit,        taxableProfitInr:     taxableProfit * inrRate,
-      incomeTaxUsd:         incomeTax,            incomeTaxInr: incomeTax * inrRate,
-      totalTaxLiabilityUsd: incomeTax,            totalTaxLiabilityInr: incomeTax * inrRate,
+      tdsPaidUsd,              tdsPaidInr:              tdsPaidUsd       * inrRate,
+      taxableProfit,           taxableProfitInr:        taxableProfit    * inrRate,
+      incomeTaxUsd:            incomeTax,               incomeTaxInr:    incomeTax    * inrRate,
+      // totalTaxLiability = gross income tax (30%); net shows TDS credit already deducted
+      totalTaxLiabilityUsd:    incomeTax,               totalTaxLiabilityInr: incomeTax * inrRate,
+      netTaxPayableUsd:        netTaxPayable,           netTaxPayableInr:     netTaxPayable * inrRate,
+      tdsRefundableUsd:        tdsRefundable,           tdsRefundableInr:     tdsRefundable * inrRate,
       effectiveRatePct: totalSellUsd > 0 ? (incomeTax / totalSellUsd) * 100 : 0,
     },
-    note: "Indian crypto tax: 1% TDS on every sell (Sec 194S) + 30% flat tax on net profits (Sec 115BBH). Losses cannot be offset against other income. INR values at current USDT/INR rate.",
+    note: "Indian crypto tax: 1% TDS on every sell (Sec 194S) + 30% flat tax on net profits (Sec 115BBH). Losses cannot be offset against other income. Net Tax Payable = Income Tax − TDS Credit. INR values at current USDT/INR rate.",
   });
 });
 

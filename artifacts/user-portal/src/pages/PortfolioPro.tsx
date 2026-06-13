@@ -41,6 +41,8 @@ type TaxReport = {
     taxableProfit: number; taxableProfitInr: number;
     incomeTaxUsd: number; incomeTaxInr: number;
     totalTaxLiabilityUsd: number; totalTaxLiabilityInr: number;
+    netTaxPayableUsd: number; netTaxPayableInr: number;
+    tdsRefundableUsd: number; tdsRefundableInr: number;
     effectiveRatePct: number;
   };
   note: string;
@@ -49,7 +51,8 @@ type TaxReport = {
 const PIE_COLORS = ["#f59e0b","#22c55e","#3b82f6","#ec4899","#a855f7","#14b8a6","#f97316","#06b6d4","#84cc16","#facc15"];
 
 function fmtInr(n: number, decimals = 2): string {
-  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+  const sign = n < 0 ? "-" : "";
+  return `${sign}₹${Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
 function fmtInrShort(n: number): string {
   if (n >= 10_000_000) return `₹${(n / 10_000_000).toFixed(2)}Cr`;
@@ -184,7 +187,7 @@ export default function PortfolioPro() {
                                 {fmtInr(a.valueInr, 0)}
                               </div>
                               <div className="font-mono text-[10px] text-muted-foreground">
-                                ≈ ${a.valueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT
+                                ≈ {a.valueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })} USDT
                               </div>
                             </div>
                           </div>
@@ -318,15 +321,17 @@ function TaxReportPanel() {
     const rate = data.inrRate ?? 84;
     const rows = [
       ["Field", "Value (₹ INR)", "Value (USDT)"],
-      ["Total buys",          fmtInr(data.totals.totalBuyInr),            data.totals.totalBuyUsd.toFixed(2)],
-      ["Total sells",         fmtInr(data.totals.totalSellInr),           data.totals.totalSellUsd.toFixed(2)],
-      ["Total fees",          fmtInr(data.totals.totalFeesInr),           data.totals.totalFeesUsd.toFixed(2)],
-      ["Gross PnL",           fmtInr(data.totals.grossPnlInr),            data.totals.grossPnl.toFixed(2)],
-      ["TDS paid (1%)",       fmtInr(data.tax.tdsPaidInr),               data.tax.tdsPaidUsd.toFixed(2)],
-      ["Taxable profit",      fmtInr(data.tax.taxableProfitInr),         data.tax.taxableProfit.toFixed(2)],
-      ["Income tax (30%)",    fmtInr(data.tax.incomeTaxInr),             data.tax.incomeTaxUsd.toFixed(2)],
-      ["Total tax liability", fmtInr(data.tax.totalTaxLiabilityInr),     data.tax.totalTaxLiabilityUsd.toFixed(2)],
-      ["USDT/INR rate used",  `₹${rate.toFixed(2)}`,                     "1"],
+      ["Total buys",           fmtInr(data.totals.totalBuyInr),           data.totals.totalBuyUsd.toFixed(2)],
+      ["Total sells",          fmtInr(data.totals.totalSellInr),          data.totals.totalSellUsd.toFixed(2)],
+      ["Total fees",           fmtInr(data.totals.totalFeesInr),          data.totals.totalFeesUsd.toFixed(2)],
+      ["Gross PnL",            fmtInr(data.totals.grossPnlInr),           data.totals.grossPnl.toFixed(2)],
+      ["TDS paid (1%)",        fmtInr(data.tax.tdsPaidInr),              data.tax.tdsPaidUsd.toFixed(2)],
+      ["Taxable profit",       fmtInr(data.tax.taxableProfitInr),        data.tax.taxableProfit.toFixed(2)],
+      ["Income tax (30%)",     fmtInr(data.tax.incomeTaxInr),            data.tax.incomeTaxUsd.toFixed(2)],
+      ["Less: TDS credit",     fmtInr(data.tax.tdsPaidInr),              data.tax.tdsPaidUsd.toFixed(2)],
+      ["Net tax payable",      fmtInr(data.tax.netTaxPayableInr ?? 0),   (data.tax.netTaxPayableUsd ?? 0).toFixed(2)],
+      ...(data.tax.tdsRefundableUsd > 0 ? [["TDS refund claimable", fmtInr(data.tax.tdsRefundableInr ?? 0), (data.tax.tdsRefundableUsd ?? 0).toFixed(2)]] : []),
+      ["USDT/INR rate used",   `₹${rate.toFixed(2)}`,                    "1"],
     ];
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -360,34 +365,65 @@ function TaxReportPanel() {
         {/* Top 3 tax cards */}
         <div className="grid sm:grid-cols-3 gap-3 text-sm">
           <div className="rounded-lg border border-border bg-muted/20 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">TDS Paid</div>
-            <div className="font-mono font-bold text-lg text-amber-400 mt-1">
-              {fmtInr(data.tax.tdsPaidInr)}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-1">1% of every sell — Sec 194S</div>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Taxable Profit</div>
             <div className={`font-mono font-bold text-lg ${data.tax.taxableProfit > 0 ? "text-emerald-400" : "text-muted-foreground"} mt-1`}>
               {fmtInr(data.tax.taxableProfitInr)}
             </div>
-            <div className="text-[10px] text-muted-foreground mt-1">Losses cannot be offset — Sec 115BBH</div>
-          </div>
-          <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-rose-400">Total Tax Liability</div>
-            <div className="font-mono font-bold text-lg text-rose-400 mt-1">
-              {fmtInr(data.tax.totalTaxLiabilityInr)}
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              ≈ {data.tax.taxableProfit.toFixed(2)} USDT · Sec 115BBH
             </div>
-            <div className="text-[10px] text-muted-foreground mt-1">30% flat on profits — Sec 115BBH</div>
+          </div>
+
+          {/* Income tax → TDS credit → Net payable breakdown */}
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Tax Breakdown</div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted-foreground">Income tax (30%)</span>
+              <span className="font-mono font-semibold text-rose-400">{fmtInr(data.tax.incomeTaxInr)}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted-foreground">Less: TDS credit</span>
+              <span className="font-mono font-semibold text-amber-400">−{fmtInr(data.tax.tdsPaidInr)}</span>
+            </div>
+            <div className="border-t border-border/60 pt-1 flex justify-between text-[12px]">
+              <span className="font-semibold">
+                {data.tax.tdsRefundableUsd > 0 ? "TDS Refund" : "Net Payable"}
+              </span>
+              <span className={`font-mono font-bold ${data.tax.tdsRefundableUsd > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {data.tax.tdsRefundableUsd > 0
+                  ? fmtInr(data.tax.tdsRefundableInr ?? 0)
+                  : fmtInr(data.tax.netTaxPayableInr ?? 0)}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-amber-400">TDS Already Paid</div>
+            <div className="font-mono font-bold text-lg text-amber-400 mt-1">
+              {fmtInr(data.tax.tdsPaidInr)}
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              ≈ {data.tax.tdsPaidUsd.toFixed(2)} USDT · 1% per sell, Sec 194S
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">Deducted at source by exchange</div>
           </div>
         </div>
 
         {/* Trade summary */}
         <div className="mt-4 grid sm:grid-cols-4 gap-2 text-xs font-mono">
-          <Stat label="Buys"     value={`${data.totals.buyCount} trades`}  sub={fmtInr(data.totals.totalBuyInr, 0)} />
-          <Stat label="Sells"    value={`${data.totals.sellCount} trades`} sub={fmtInr(data.totals.totalSellInr, 0)} />
-          <Stat label="Fees"     value={fmtInr(data.totals.totalFeesInr)} sub={`${data.totals.totalFeesUsd.toFixed(2)} USDT`} />
-          <Stat label="Gross PnL" value={`${data.totals.grossPnl >= 0 ? "+" : ""}${fmtInr(data.totals.grossPnlInr, 0)}`} good={data.totals.grossPnl >= 0} sub={`${data.totals.grossPnl.toFixed(2)} USDT`} />
+          <Stat label="Buys"
+            value={fmtInr(data.totals.totalBuyInr, 0)}
+            sub={`${data.totals.buyCount} trades · ${data.totals.totalBuyUsd.toFixed(0)} USDT`} />
+          <Stat label="Sells"
+            value={fmtInr(data.totals.totalSellInr, 0)}
+            sub={`${data.totals.sellCount} trades · ${data.totals.totalSellUsd.toFixed(0)} USDT`} />
+          <Stat label="Fees"
+            value={fmtInr(data.totals.totalFeesInr)}
+            sub={`${data.totals.totalFeesUsd.toFixed(2)} USDT`} />
+          <Stat label="Gross PnL"
+            value={`${data.totals.grossPnl >= 0 ? "+" : ""}${fmtInr(data.totals.grossPnlInr, 0)}`}
+            good={data.totals.grossPnl >= 0}
+            sub={`${data.totals.grossPnl >= 0 ? "+" : ""}${data.totals.grossPnl.toFixed(2)} USDT`} />
         </div>
 
         <p className="mt-4 text-[11px] text-muted-foreground italic">{data.note}</p>
