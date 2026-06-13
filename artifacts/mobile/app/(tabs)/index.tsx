@@ -67,6 +67,21 @@ const PROMO_BANNERS = [
   { id: "4", title: "100× Futures Trading", sub: "Professional perpetual contracts, no expiry", accent: RED, icon: "trending-up" as const },
 ];
 
+const SERVICES_GRID = [
+  { label: "AI Trading", icon: "cpu" as const, route: "/ai-trading", color: "#9945ff", badge: "NEW" },
+  { label: "Trading Bots", icon: "grid" as const, route: "/bots", color: "#eb9100", badge: "" },
+  { label: "Earn", icon: "percent" as const, route: "/earn", color: GREEN, badge: "28% APY" },
+  { label: "Copy Trade", icon: "copy" as const, route: "/copy-trading", color: "#627eea", badge: "" },
+  { label: "Options", icon: "activity" as const, route: "/options", color: RED, badge: "" },
+  { label: "Convert", icon: "repeat" as const, route: "/convert", color: "#0ECB81", badge: "" },
+  { label: "INR Pay", icon: "credit-card" as const, route: "/inr-payments", color: "#F0B90B", badge: "" },
+  { label: "Referrals", icon: "gift" as const, route: "/invite", color: "#eb9100", badge: "30%" },
+  { label: "P2P", icon: "users" as const, route: "/p2p", color: "#9945ff", badge: "" },
+  { label: "Ledger", icon: "book" as const, route: "/ledger", color: "#848E9C", badge: "" },
+  { label: "Portfolio", icon: "pie-chart" as const, route: "/portfolio", color: "#627eea", badge: "" },
+  { label: "Price Alerts", icon: "bell" as const, route: "/price-alerts", color: "#F0B90B", badge: "" },
+];
+
 type MTab = "hot" | "gainers" | "losers";
 
 export default function HomeScreen() {
@@ -243,6 +258,39 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ── Services Grid ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Services</Text>
+          </View>
+          <View style={[styles.servicesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.servicesGrid}>
+              {SERVICES_GRID.map((svc) => (
+                <TouchableOpacity
+                  key={svc.label}
+                  style={styles.svcItem}
+                  onPress={() => {
+                    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (!isAuthenticated) { router.push("/login"); return; }
+                    router.push(svc.route as any);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.svcIconWrap, { backgroundColor: svc.color + "22" }]}>
+                    <Feather name={svc.icon} size={22} color={svc.color} />
+                    {svc.badge ? (
+                      <View style={[styles.svcBadge, { backgroundColor: svc.color }]}>
+                        <Text style={styles.svcBadgeText}>{svc.badge}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.svcLabel, { color: colors.mutedForeground }]}>{svc.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* ── Market Overview ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -348,7 +396,14 @@ const styles = StyleSheet.create({
   bannerSub: { fontSize: 11, lineHeight: 16 },
   bannerDots: { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: 10, alignItems: "center" },
   dot: { height: 6, borderRadius: 3 },
-  section: { paddingHorizontal: 16 },
+  section: { paddingHorizontal: 16, marginBottom: 8 },
+  servicesCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden", padding: 8 },
+  servicesGrid: { flexDirection: "row", flexWrap: "wrap" },
+  svcItem: { width: "25%", alignItems: "center", paddingVertical: 14, gap: 6 },
+  svcIconWrap: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  svcBadge: { position: "absolute", top: -4, right: -4, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 6 },
+  svcBadgeText: { fontSize: 7, fontWeight: "800", color: "#fff" },
+  svcLabel: { fontSize: 10, fontWeight: "600", textAlign: "center" },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "800" },
   seeAll: { fontSize: 13, fontWeight: "600" },

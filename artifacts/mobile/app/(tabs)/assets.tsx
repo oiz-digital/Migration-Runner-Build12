@@ -279,6 +279,38 @@ export default function AssetsScreen() {
           </View>
         )}
 
+        {/* ── Trading Tools ── */}
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Trading & Earning</Text>
+          <View style={styles.toolsGrid}>
+            {[
+              { icon: "cpu" as const, label: "AI Trading", color: "#9945ff", route: "/ai-trading", badge: "NEW" },
+              { icon: "grid" as const, label: "Bots", color: "#eb9100", route: "/bots", badge: "" },
+              { icon: "percent" as const, label: "Earn", color: GREEN, route: "/earn", badge: "28% APY" },
+              { icon: "copy" as const, label: "Copy Trade", color: "#627eea", route: "/copy-trading", badge: "" },
+              { icon: "activity" as const, label: "Options", color: RED, route: "/options", badge: "" },
+              { icon: "repeat" as const, label: "Convert", color: GREEN, route: "/convert", badge: "" },
+            ].map((t) => (
+              <TouchableOpacity
+                key={t.label}
+                style={styles.toolCard}
+                onPress={() => router.push(t.route as any)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.toolIcon, { backgroundColor: t.color + "22" }]}>
+                  <Feather name={t.icon} size={20} color={t.color} />
+                </View>
+                <Text style={[styles.toolLabel, { color: colors.foreground }]}>{t.label}</Text>
+                {t.badge ? (
+                  <View style={[styles.toolBadge, { backgroundColor: t.color + "22" }]}>
+                    <Text style={[styles.toolBadgeText, { color: t.color }]}>{t.badge}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         {/* ── Account Section ── */}
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Account</Text>
@@ -385,4 +417,10 @@ const styles = StyleSheet.create({
   menuValue: { fontSize: 13 },
   logoutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
   logoutText: { fontSize: 15, fontWeight: "700" },
+  toolsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 6, paddingBottom: 8 },
+  toolCard: { width: "33.33%", alignItems: "center", paddingVertical: 14, gap: 6 },
+  toolIcon: { width: 52, height: 52, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  toolLabel: { fontSize: 11, fontWeight: "600", textAlign: "center" },
+  toolBadge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, marginTop: 1 },
+  toolBadgeText: { fontSize: 8, fontWeight: "800" },
 });
