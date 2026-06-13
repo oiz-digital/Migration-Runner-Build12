@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/auth";
 import { rZadd, rZrem, rPublish, rLpush, rSet } from "../lib/redis";
 import { tryMatch, getDepth, getRecentTrades } from "../lib/matching-engine";
 import { getSpotFeeRates, loadFeeSettings } from "./fees";
+import { COMPANY_CIN, COMPANY_GST, COMPANY_PAN, COMPANY_ADDRESS } from "../lib/company";
 import { creditTradingFeeReferralChain } from "../lib/trading-fee-referral";
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────
@@ -459,13 +460,14 @@ router.get("/orders/:id/invoice", requireAuth, async (req, res): Promise<void> =
   const settingsRows = await db.select().from(settingsTable);
   const brandMap = new Map(settingsRows.map(r => [r.key, r.value]));
   const brand = {
-    legalName: brandMap.get("brand.legal_name") || "Zebvix Technologies Private Limited",
-    tradingName: brandMap.get("brand.trading_name") || "Zebvix Exchange",
-    address: brandMap.get("brand.address") || "Mumbai, Maharashtra, India",
-    gstin: brandMap.get("brand.gstin") || "—",
-    pan: brandMap.get("brand.pan") || "—",
+    legalName:    brandMap.get("brand.legal_name")    || "Zebvix Technologies Private Limited",
+    tradingName:  brandMap.get("brand.trading_name")  || "Zebvix Exchange",
+    address:      brandMap.get("brand.address")       || COMPANY_ADDRESS,
+    gstin:        brandMap.get("brand.gstin")         || COMPANY_GST,
+    pan:          brandMap.get("brand.pan")           || COMPANY_PAN,
+    cin:          brandMap.get("brand.cin")           || COMPANY_CIN,
     supportEmail: brandMap.get("brand.support_email") || "support@zebvix.com",
-    website: brandMap.get("brand.website") || "https://zebvix.com",
+    website:      brandMap.get("brand.website")       || "https://zebvix.com",
   };
 
   const invoiceNo = `INV-${String(order.id).padStart(8, "0")}`;

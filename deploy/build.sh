@@ -90,6 +90,9 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
   log "Running database migrations (drizzle migrate)..."
   pnpm --filter @workspace/db run migrate
   ok "Database schema up to date"
+
+  log "Seeding brand / company settings..."
+  psql "$DATABASE_URL" -f "$APP_DIR/deploy/seed-brand.sql" && ok "Brand settings seeded" || warn "Brand seed skipped (psql not available or already seeded)"
 else
   warn "DATABASE_URL not set — skipping DB migration. Run manually: pnpm --filter @workspace/db run migrate"
 fi
