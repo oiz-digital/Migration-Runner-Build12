@@ -204,6 +204,54 @@ uri = "file://attached_assets/premium_ai_trading.png"
 type = "image"
 title = "premium AI trading analytics"
 
+[[generated]]
+id = "m9F_Q2iSSvTUdMFzsfrAu"
+uri = "file://attached_assets/coindcx_home.png"
+type = "image"
+title = "coindcx home screen"
+
+[[generated]]
+id = "me9CK9c6D60PtSS4f3HBR"
+uri = "file://attached_assets/coindcx_markets.png"
+type = "image"
+title = "coindcx markets screen"
+
+[[generated]]
+id = "o5pR0nI-ODPOAl92KX2GP"
+uri = "file://attached_assets/coindcx_trade.png"
+type = "image"
+title = "coindcx trading screen"
+
+[[generated]]
+id = "2IAdUeh5QcxXYcKSEuGWA"
+uri = "file://attached_assets/coindcx_portfolio.png"
+type = "image"
+title = "coindcx portfolio screen"
+
+[[generated]]
+id = "i31uLwrVFHIH03mBNSHwr"
+uri = "file://attached_assets/coindcx_profile.png"
+type = "image"
+title = "coindcx profile kyc"
+
+[[generated]]
+id = "iDEwfYRW3dX1yp3beql4E"
+uri = "file://attached_assets/coindcx_deposit.png"
+type = "image"
+title = "coindcx INR deposit screen"
+
+[[generated]]
+id = "EYQllmlrzxH2iAJlFBXwm"
+uri = "file://attached_assets/coindcx_login.png"
+type = "image"
+title = "coindcx login onboarding"
+
+[[generated]]
+id = "8BM__pmeXh9sWyzbtFhD2"
+uri = "file://attached_assets/coindcx_futures.png"
+type = "image"
+title = "coindcx futures trading"
+
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
 uri = "file://docs/MOBILE_API_GUIDE.md"
@@ -425,3 +473,51 @@ id = "0ckWHyBoclNzTLZozqUob"
 uri = "file://attached_assets/premium_ai_trading.png"
 type = "image"
 title = "🤖 AI Trading Analytics"
+
+[[outputs]]
+id = "6SE47vq00RzI3OedHJSM0"
+uri = "file://attached_assets/coindcx_login.png"
+type = "image"
+title = "🔐 Login & Onboarding"
+
+[[outputs]]
+id = "lmqOr6IWBUlj4qgFmkKho"
+uri = "file://attached_assets/coindcx_home.png"
+type = "image"
+title = "🏠 Home Screen"
+
+[[outputs]]
+id = "AEHB1cYFcVoyGRAlxtVOq"
+uri = "file://attached_assets/coindcx_markets.png"
+type = "image"
+title = "📊 Markets (INR Pairs)"
+
+[[outputs]]
+id = "RS3_USnKn9PVokadaqQQz"
+uri = "file://attached_assets/coindcx_trade.png"
+type = "image"
+title = "📈 BTC/INR Trading"
+
+[[outputs]]
+id = "eZVldlqk5occ7jZQwl2vE"
+uri = "file://attached_assets/coindcx_futures.png"
+type = "image"
+title = "⚡ Futures Trading"
+
+[[outputs]]
+id = "ItCRzyMBTgbe_mQNEi2t9"
+uri = "file://attached_assets/coindcx_portfolio.png"
+type = "image"
+title = "💼 Portfolio (INR)"
+
+[[outputs]]
+id = "CpJRGH8kCjlTwMI90h1LX"
+uri = "file://attached_assets/coindcx_deposit.png"
+type = "image"
+title = "🏦 INR Deposit (UPI/IMPS)"
+
+[[outputs]]
+id = "-wwykO1GYSbpL62WJ3gqM"
+uri = "file://attached_assets/coindcx_profile.png"
+type = "image"
+title = "👤 Profile & KYC"
