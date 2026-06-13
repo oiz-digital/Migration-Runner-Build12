@@ -100,12 +100,12 @@ export default function SpotStatement() {
     if (!stmtRef.current || !data) return;
     setDownloading(true);
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const { jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(stmtRef.current, { scale: 1.5, useCORS: true, logging: false, backgroundColor: "#0f172a" });
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width / 1.5, canvas.height / 1.5] });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.82), "JPEG", 0, 0, canvas.width / 1.5, canvas.height / 1.5);
-      pdf.save(`${data.statementNo}.pdf`);
+      const { downloadElementAsPdf } = await import("@/lib/download-pdf");
+      await downloadElementAsPdf(stmtRef.current, `${data.statementNo}.pdf`, { backgroundColor: "#0f172a" });
+      toast.success("Statement downloaded successfully");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("PDF generation failed. Please try again.");
     } finally {
       setDownloading(false);
     }

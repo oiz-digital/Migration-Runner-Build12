@@ -88,21 +88,8 @@ export default function AIInvoice() {
     if (!printRef.current || !inv) return;
     setDownloading(true);
     try {
-      const { toJpeg } = await import("html-to-image");
-      const { default: jsPDF } = await import("jspdf");
-      const el = printRef.current;
-      const dataUrl = await toJpeg(el, {
-        cacheBust: true, pixelRatio: 1.5, quality: 0.82,
-        backgroundColor: "#0f172a",
-      });
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise<void>(r => { img.onload = () => r(); });
-      const w = img.naturalWidth / 1.5;
-      const h = img.naturalHeight / 1.5;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [w, h] });
-      pdf.addImage(dataUrl, "JPEG", 0, 0, w, h);
-      pdf.save(`${inv.invoiceNo}.pdf`);
+      const { downloadElementAsPdf } = await import("@/lib/download-pdf");
+      await downloadElementAsPdf(printRef.current, `${inv.invoiceNo}.pdf`, { backgroundColor: "#0f172a" });
       toast.success("Invoice downloaded successfully");
     } catch (err) {
       console.error("PDF generation failed:", err);

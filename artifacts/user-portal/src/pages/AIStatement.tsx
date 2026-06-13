@@ -102,37 +102,27 @@ export default function AIStatement() {
     if (!stmtRef.current || !data) return;
     setDownloading(true);
     try {
-      const { toJpeg } = await import("html-to-image");
-      const { default: jsPDF } = await import("jspdf");
+      const { downloadElementAsPdf } = await import("@/lib/download-pdf");
       const el = stmtRef.current;
 
-      // Temporarily force element to 794px so charts re-render at desktop width
+      // Temporarily force 794px so Recharts ResponsiveContainers re-render at desktop width
       const prevWidth    = el.style.width;
       const prevMaxWidth = el.style.maxWidth;
       el.style.width    = "794px";
       el.style.maxWidth = "794px";
-      // Wait for ResizeObserver + Recharts to re-paint at new width
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 450)); // wait for ResizeObserver + repaint
 
-      const dataUrl = await toJpeg(el, {
-        cacheBust: true, pixelRatio: 1.5, quality: 0.82,
-        backgroundColor: "#0f172a",
-      });
+      await downloadElementAsPdf(el, `${data.statementNo}.pdf`, { backgroundColor: "#0f172a" });
 
-      // Restore original styles
       el.style.width    = prevWidth;
       el.style.maxWidth = prevMaxWidth;
-
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise<void>(r => { img.onload = () => r(); });
-      const w = img.naturalWidth / 1.5;
-      const h = img.naturalHeight / 1.5;
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [w, h] });
-      pdf.addImage(dataUrl, "JPEG", 0, 0, w, h);
-      pdf.save(`${data.statementNo}.pdf`);
       toast.success("Statement downloaded successfully");
     } catch (err) {
+      // Restore width even on error
+      if (stmtRef.current) {
+        stmtRef.current.style.width    = "";
+        stmtRef.current.style.maxWidth = "";
+      }
       console.error("PDF generation failed:", err);
       toast.error("PDF generation failed. Please try again.");
     } finally {
