@@ -1,0 +1,44 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox && git pull origin main
+remote: Enumerating objects: 10, done.
+remote: Counting objects: 100% (10/10), done.
+remote: Compressing objects: 100% (2/2), done.
+remote: Total 6 (delta 4), reused 6 (delta 4), pack-reused 0 (from 0)
+Unpacking objects: 100% (6/6), 2.14 KiB | 730.00 KiB/s, done.
+From https://github.com/oiz-digital/Migration-Runner-Build12
+ * branch            main       -> FETCH_HEAD
+   3863b36..b509df8  main       -> origin/main
+Updating 3863b36..b509df8
+Fast-forward
+ ...OK-Static-files-copied-to-opt-cryptox-dist-build-Runni_1781332390009.txt | 49 +++++++++++++++++++++++++++++++++++++
+ deploy/build.sh                                                             | 17 ++++++++++++-
+ 2 files changed, 65 insertions(+), 1 deletion(-)
+ create mode 100644 attached_assets/Pasted--OK-Static-files-copied-to-opt-cryptox-dist-build-Runni_1781332390009.txt
+ubuntu@ip-172-31-11-99:/opt/cryptox$ eval "$(node -e "
+  const u = new URL(process.env.DATABASE_URL);
+  process.stdout.write('export PGHOST=' + JSON.stringify(u.hostname) + '\n');
+  process.stdout.write('export PGPORT=' + JSON.stringify(u.port || '5432') + '\n');
+  process.stdout.write('export PGUSER=' + JSON.stringify(u.username) + '\n');
+  process.stdout.write('export PGPASSWORD=' + JSON.stringify(decodeURIComponent(u.password)) + '\n');
+  process.stdout.write('export PGDATABASE=' + JSON.stringify(u.pathname.slice(1)) + '\n');
+")" && psql -f /opt/cryptox/deploy/seed-brand.sql
+node:internal/url:840
+      href = bindingUrl.parse(input, base, true);
+                        ^
+
+TypeError: Invalid URL
+    at new URL (node:internal/url:840:25)
+    at [eval]:2:13
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3 {
+  code: 'ERR_INVALID_URL',
+  input: 'undefined'
+}
+
+Node.js v24.16.0
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  role "ubuntu" does not exist
+ubuntu@ip-172-31-11-99:/opt/cryptox$
