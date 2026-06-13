@@ -257,14 +257,25 @@ async function creditTick(): Promise<void> {
       if (Math.abs(credit) < 0.000001) continue;
 
       // ── Apply to wallet ───────────────────────────────────────────────────
+      // Re-read the wallet to get current balance for the ledger snapshot.
+      // The actual UPDATE uses a SQL expression so it is atomic even if two
+      // workers run concurrently (leader election reduces that to near-zero,
+      // but correctness must not rely on it).
       const wallet   = await getSpotWallet(sub.userId, usdtCoinId);
       const prevFree = parseFloat(wallet?.balance ?? "0");
-      const newFree  = Math.max(0, prevFree + credit);
+      const newFree  = Math.max(0, prevFree + credit); // used only for ledger
 
-      if (wallet) {
+      if (wallet && wallet.id) {
         await db
           .update(walletsTable)
-          .set({ balance: String(newFree), updatedAt: new Date() })
+          .set({
+            // GREATEST(0,...) mirrors the JS Math.max(0,...) floor while
+            // keeping the operation atomic — no separate read-write needed.
+            balance:    credit >= 0
+              ? sql`${walletsTable.balance} + ${credit}`
+              : sql`GREATEST(0, ${walletsTable.balance} + ${credit})`,
+            updatedAt: new Date(),
+          })
           .where(eq(walletsTable.id, wallet.id));
       }
 

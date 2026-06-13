@@ -227,25 +227,39 @@ router.post("/instruments/orders", requireAuth, async (req, res): Promise<void> 
       }
     }
 
-    // Deduct margin from wallet + write ledger debit
+    // Deduct margin from wallet + write ledger debit.
+    // Wrapped in a transaction with FOR UPDATE so concurrent orders on the
+    // same account cannot double-spend the same balance.
     if (wallet && side === "buy") {
       const deduction = marginRequired + fee;
-      const balBefore = Number(wallet.balance);
-      const balAfter = balBefore - deduction;
-      await db.update(walletsTable).set({
-        balance: String(balAfter),
-      }).where(eq(walletsTable.id, wallet.id));
-      await db.insert(walletLedgerTable).values({
-        userId,
-        coinId: wallet.coinId,
-        walletType: "spot",
-        type: "instruments_margin",
-        amount: String(-deduction),
-        balanceBefore: String(balBefore),
-        balanceAfter: String(balAfter),
-        refType: "instrument_order",
-        refId: String(order.id),
-        note: `${symbol} ${side} ×${qty} margin+fee`,
+      await db.transaction(async (tx) => {
+        // Re-read with row-level lock to prevent concurrent double-spend.
+        const [lockedW] = await tx.select().from(walletsTable)
+          .where(eq(walletsTable.id, wallet!.id)).for("update").limit(1);
+        if (!lockedW) return;
+        const balBefore = Number(lockedW.balance);
+        if (balBefore < deduction) {
+          const e: any = new Error(`Insufficient balance (need ${deduction.toFixed(2)}, have ${balBefore.toFixed(2)})`);
+          e.code = 400;
+          throw e;
+        }
+        const balAfter = balBefore - deduction;
+        await tx.update(walletsTable).set({
+          balance: sql`${walletsTable.balance} - ${deduction}`,
+          updatedAt: new Date(),
+        }).where(eq(walletsTable.id, lockedW.id));
+        await tx.insert(walletLedgerTable).values({
+          userId,
+          coinId: lockedW.coinId,
+          walletType: "spot",
+          type: "instruments_margin",
+          amount: String(-deduction),
+          balanceBefore: String(balBefore),
+          balanceAfter: String(balAfter),
+          refType: "instrument_order",
+          refId: String(order.id),
+          note: `${symbol} ${side} ×${qty} margin+fee`,
+        });
       });
     }
   }
@@ -367,23 +381,28 @@ router.post("/instruments/positions/:id/close", requireAuth, async (req, res): P
     unrealizedPnl: "0",
   }).where(eq(instrumentPositionsTable.id, posId));
 
-  // Credit PnL to wallet
-  const [wallet] = await db
-    .select()
-    .from(walletsTable)
-    .where(and(
-      eq(walletsTable.userId, userId),
-      eq(walletsTable.walletType, "spot"),
-      sql`${walletsTable.coinId} = (SELECT id FROM coins WHERE symbol = ${instrument.quoteCurrency} LIMIT 1)`,
-    ))
-    .limit(1);
-  if (wallet) {
+  // Credit PnL to wallet — wrapped in a transaction with FOR UPDATE.
+  await db.transaction(async (tx) => {
+    const [wallet] = await tx
+      .select()
+      .from(walletsTable)
+      .where(and(
+        eq(walletsTable.userId, userId),
+        eq(walletsTable.walletType, "spot"),
+        sql`${walletsTable.coinId} = (SELECT id FROM coins WHERE symbol = ${instrument.quoteCurrency} LIMIT 1)`,
+      ))
+      .for("update")
+      .limit(1);
+    if (!wallet) return;
     const credit = Number(position.marginUsed) + netPnl;
     const balBefore = Number(wallet.balance);
-    const balAfter = Math.max(0, balBefore + credit);
-    await db.update(walletsTable).set({ balance: String(balAfter) })
-      .where(eq(walletsTable.id, wallet.id));
-    await db.insert(walletLedgerTable).values({
+    const balAfter = Math.max(0, balBefore + credit); // for ledger only
+    // SQL GREATEST(0,...) is atomic — no race condition.
+    await tx.update(walletsTable).set({
+      balance: sql`GREATEST(0, ${walletsTable.balance} + ${credit})`,
+      updatedAt: new Date(),
+    }).where(eq(walletsTable.id, wallet.id));
+    await tx.insert(walletLedgerTable).values({
       userId,
       coinId: wallet.coinId,
       walletType: "spot",
@@ -395,7 +414,7 @@ router.post("/instruments/positions/:id/close", requireAuth, async (req, res): P
       refId: String(posId),
       note: `Close ${instrument.symbol} PnL=${netPnl.toFixed(4)}`,
     });
-  }
+  });
 
   res.json({ message: "Position closed", realizedPnl: netPnl, fee });
 });
