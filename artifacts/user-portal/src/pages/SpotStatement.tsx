@@ -102,9 +102,9 @@ export default function SpotStatement() {
     try {
       const html2canvas = (await import("html2canvas")).default;
       const { jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(stmtRef.current, { scale: 2, useCORS: true, logging: false, backgroundColor: "#0f172a" });
-      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width / 2, canvas.height / 2] });
-      pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, canvas.width / 2, canvas.height / 2);
+      const canvas = await html2canvas(stmtRef.current, { scale: 1.5, useCORS: true, logging: false, backgroundColor: "#0f172a" });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [canvas.width / 1.5, canvas.height / 1.5] });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.82), "JPEG", 0, 0, canvas.width / 1.5, canvas.height / 1.5);
       pdf.save(`${data.statementNo}.pdf`);
     } finally {
       setDownloading(false);

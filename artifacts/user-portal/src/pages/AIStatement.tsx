@@ -102,12 +102,12 @@ export default function AIStatement() {
     if (!stmtRef.current || !data) return;
     setDownloading(true);
     try {
-      const { toPng } = await import("html-to-image");
+      const { toJpeg } = await import("html-to-image");
       const { default: jsPDF } = await import("jspdf");
       const el = stmtRef.current;
       const captureWidth = 794;
-      const dataUrl = await toPng(el, {
-        cacheBust: true, pixelRatio: 2, quality: 1,
+      const dataUrl = await toJpeg(el, {
+        cacheBust: true, pixelRatio: 1.5, quality: 0.82,
         backgroundColor: "#0f172a",
         width: captureWidth,
         height: el.scrollHeight,
@@ -116,10 +116,10 @@ export default function AIStatement() {
       const img = new Image();
       img.src = dataUrl;
       await new Promise<void>(r => { img.onload = () => r(); });
-      const w = img.naturalWidth / 2;
-      const h = img.naturalHeight / 2;
+      const w = img.naturalWidth / 1.5;
+      const h = img.naturalHeight / 1.5;
       const pdf = new jsPDF({ orientation: "portrait", unit: "px", format: [w, h] });
-      pdf.addImage(dataUrl, "PNG", 0, 0, w, h);
+      pdf.addImage(dataUrl, "JPEG", 0, 0, w, h);
       pdf.save(`${data.statementNo}.pdf`);
       toast.success("Statement downloaded successfully");
     } catch (err) {
