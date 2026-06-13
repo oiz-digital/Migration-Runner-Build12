@@ -1,0 +1,32 @@
+ubuntu@ip-172-31-11-99:/opt/cryptox$ cd /opt/cryptox && node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('.env','utf8').split('\n');
+const dbUrl = lines.find(l=>l.startsWith('DATABASE_URL=')).split('=').slice(1).join('=').trim().replace(/^\"|\"$/g,'');
+const { Client } = require('./node_modules/.pnpm/pg@8.20.0/node_modules/pg');
+const c = new Client({ connectionString: dbUrl });
+c.connect().then(() => c.query(\`
+INSERT INTO users (email, name, password_hash, role, kyc_level, status, uid, referral_code, email_verified, created_at, updated_at)
+VALUES
+  ('arjun.sharma.trader@zebvix.com','Arjun Sharma','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-01','ARJUN001',true,now()-'180 days'::interval,now()),
+  ('priya.kapoor.trader@zebvix.com','Priya Kapoor','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-02','PRIYA001',true,now()-'220 days'::interval,now()),
+  ('rahul.mehta.trader@zebvix.com','Rahul Mehta','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-03','RAHUL001',true,now()-'150 days'::interval,now()),
+  ('deepak.verma.trader@zebvix.com','Deepak Verma','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-04','DEEPK001',true,now()-'300 days'::interval,now()),
+  ('sneha.patel.trader@zebvix.com','Sneha Patel','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-05','SNEHA001',true,now()-'90 days'::interval,now()),
+  ('vikram.singh.trader@zebvix.com','Vikram Singh','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-06','VIKRM001',true,now()-'400 days'::interval,now()),
+  ('ananya.gupta.trader@zebvix.com','Ananya Gupta','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-07','ANANM001',true,now()-'120 days'::interval,now()),
+  ('karan.malhotra.trader@zebvix.com','Karan Malhotra','\$2b\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy','user',2,'active','demo-tr-08','KARAN001',true,now()-'250 days'::interval,now())
+ON CONFLICT (email) DO NOTHING RETURNING id, email
+\`)).then(r=>{ console.log('Done:', r.rows); c.end(); }).catch(e=>{ console.error(e.message); c.end(); });
+"
+Done: [
+  { id: 5, email: 'arjun.sharma.trader@zebvix.com' },
+  { id: 6, email: 'priya.kapoor.trader@zebvix.com' },
+  { id: 7, email: 'rahul.mehta.trader@zebvix.com' },
+  { id: 8, email: 'deepak.verma.trader@zebvix.com' },
+  { id: 9, email: 'sneha.patel.trader@zebvix.com' },
+  { id: 10, email: 'vikram.singh.trader@zebvix.com' },
+  { id: 11, email: 'ananya.gupta.trader@zebvix.com' },
+  { id: 12, email: 'karan.malhotra.trader@zebvix.com' }
+]
+ubuntu@ip-172-31-11-99:/opt/cryptox$
+
