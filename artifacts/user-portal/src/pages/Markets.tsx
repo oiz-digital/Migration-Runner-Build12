@@ -18,8 +18,9 @@ import {
   Activity,
   Coins,
   Trophy,
+  IndianRupee,
 } from "lucide-react";
-import { useTickers, encodeSymbol, type NormalizedTicker } from "@/lib/marketSocket";
+import { useTickers, useInrRate, encodeSymbol, type NormalizedTicker } from "@/lib/marketSocket";
 import { useMarketCatalog } from "@/lib/marketCatalog";
 import { buildUsdRates, quoteVolUsd } from "@/lib/volumeUsd";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,7 @@ function MoverCard({
 // ──────────────────────────────────────────────────────────────────
 export default function Markets() {
   const tickers = useTickers();
+  const inrRate = useInrRate();
   const { favs, toggle: toggleFav } = useFavorites();
   const coinLogos = useCoinLogos();
 
@@ -492,7 +494,7 @@ export default function Markets() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 lg:gap-4 lg:min-w-[36rem]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-4 lg:min-w-[44rem]">
               <StatTile
                 icon={<Coins className="h-4 w-4" />}
                 label="Pairs"
@@ -514,6 +516,11 @@ export default function Markets() {
                 label="Losers"
                 value={loading ? "—" : stats.losers.toString()}
                 tone="destructive"
+              />
+              <StatTile
+                icon={<IndianRupee className="h-4 w-4 text-amber-500" />}
+                label="USDT / INR"
+                value={inrRate > 0 ? `₹${inrRate.toFixed(2)}` : "—"}
               />
             </div>
           </div>

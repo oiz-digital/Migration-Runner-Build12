@@ -104,6 +104,8 @@ class MarketSocket {
   private listeners = new Map<string, Set<(data: any) => void>>();
   private tickerListeners = new Set<(data: Record<string, NormalizedTicker>) => void>();
   private latestTickers: Record<string, NormalizedTicker> = {};
+  private latestInrRate = 0;
+  private inrRateListeners = new Set<(rate: number) => void>();
   private closed = false;
 
   constructor() {
@@ -191,7 +193,10 @@ class MarketSocket {
     }
     // Initial snapshot frame: { type: "snapshot", inrRate, ticks }
     if (payload.type === "snapshot" && Array.isArray(payload.ticks)) {
-      // No-op: tickers frame follows immediately.
+      if (typeof payload.inrRate === "number" && payload.inrRate > 0) {
+        this.latestInrRate = payload.inrRate;
+        for (const cb of this.inrRateListeners) cb(this.latestInrRate);
+      }
     }
   }
 
@@ -271,9 +276,25 @@ class MarketSocket {
   }
 
   getLatestTickers() { return this.latestTickers; }
+  getInrRate() { return this.latestInrRate; }
+
+  subscribeInrRate(cb: (rate: number) => void): () => void {
+    this.inrRateListeners.add(cb);
+    if (this.latestInrRate > 0) cb(this.latestInrRate);
+    return () => { this.inrRateListeners.delete(cb); };
+  }
 }
 
 export const marketSocket = typeof window !== "undefined" ? new MarketSocket() : (null as any);
+
+export function useInrRate() {
+  const [rate, setRate] = useState<number>(() => marketSocket?.getInrRate() || 0);
+  useEffect(() => {
+    if (!marketSocket) return;
+    return marketSocket.subscribeInrRate(setRate);
+  }, []);
+  return rate;
+}
 
 export function useTickers() {
   const [tickers, setTickers] = useState<Record<string, NormalizedTicker>>(() => marketSocket?.getLatestTickers() || {});

@@ -61,6 +61,7 @@ import {
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { useFeatures } from "@/lib/siteConfig";
+import { useInrRate } from "@/lib/marketSocket";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -341,6 +342,7 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [langCode, setLangCode] = useState<string>("en");
+  const inrRate = useInrRate();
 
   // Public broadcast notifications (visible to guests too)
   const { data: notifs = [] } = useQuery<BroadcastNotif[]>({
@@ -493,6 +495,14 @@ export function AppHeader() {
               </span>
             </button>
           </div>
+
+          {/* INR rate chip */}
+          {inrRate > 0 && (
+            <div className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-full border border-amber-500/25 bg-amber-500/8 text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex-shrink-0">
+              <IndianRupee className="h-3 w-3" />
+              <span>1 USDT = ₹{inrRate.toFixed(2)}</span>
+            </div>
+          )}
 
           {/* Desktop nav — auto-fits via priority-based progressive disclosure */}
           <nav className="hidden xl:flex items-center gap-0.5 xl:gap-1 text-sm min-w-0">
