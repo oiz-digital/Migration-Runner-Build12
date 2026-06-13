@@ -383,9 +383,25 @@ export async function placeSpotOrder(opts: {
       // Referral commission is paid on the base exchange fee (pre-GST).
       // final.fee = baseFee × (1 + gst%/100); back out the GST before crediting.
       // sourceRefId = "spot:{orderId}" — ensures exactly-once credit per order.
+      // INR pairs: convert fee to USDT equivalent so all commissions stay in
+      // one consistent currency (avoids mixed-currency sum in /refer/stats).
       const spotRefId = `spot:${final.id}`;
-      getSpotFeeRates(vipTier).then(({ gstPercent }) => {
+      getSpotFeeRates(vipTier).then(async ({ gstPercent }) => {
         const baseFeeAmt = grossFee / (1 + gstPercent / 100);
+
+        const [quoteCoin] = await db.select({ symbol: coinsTable.symbol })
+          .from(coinsTable).where(eq(coinsTable.id, pair.quoteCoinId)).limit(1);
+
+        if (quoteCoin?.symbol === "INR") {
+          const rate = getInrRate();
+          if (rate <= 0) return; // rate not yet loaded — skip rather than use wrong value
+          const feeUsdt = baseFeeAmt / rate;
+          const [usdtCoin] = await db.select({ id: coinsTable.id })
+            .from(coinsTable).where(eq(coinsTable.symbol, "USDT")).limit(1);
+          if (!usdtCoin) return;
+          return creditTradingFeeReferralChain(userId, feeUsdt, usdtCoin.id, "trading_fee", spotRefId);
+        }
+
         return creditTradingFeeReferralChain(userId, baseFeeAmt, pair.quoteCoinId, "trading_fee", spotRefId);
       }).catch(() => null); // never block the order response
     }

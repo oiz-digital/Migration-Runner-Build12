@@ -532,10 +532,23 @@ r.post("/futures/order", bicryptoAuth, async (req: any, res: Response): Promise<
     finalOrder = await applyFills(orderRow, match, pair);
     // 5-level futures trading-fee referral commission (fire-and-forget)
     // sourceRefId "fut:{orderId}" ensures exactly-once credit per order.
+    // INR-quoted pairs: convert fee to USDT for consistent commission currency.
     const futuresFeeAmt = parseFloat(finalOrder?.fee ?? "0");
     if (futuresFeeAmt > 0) {
-      creditTradingFeeReferralChain(u.id, futuresFeeAmt, pair.quoteCoinId, "futures_fee", `fut:${orderRow.id}`)
-        .catch(() => null);
+      (async () => {
+        const [quoteCoin] = await db.select({ symbol: coinsTable.symbol })
+          .from(coinsTable).where(eq(coinsTable.id, pair.quoteCoinId)).limit(1);
+        if (quoteCoin?.symbol === "INR") {
+          const rate = getInrRate();
+          if (rate <= 0) return;
+          const feeUsdt = futuresFeeAmt / rate;
+          const [usdtCoin] = await db.select({ id: coinsTable.id })
+            .from(coinsTable).where(eq(coinsTable.symbol, "USDT")).limit(1);
+          if (!usdtCoin) return;
+          return creditTradingFeeReferralChain(u.id, feeUsdt, usdtCoin.id, "futures_fee", `fut:${orderRow.id}`);
+        }
+        return creditTradingFeeReferralChain(u.id, futuresFeeAmt, pair.quoteCoinId, "futures_fee", `fut:${orderRow.id}`);
+      })().catch(() => null);
     }
   } else if (match?.status) {
     // No fills — just stamp the status (REJECTED / OPEN).
@@ -1053,10 +1066,23 @@ r.delete("/futures/position", bicryptoAuth, async (req: any, res: Response): Pro
     const closedOrder = await applyFills(orderRow, match, pair);
     // 5-level futures trading-fee referral commission on close (fire-and-forget)
     // sourceRefId "fut_close:{orderId}" — exactly-once per close order.
+    // INR-quoted pairs: convert fee to USDT for consistent commission currency.
     const closeFeeAmt = parseFloat(closedOrder?.fee ?? "0");
     if (closeFeeAmt > 0) {
-      creditTradingFeeReferralChain(u.id, closeFeeAmt, pair.quoteCoinId, "futures_fee", `fut_close:${orderRow.id}`)
-        .catch(() => null);
+      (async () => {
+        const [quoteCoin] = await db.select({ symbol: coinsTable.symbol })
+          .from(coinsTable).where(eq(coinsTable.id, pair.quoteCoinId)).limit(1);
+        if (quoteCoin?.symbol === "INR") {
+          const rate = getInrRate();
+          if (rate <= 0) return;
+          const feeUsdt = closeFeeAmt / rate;
+          const [usdtCoin] = await db.select({ id: coinsTable.id })
+            .from(coinsTable).where(eq(coinsTable.symbol, "USDT")).limit(1);
+          if (!usdtCoin) return;
+          return creditTradingFeeReferralChain(u.id, feeUsdt, usdtCoin.id, "futures_fee", `fut_close:${orderRow.id}`);
+        }
+        return creditTradingFeeReferralChain(u.id, closeFeeAmt, pair.quoteCoinId, "futures_fee", `fut_close:${orderRow.id}`);
+      })().catch(() => null);
     }
   } else {
     // No counterparty available — refund and report.
