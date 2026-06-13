@@ -1645,10 +1645,9 @@ r.post("/finance/transfer", bicryptoAuth, async (req: any, res): Promise<void> =
 
   try {
     await db.transaction(async (tx) => {
-      // Race-safe debit: a single guarded UPDATE that only succeeds when
-      // the wallet exists AND has enough balance. Two concurrent transfers
-      // can no longer both pass an in-app `>= amt` check and overdraw —
-      // the second one returns 0 rows and we throw.
+      // Race-safe debit. A single guarded UPDATE (balance >= amt) prevents
+      // concurrent overdraw. RETURNING balance gives the POST-update value so
+      // we derive balanceBefore = newBal + amt without a separate SELECT.
       const debited = await tx.update(walletsTable)
         .set({
           balance: sql`${walletsTable.balance} - ${amt}`,
@@ -1660,14 +1659,13 @@ r.post("/finance/transfer", bicryptoAuth, async (req: any, res): Promise<void> =
           eq(walletsTable.walletType, fromType),
           sql`${walletsTable.balance} >= ${amt}`,
         ))
-        .returning({ id: walletsTable.id });
+        .returning({ id: walletsTable.id, newBal: walletsTable.balance });
 
       if (debited.length === 0) throw new Error("Insufficient balance");
+      const srcBalAfter = Number(debited[0].newBal);
+      const srcBalBefore = srcBalAfter + amt;
 
-      // Credit destination — try to update first, then upsert if missing.
-      // The unique index (userId, walletType, coinId) makes the insert path
-      // safe; if another tx created the dest concurrently we'd get a unique
-      // violation and the outer transaction will roll back.
+      // Credit destination — try to update first, then insert if missing.
       const credited = await tx.update(walletsTable)
         .set({
           balance: sql`${walletsTable.balance} + ${amt}`,
@@ -1678,31 +1676,42 @@ r.post("/finance/transfer", bicryptoAuth, async (req: any, res): Promise<void> =
           eq(walletsTable.coinId, coin.id),
           eq(walletsTable.walletType, toType),
         ))
-        .returning({ id: walletsTable.id });
+        .returning({ id: walletsTable.id, newBal: walletsTable.balance });
 
+      let dstBalBefore: number;
+      let dstBalAfter: number;
       if (credited.length === 0) {
         await tx.insert(walletsTable).values({
           userId: req.bcUser.id, coinId: coin.id, walletType: toType,
           balance: String(amt), locked: "0",
         });
+        dstBalBefore = 0;
+        dstBalAfter = amt;
+      } else {
+        dstBalAfter = Number(credited[0].newBal);
+        dstBalBefore = dstBalAfter - amt;
       }
+
+      const transferNote = `Transfer ${sym} from ${fromType} → ${toType}`;
       // Ledger: debit side
       await tx.insert(walletLedgerTable).values({
         userId: req.bcUser.id, coinId: coin.id, walletType: fromType,
         type: "transfer_out",
         amount: String(-amt),
-        balanceBefore: "0", balanceAfter: "0",
+        balanceBefore: String(srcBalBefore),
+        balanceAfter: String(srcBalAfter),
         refType: "transfer", refId: "0",
-        note: `Transfer ${sym} from ${fromType} → ${toType}`,
+        note: transferNote,
       });
       // Ledger: credit side
       await tx.insert(walletLedgerTable).values({
         userId: req.bcUser.id, coinId: coin.id, walletType: toType,
         type: "transfer_in",
         amount: String(amt),
-        balanceBefore: "0", balanceAfter: "0",
+        balanceBefore: String(dstBalBefore),
+        balanceAfter: String(dstBalAfter),
         refType: "transfer", refId: "0",
-        note: `Transfer ${sym} from ${fromType} → ${toType}`,
+        note: transferNote,
       });
     });
     res.json({ message: "Transfer successful", from, to, currency: sym, amount: amt });
