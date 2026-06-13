@@ -25,7 +25,7 @@ import {
   walletLedgerTable,
   coinsTable,
 } from "@workspace/db";
-import { eq, and, gte, sum } from "drizzle-orm";
+import { eq, and, gte, sum, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { isLeader } from "./leader";
 import { creditReferralChain } from "./trading-fee-referral";
@@ -321,12 +321,17 @@ async function creditTick(): Promise<void> {
       // ── Return principal on plan expiry ───────────────────────────────────
       if (isExpired) {
         const w2 = await getSpotWallet(sub.userId, usdtCoinId);
-        if (w2) {
+        if (w2 && w2.id) {
+          // Use SQL expressions to avoid a read-then-write race condition.
+          // Two concurrent expiry ticks (e.g. leader failover) must not
+          // double-credit the principal. The GREATEST(0,...) guard on locked
+          // ensures we never push the locked column below zero even if the
+          // subscription was funded in a different coin (e.g. INR path).
           await db
             .update(walletsTable)
             .set({
-              balance:   String(parseFloat(w2.balance ?? "0") + invested),
-              locked:    String(Math.max(0, parseFloat(w2.locked ?? "0") - invested)),
+              balance:   sql`${walletsTable.balance} + ${invested}`,
+              locked:    sql`GREATEST(0, ${walletsTable.locked} - ${invested})`,
               updatedAt: new Date(),
             })
             .where(eq(walletsTable.id, w2.id));

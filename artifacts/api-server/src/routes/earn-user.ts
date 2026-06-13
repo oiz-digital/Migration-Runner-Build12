@@ -179,7 +179,7 @@ router.post("/earn/positions/:id/redeem", requireAuth, async (req, res): Promise
         .for("update").limit(1);
       if (earnW) {
         await tx.update(walletsTable).set({
-          locked: sql`${walletsTable.locked} - ${principal}`, updatedAt: new Date(),
+          locked: sql`GREATEST(0, ${walletsTable.locked} - ${principal})`, updatedAt: new Date(),
         }).where(eq(walletsTable.id, earnW.id));
       }
       const [spotW] = await tx.select().from(walletsTable)

@@ -405,7 +405,12 @@ export class Settler {
       updates["balance"] = sql`${walletsTable.balance} + ${String(delta.balanceDelta)}::numeric`;
     }
     if (delta.lockedDelta !== undefined && delta.lockedDelta !== 0) {
-      updates["locked"] = sql`${walletsTable.locked} + ${String(delta.lockedDelta)}::numeric`;
+      // When releasing locked funds (negative delta), floor at zero so that
+      // small buffer discrepancies (feeBuffer vs actual GST-inclusive fee)
+      // never push the locked column into negative territory.
+      updates["locked"] = delta.lockedDelta < 0
+        ? sql`GREATEST(0, ${walletsTable.locked} + ${String(delta.lockedDelta)}::numeric)`
+        : sql`${walletsTable.locked} + ${String(delta.lockedDelta)}::numeric`;
     }
     await tx.update(walletsTable).set(updates).where(eq(walletsTable.id, wallet.id));
   }

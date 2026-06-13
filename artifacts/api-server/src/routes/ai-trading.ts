@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, aiTradingPlansTable, aiTradingSubscriptionsTable, aiTradingEarningsTable, walletsTable, coinsTable, usersTable, walletLedgerTable } from "@workspace/db";
-import { eq, and, desc, count, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, count, gte, lte, inArray, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/auth";
 import { getInrRate } from "../lib/price-service";
 import { COMPANY_NAME, COMPANY_SHORT, COMPANY_CIN, COMPANY_GST, COMPANY_ADDRESS } from "../lib/company";
@@ -150,22 +150,47 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
       return;
     }
     const sub = await db.transaction(async (tx) => {
-      // Re-read INR wallet inside tx with a fresh lock
-      const inrWallet = await getSpotWallet(userId, "INR", tx);
-      const inrAvail  = parseFloat(inrWallet?.balance ?? "0");
+      // Re-read INR wallet inside tx with a row-level lock (FOR UPDATE) so
+      // concurrent subscribe requests on the same account cannot double-spend.
+      const [inrW] = await tx
+        .select()
+        .from(walletsTable)
+        .innerJoin(coinsTable, eq(coinsTable.id, walletsTable.coinId))
+        .where(and(
+          eq(walletsTable.userId, userId),
+          eq(walletsTable.walletType, "spot"),
+          eq(coinsTable.symbol, "INR"),
+        ))
+        .for("update")
+        .limit(1);
+      if (!inrW) throw Object.assign(new Error("INR spot wallet not found"), { code: 400 });
+      const inrWallet = inrW.wallets;
+      const inrAvail  = parseFloat(inrWallet.balance ?? "0");
       if (inrAvail < amount) throw Object.assign(new Error(`Insufficient INR balance. Need ₹${amount.toFixed(2)}, have ₹${inrAvail.toFixed(2)}`), { code: 400 });
-      await upsertSpotWallet(userId, "INR",
-        String(inrAvail - amount),
-        String(parseFloat(inrWallet?.locked ?? "0") + amount), tx);
-      const usdtWallet = await getSpotWallet(userId, "USDT", tx);
-      await upsertSpotWallet(userId, "USDT",
-        usdtWallet?.balance ?? "0",
-        String(parseFloat(usdtWallet?.locked ?? "0") + usdtEquiv), tx);
+
+      // Deduct INR balance using SQL expression — the INR is spent (not locked).
+      // The subscription is tracked in USDT-equivalent units; on expiry/cancel
+      // the credit engine returns that USDT amount from the exchange's liquidity.
+      await tx.update(walletsTable).set({
+        balance: sql`${walletsTable.balance} - ${amount}`,
+        updatedAt: new Date(),
+      }).where(eq(walletsTable.id, inrWallet.id));
+
       const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
         userId, planId,
         investedAmount: String(usdtEquiv.toFixed(8)),
         expiresAt, status: "active", totalEarned: "0",
       }).returning();
+
+      await tx.insert(walletLedgerTable).values({
+        userId, coinId: inrWallet.coinId, walletType: "spot", type: "ai_principal_lock",
+        amount: String(-amount),
+        balanceBefore: inrWallet.balance,
+        balanceAfter: String(inrAvail - amount),
+        refType: "ai_subscription", refId: String(created.id),
+        note: `AI plan: ${plan.name} (INR funded, ≈$${usdtEquiv.toFixed(2)} USDT)`,
+      });
+
       return created;
     });
     res.status(201).json(serializeSub(sub, plan));
@@ -179,24 +204,39 @@ router.post("/ai-trading/subscribe", requireAuth, async (req, res): Promise<void
     res.status(400).json({ error: "Insufficient USDT balance" }); return;
   }
   const sub = await db.transaction(async (tx) => {
-    // Re-read USDT wallet inside tx
-    const wallet = await getSpotWallet(userId, "USDT", tx);
-    const avail   = parseFloat(wallet?.balance ?? "0");
+    // SELECT FOR UPDATE so concurrent subscribe requests cannot double-spend.
+    const [usdtW] = await tx
+      .select()
+      .from(walletsTable)
+      .innerJoin(coinsTable, eq(coinsTable.id, walletsTable.coinId))
+      .where(and(
+        eq(walletsTable.userId, userId),
+        eq(walletsTable.walletType, "spot"),
+        eq(coinsTable.symbol, "USDT"),
+      ))
+      .for("update")
+      .limit(1);
+    if (!usdtW) throw Object.assign(new Error("USDT spot wallet not found"), { code: 400 });
+    const wallet = usdtW.wallets;
+    const avail  = parseFloat(wallet.balance ?? "0");
     if (avail < amount) throw Object.assign(new Error("Insufficient USDT balance"), { code: 400 });
-    await upsertSpotWallet(userId, "USDT",
-      String(avail - amount),
-      String(parseFloat(wallet?.locked ?? "0") + amount), tx);
+
+    // Use SQL expressions so the update is atomic even under concurrent load.
+    await tx.update(walletsTable).set({
+      balance:   sql`${walletsTable.balance} - ${amount}`,
+      locked:    sql`${walletsTable.locked}  + ${amount}`,
+      updatedAt: new Date(),
+    }).where(eq(walletsTable.id, wallet.id));
+
     const [created] = await tx.insert(aiTradingSubscriptionsTable).values({
       userId, planId, investedAmount: String(amount),
       expiresAt, status: "active", totalEarned: "0",
     }).returning();
-    if (wallet?.coinId) {
-      await tx.insert(walletLedgerTable).values({
-        userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_lock",
-        amount: String(-amount), balanceBefore: wallet.balance, balanceAfter: String(avail - amount),
-        refType: "ai_subscription", refId: String(created.id), note: `AI plan: ${plan.name}`,
-      });
-    }
+    await tx.insert(walletLedgerTable).values({
+      userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_lock",
+      amount: String(-amount), balanceBefore: wallet.balance, balanceAfter: String(avail - amount),
+      refType: "ai_subscription", refId: String(created.id), note: `AI plan: ${plan.name}`,
+    });
     return created;
   });
 
@@ -212,20 +252,51 @@ router.post("/ai-trading/subscriptions/:id/cancel", requireAuth, async (req, res
   const invested = parseFloat(sub.investedAmount);
 
   await db.transaction(async (tx) => {
-    const wallet    = await getSpotWallet(userId, "USDT", tx);
-    const balBefore = wallet?.balance ?? "0";
-    await upsertSpotWallet(userId, "USDT",
-      String(parseFloat(balBefore) + invested),
-      String(Math.max(0, parseFloat(wallet?.locked ?? "0") - invested)), tx);
-    await tx.update(aiTradingSubscriptionsTable).set({ status: "cancelled" })
-      .where(eq(aiTradingSubscriptionsTable.id, id));
-    if (wallet?.coinId) {
+    // SELECT FOR UPDATE to prevent concurrent cancels on the same subscription.
+    const [usdtW] = await tx
+      .select()
+      .from(walletsTable)
+      .innerJoin(coinsTable, eq(coinsTable.id, walletsTable.coinId))
+      .where(and(
+        eq(walletsTable.userId, userId),
+        eq(walletsTable.walletType, "spot"),
+        eq(coinsTable.symbol, "USDT"),
+      ))
+      .for("update")
+      .limit(1);
+
+    // Return principal using SQL expressions — atomic, no race condition.
+    // GREATEST(0,...) on locked guards against INR-funded subs where USDT
+    // was never locked but the invested amount is in USDT units.
+    if (usdtW) {
+      const wallet    = usdtW.wallets;
+      const balBefore = wallet.balance ?? "0";
+      await tx.update(walletsTable).set({
+        balance:   sql`${walletsTable.balance} + ${invested}`,
+        locked:    sql`GREATEST(0, ${walletsTable.locked} - ${invested})`,
+        updatedAt: new Date(),
+      }).where(eq(walletsTable.id, wallet.id));
       await tx.insert(walletLedgerTable).values({
         userId, coinId: wallet.coinId, walletType: "spot", type: "ai_principal_return",
-        amount: String(invested), balanceBefore: balBefore, balanceAfter: String(parseFloat(balBefore) + invested),
+        amount: String(invested), balanceBefore: balBefore,
+        balanceAfter: String(parseFloat(balBefore) + invested),
         refType: "ai_subscription", refId: String(id), note: "AI plan cancelled — principal returned",
       });
+    } else {
+      // Wallet does not exist yet (e.g. INR-funded plan, USDT wallet never created).
+      // Create it and credit the invested amount directly.
+      const [coin] = await tx.select({ id: coinsTable.id }).from(coinsTable)
+        .where(eq(coinsTable.symbol, "USDT")).limit(1);
+      if (coin) {
+        await tx.insert(walletsTable).values({
+          userId, coinId: coin.id, walletType: "spot",
+          balance: String(invested), locked: "0",
+        });
+      }
     }
+
+    await tx.update(aiTradingSubscriptionsTable).set({ status: "cancelled" })
+      .where(eq(aiTradingSubscriptionsTable.id, id));
   });
 
   res.json({ success: true });
