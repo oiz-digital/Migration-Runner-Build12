@@ -10,11 +10,13 @@ const SECTIONS: LegalSection[] = [
           <strong>Zebvix Technologies Private Limited</strong> ("<strong>Zebvix</strong>")
           is fully committed to preventing the use of its platform for
           money laundering, terrorist financing, and proliferation
-          financing. As a registered <strong>Reporting Entity</strong> with
-          the <strong>Financial Intelligence Unit-India (FIU-IND)</strong>
-          under the Prevention of Money Laundering Act, 2002 ("<strong>PMLA</strong>"),
-          we maintain a comprehensive, risk-based AML/CFT programme aligned
-          with FATF Recommendations and Indian regulatory guidance.
+          financing. Zebvix has submitted its registration application to become
+          a <strong>Reporting Entity</strong> with the{" "}
+          <strong>Financial Intelligence Unit-India (FIU-IND)</strong>
+          under the Prevention of Money Laundering Act, 2002 ("<strong>PMLA</strong>").
+          Pending completion of that registration, we voluntarily maintain a
+          comprehensive, risk-based AML/CFT programme aligned with FATF
+          Recommendations and Indian regulatory guidance.
         </p>
         <p>
           This Policy summarises the controls we operate. The full
@@ -164,8 +166,9 @@ const SECTIONS: LegalSection[] = [
     content: (
       <>
         <p>
-          As a Reporting Entity, we file the following reports with FIU-IND
-          within the prescribed timelines:
+          Once Zebvix's FIU-IND registration is complete, we will file the
+          following reports within the prescribed timelines. Pending
+          registration, we voluntarily maintain the same reporting standards:
         </p>
         <ul>
           <li><strong>STR</strong> — Suspicious Transaction Report, where there is reason to believe a transaction may involve proceeds of crime;</li>

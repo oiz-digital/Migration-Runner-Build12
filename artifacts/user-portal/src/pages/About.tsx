@@ -57,7 +57,7 @@ const PILLARS = [
   {
     icon: Globe2,
     title: "Made in India, built for the world",
-    body: "FIU-IND registered Reporting Entity under PMLA 2002. Native INR rails (UPI, IMPS, NEFT) for the Indian market, with global access in 150+ countries.",
+    body: "FIU-IND registration applied under PMLA 2002 (pending). Native INR rails (UPI, IMPS, NEFT) for the Indian market, with global access in 150+ countries.",
   },
   {
     icon: HeartHandshake,
@@ -71,7 +71,7 @@ const TIMELINE = [
   { year: "2022", title: "Series A — $32M", body: "Led by tier-1 funds. Hired our compliance, custody and matching-engine cores." },
   { year: "2023", title: "Zebvix L1 mainnet launch", body: "Our purpose-built EVM L1 went live with sub-second finality. ZBX TGE in Q4." },
   { year: "2024", title: "Spot + Perpetual futures", body: "0.10% maker/taker spot fees, 50× leverage perps, native USDT futures wallets." },
-  { year: "2025", title: "FIU-IND Reporting Entity", body: "Officially registered under the Prevention of Money Laundering Act, 2002." },
+  { year: "2026", title: "FIU-IND Application Filed", body: "Registration application submitted under the Prevention of Money Laundering Act, 2002. Pending completion." },
   { year: "2026", title: "Earn, Bridge, Native DEX", body: "Flexible & locked Earn products, ZBX <> ETH/BNB/SOL bridge, and a native AMM DEX on Zebvix L1." },
 ];
 

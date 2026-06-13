@@ -111,7 +111,7 @@ const DEFAULT_FOOTER = {
   badges: [
     { label: "ISO 27001", kind: "shield" },
     { label: "SOC 2 Type II", kind: "lock" },
-    { label: "FIU-IND registered", kind: "award" },
+    { label: "FIU-IND registration pending", kind: "award" },
   ],
   riskWarning:
     "Crypto-asset trading is subject to high market risk and price volatility. The value of your investment can go down as well as up, and you may not get back the amount you invested.",

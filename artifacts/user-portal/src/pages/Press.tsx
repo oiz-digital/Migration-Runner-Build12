@@ -31,7 +31,7 @@ const FACTS = [
   { label: "Native token",   value: "ZBX" },
   { label: "Employees",      value: "120+" },
   { label: "Registered users", value: "4M+" },
-  { label: "Compliance",     value: "FIU-IND registered VDA SP" },
+  { label: "Compliance",     value: "FIU-IND registration pending (applied)" },
   { label: "Funding",        value: "USD 90M Series B (Feb 2026)" },
 ];
 
@@ -114,8 +114,8 @@ export default function Press() {
               products and Zebvix L1 — a high-throughput Layer-1
               blockchain whose native token, ZBX, powers fees and
               staking. Founded in 2026 and headquartered in Muzaffarnagar, UP,
-              Zebvix is a FIU-IND registered Virtual Digital Asset
-              service provider."
+              Zebvix has applied for FIU-IND registration as a Virtual
+              Digital Asset service provider (registration pending)."
             </p>
           </CardContent>
         </Card>

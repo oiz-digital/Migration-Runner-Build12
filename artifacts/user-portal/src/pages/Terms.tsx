@@ -75,11 +75,12 @@ const SECTIONS: LegalSection[] = [
     content: (
       <>
         <p>
-          As a Reporting Entity registered with the Financial Intelligence
-          Unit-India (FIU-IND) under the Prevention of Money Laundering Act,
-          2002 ("<strong>PMLA</strong>"), we are required to verify your
-          identity before allowing you to deposit, trade, or withdraw on the
-          platform.
+          Zebvix has applied for registration as a Reporting Entity with the
+          Financial Intelligence Unit-India (FIU-IND) under the Prevention of
+          Money Laundering Act, 2002 ("<strong>PMLA</strong>"). Pending
+          completion of that registration, we voluntarily comply with PMLA KYC
+          requirements and verify your identity before allowing you to deposit,
+          trade, or withdraw on the platform.
         </p>
         <p>Our KYC programme is tiered:</p>
         <ul>

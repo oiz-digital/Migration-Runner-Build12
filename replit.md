@@ -230,7 +230,7 @@ Key admin sections: Users, KYC review, Coins & Networks, Trading Pairs, Orders, 
 
 ## Compliance (AML/KYC)
 
-Zebvix is registered as a **Reporting Entity** with **FIU-IND** under PMLA 2002.
+Zebvix has **applied** for registration as a Reporting Entity with **FIU-IND** under PMLA 2002 — registration application submitted, pending completion.
 
 - **KYC tiers**: Level 1 (PAN), Level 2 (Aadhaar + selfie), Level 3 (EDD)
 - **Screening**: Sanctions at onboarding + daily (UN, OFAC, EU, MHA)
