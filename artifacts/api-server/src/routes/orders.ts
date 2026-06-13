@@ -464,8 +464,8 @@ router.get("/orders/:id/invoice", requireAuth, async (req, res): Promise<void> =
     address: brandMap.get("brand.address") || "Mumbai, Maharashtra, India",
     gstin: brandMap.get("brand.gstin") || "—",
     pan: brandMap.get("brand.pan") || "—",
-    supportEmail: brandMap.get("brand.support_email") || "support@cryptox.in",
-    website: brandMap.get("brand.website") || "https://cryptox.in",
+    supportEmail: brandMap.get("brand.support_email") || "support@zebvix.com",
+    website: brandMap.get("brand.website") || "https://zebvix.com",
   };
 
   const invoiceNo = `INV-${String(order.id).padStart(8, "0")}`;
