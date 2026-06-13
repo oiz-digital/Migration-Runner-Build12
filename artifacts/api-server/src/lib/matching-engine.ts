@@ -322,29 +322,83 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Buy ${tradeNote}`,
             });
           } else {
-            // Taker sold base coin, received quote
-            const takerCredit = notional - takerFee - takerTds;
+            // Taker sold base coin, received quote.
+            // Base debit: at SELL placement balance -= qty and locked += qty.
+            // At fill only locked is released; balance column is unchanged.
+            // Reconstruct pre-lock balance = takerBaseBalBefore + fillQty.
+            const preSellBase = takerBaseBalBefore + fillQty;
             ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
-              type: "trade_sell", amount: String(takerCredit),
-              balanceBefore: String(takerQuoteBalBefore),
-              balanceAfter: String(takerQuoteBalBefore + takerCredit),
+              userId: taker.userId, coinId: pair.baseCoinId, walletType: "spot",
+              type: "trade_sell", amount: String(-fillQty),
+              balanceBefore: String(preSellBase),
+              balanceAfter: String(takerBaseBalBefore),
               refType: "trade", refId: tradeRefId,
               note: `Sell ${tradeNote}`,
+            });
+            // Quote: gross proceeds → fee → TDS, cascading so the final
+            // balanceAfter = takerQuoteBalBefore + (notional−fee−tds) = actual ✓
+            ledgerRows.push({
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_sell", amount: String(notional),
+              balanceBefore: String(takerQuoteBalBefore),
+              balanceAfter: String(takerQuoteBalBefore + notional),
+              refType: "trade", refId: tradeRefId,
+              note: `Sell ${tradeNote}`,
+            });
+            if (takerFee > 0) ledgerRows.push({
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_fee", amount: String(-takerFee),
+              balanceBefore: String(takerQuoteBalBefore + notional),
+              balanceAfter: String(takerQuoteBalBefore + notional - takerFee),
+              refType: "trade", refId: tradeRefId,
+              note: `Fee ${tradeNote}`,
+            });
+            if (takerTds > 0) ledgerRows.push({
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_tds", amount: String(-takerTds),
+              balanceBefore: String(takerQuoteBalBefore + notional - takerFee),
+              balanceAfter: String(takerQuoteBalBefore + notional - takerFee - takerTds),
+              refType: "trade", refId: tradeRefId,
+              note: `TDS ${tradeNote}`,
             });
           }
         }
         if (!makerIsBot) {
           if (maker.side === "sell") {
-            // Maker sold base coin, received quote
-            const makerCredit = notional - makerFee - makerTds;
+            // Maker sold base coin, received quote. Same split as taker sell:
+            // base debit (pre-lock reconstructed) + gross proceeds + fee + TDS.
+            const preSellBaseMaker = makerBaseBalBefore + fillQty;
             ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
-              type: "trade_sell", amount: String(makerCredit),
-              balanceBefore: String(makerQuoteBalBefore),
-              balanceAfter: String(makerQuoteBalBefore + makerCredit),
+              userId: maker.userId, coinId: pair.baseCoinId, walletType: "spot",
+              type: "trade_sell", amount: String(-fillQty),
+              balanceBefore: String(preSellBaseMaker),
+              balanceAfter: String(makerBaseBalBefore),
               refType: "trade", refId: tradeRefId,
               note: `Sell ${tradeNote}`,
+            });
+            ledgerRows.push({
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_sell", amount: String(notional),
+              balanceBefore: String(makerQuoteBalBefore),
+              balanceAfter: String(makerQuoteBalBefore + notional),
+              refType: "trade", refId: tradeRefId,
+              note: `Sell ${tradeNote}`,
+            });
+            if (makerFee > 0) ledgerRows.push({
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_fee", amount: String(-makerFee),
+              balanceBefore: String(makerQuoteBalBefore + notional),
+              balanceAfter: String(makerQuoteBalBefore + notional - makerFee),
+              refType: "trade", refId: tradeRefId,
+              note: `Fee ${tradeNote}`,
+            });
+            if (makerTds > 0) ledgerRows.push({
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_tds", amount: String(-makerTds),
+              balanceBefore: String(makerQuoteBalBefore + notional - makerFee),
+              balanceAfter: String(makerQuoteBalBefore + notional - makerFee - makerTds),
+              refType: "trade", refId: tradeRefId,
+              note: `TDS ${tradeNote}`,
             });
           } else {
             // Maker bought base coin. Mirror the taker-buy approach: reconstruct
