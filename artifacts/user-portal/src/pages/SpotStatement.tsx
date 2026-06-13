@@ -84,6 +84,19 @@ export default function SpotStatement() {
   const stmtRef   = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // Auto-scale statement to fit any screen width
+  const screenWrapRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const el = screenWrapRef.current;
+    if (!el) return;
+    const update = () => setZoom(Math.min(1, el.offsetWidth / 560));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const { data, isLoading, isError, error, refetch } = useQuery<SpotStatementData>({
     queryKey: ["spot-statement", from, to],
     queryFn:  () => get(`/orders/statement?from=${from}&to=${to}`),
@@ -179,7 +192,8 @@ export default function SpotStatement() {
 
       {/* ── Statement Paper ── */}
       {data && (
-        <div className="container mx-auto px-4 max-w-5xl">
+        <div ref={screenWrapRef} className="container mx-auto px-4 max-w-5xl">
+          <div style={{ zoom }}>
           <div ref={stmtRef} className="rounded-2xl overflow-hidden shadow-2xl" data-testid="spot-statement-paper">
 
             {/* Amber accent */}
@@ -368,6 +382,7 @@ export default function SpotStatement() {
 
             {/* Bottom accent */}
             <div style={{ height: 4, background: "linear-gradient(90deg,#F59E0B,#D97706,#B45309)" }} />
+          </div>
           </div>
         </div>
       )}

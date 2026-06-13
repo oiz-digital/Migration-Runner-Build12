@@ -73,6 +73,19 @@ export default function Invoice() {
   const printRef  = useRef<HTMLDivElement>(null); // hidden fixed-width clone for PDF
   const [downloading, setDownloading] = useState(false);
 
+  // Auto-scale invoice to fit any screen width (CSS zoom — no layout changes needed)
+  const screenWrapRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const el = screenWrapRef.current;
+    if (!el) return;
+    const update = () => setZoom(Math.min(1, el.offsetWidth / 480));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const downloadPdf = async () => {
     if (!printRef.current || !data) return;
     setDownloading(true);
@@ -137,7 +150,6 @@ export default function Invoice() {
       style={{
         boxShadow: fixed ? undefined : "0 25px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(245,158,11,0.15)",
         width: fixed ? 794 : undefined,
-        minWidth: fixed ? undefined : 500,
       }}
     >
       {/* Top accent bar */}
@@ -467,9 +479,9 @@ export default function Invoice() {
         </div>
       </div>
 
-      {/* Responsive screen view — overflow-x-auto so content scrolls on small screens */}
-      <div className="overflow-x-auto print:hidden">
-        <div className="mx-auto px-3 sm:px-4 max-w-3xl">
+      {/* Responsive screen view — CSS zoom auto-scales to fit any device width */}
+      <div ref={screenWrapRef} className="container mx-auto px-3 sm:px-4 max-w-3xl print:hidden">
+        <div style={{ zoom }}>
           <InvoiceBody />
         </div>
       </div>

@@ -98,6 +98,19 @@ export default function AIStatement() {
   const stmtRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // Auto-scale statement to fit any screen width
+  const screenWrapRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const el = screenWrapRef.current;
+    if (!el) return;
+    const update = () => setZoom(Math.min(1, el.offsetWidth / 560));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const downloadPdf = async () => {
     if (!stmtRef.current || !data) return;
     setDownloading(true);
@@ -234,7 +247,8 @@ export default function AIStatement() {
 
       {/* ── Statement Paper ── */}
       {data && (
-        <div className="container mx-auto px-4 max-w-5xl">
+        <div ref={screenWrapRef} className="container mx-auto px-4 max-w-5xl">
+          <div style={{ zoom }}>
           <div ref={stmtRef} className="rounded-3xl overflow-hidden shadow-2xl"
             style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.2)" }}>
 
@@ -746,6 +760,7 @@ export default function AIStatement() {
 
             {/* Bottom accent */}
             <div style={{ height: 5, background: "linear-gradient(90deg,#4C1D95,#6D28D9,#8B5CF6,#A78BFA,#8B5CF6)" }} />
+          </div>
           </div>
         </div>
       )}
