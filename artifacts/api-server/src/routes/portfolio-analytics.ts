@@ -186,14 +186,16 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
     : new Date(new Date().getFullYear() - (new Date().getMonth() < 3 ? 1 : 0), 3, 1); // April 1 of current FY
   if (isNaN(fyStart.getTime())) { res.status(400).json({ error: "bad from date" }); return; }
 
-  // JOIN with pairs to get quote currency — needed to correctly convert notional to USDT
+  // JOIN with pairs to get quote currency — needed to correctly convert notional & TDS to USDT
   const rows = await db
     .select({
-      side:      tradesTable.side,
-      price:     tradesTable.price,
-      qty:       tradesTable.qty,
-      fee:       tradesTable.fee,
-      tds:       tradesTable.tds,
+      id:         tradesTable.id,
+      side:       tradesTable.side,
+      price:      tradesTable.price,
+      qty:        tradesTable.qty,
+      fee:        tradesTable.fee,
+      tds:        tradesTable.tds,
+      createdAt:  tradesTable.createdAt,
       pairSymbol: pairsTable.symbol,   // e.g. "BTC/INR" or "BTC/USDT"
     })
     .from(tradesTable)
@@ -202,65 +204,63 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
     .orderBy(desc(tradesTable.createdAt))
     .limit(5000);
 
-  let totalBuyUsd = 0, totalSellUsd = 0, tdsPaidUsd = 0, totalFeesUsd = 0;
+  let totalVolumeUsd = 0, totalFeesUsd = 0, totalTdsUsd = 0;
   let buyCount = 0, sellCount = 0;
+
+  // Per-trade rows for display (most recent 200)
+  const tradeRows: Array<{
+    id: number; date: string; pair: string; side: string;
+    notionalInr: number; notionalUsd: number;
+    feeInr: number; feeUsd: number;
+    tdsInr: number; tdsUsd: number;
+  }> = [];
 
   for (const t of rows) {
     const rawNotional = Number(t.price) * Number(t.qty);
     const rawFee      = Number(t.fee ?? 0);
     const rawTds      = Number(t.tds ?? 0);
 
-    // Determine quote currency: INR pairs store price in INR, all others treated as USDT
     const quoteSymbol = t.pairSymbol?.split("/")[1]?.toUpperCase() ?? "USDT";
     const isInrQuote  = quoteSymbol === "INR";
 
-    // Normalise everything to USDT
+    // Normalise to USDT; INR pair amounts are divided by current rate
     const notionalUsd = isInrQuote ? rawNotional / inrRate : rawNotional;
     const feeUsd      = isInrQuote ? rawFee      / inrRate : rawFee;
-    // Use stored TDS value if available; otherwise compute 1% on sell side
-    const tdsUsd      = isInrQuote ? rawTds / inrRate : rawTds;
+    // TDS: use stored value if > 0; for sells without stored TDS compute 1% of notional
+    const rawTdsEff   = (t.side === "sell" && rawTds === 0) ? rawNotional * 0.01 : rawTds;
+    const tdsUsdEff   = isInrQuote ? rawTdsEff / inrRate : rawTdsEff;
 
-    totalFeesUsd += feeUsd;
-    if (t.side === "buy") {
-      totalBuyUsd += notionalUsd;
-      buyCount++;
-    } else {
-      totalSellUsd += notionalUsd;
-      sellCount++;
-      // Use stored TDS if non-zero, else compute 1%
-      tdsPaidUsd += tdsUsd > 0 ? tdsUsd : notionalUsd * 0.01;
+    totalVolumeUsd += notionalUsd;
+    totalFeesUsd   += feeUsd;
+    if (t.side === "sell") { totalTdsUsd += tdsUsdEff; sellCount++; } else { buyCount++; }
+
+    if (tradeRows.length < 200) {
+      tradeRows.push({
+        id:          Number(t.id),
+        date:        t.createdAt ? new Date(t.createdAt).toISOString() : "",
+        pair:        t.pairSymbol ?? "—",
+        side:        t.side ?? "—",
+        notionalInr: isInrQuote ? rawNotional : notionalUsd * inrRate,
+        notionalUsd,
+        feeInr:      isInrQuote ? rawFee      : feeUsd * inrRate,
+        feeUsd,
+        tdsInr:      isInrQuote ? rawTdsEff   : tdsUsdEff * inrRate,
+        tdsUsd:      tdsUsdEff,
+      });
     }
   }
-
-  const grossPnl      = totalSellUsd - totalBuyUsd;
-  const taxableProfit = Math.max(0, grossPnl);
-  const incomeTax     = taxableProfit * 0.30;
-  // Net payable = income tax (30%) minus TDS already deducted at source (1% per sell).
-  // If TDS credit exceeds income tax, refund is claimable at filing.
-  const netTaxPayable  = Math.max(0, incomeTax - tdsPaidUsd);
-  const tdsRefundable  = Math.max(0, tdsPaidUsd - incomeTax);
 
   res.json({
     fyStart: fyStart.toISOString(),
     inrRate,
     totals: {
-      totalBuyUsd,   totalBuyInr:   totalBuyUsd   * inrRate,
-      totalSellUsd,  totalSellInr:  totalSellUsd  * inrRate,
-      totalFeesUsd,  totalFeesInr:  totalFeesUsd  * inrRate,
-      grossPnl,      grossPnlInr:   grossPnl      * inrRate,
+      totalVolumeUsd,  totalVolumeInr:  totalVolumeUsd * inrRate,
+      totalFeesUsd,    totalFeesInr:    totalFeesUsd   * inrRate,
+      totalTdsUsd,     totalTdsInr:     totalTdsUsd    * inrRate,
       buyCount, sellCount, tradeCount: rows.length,
     },
-    tax: {
-      tdsPaidUsd,              tdsPaidInr:              tdsPaidUsd       * inrRate,
-      taxableProfit,           taxableProfitInr:        taxableProfit    * inrRate,
-      incomeTaxUsd:            incomeTax,               incomeTaxInr:    incomeTax    * inrRate,
-      // totalTaxLiability = gross income tax (30%); net shows TDS credit already deducted
-      totalTaxLiabilityUsd:    incomeTax,               totalTaxLiabilityInr: incomeTax * inrRate,
-      netTaxPayableUsd:        netTaxPayable,           netTaxPayableInr:     netTaxPayable * inrRate,
-      tdsRefundableUsd:        tdsRefundable,           tdsRefundableInr:     tdsRefundable * inrRate,
-      effectiveRatePct: totalSellUsd > 0 ? (incomeTax / totalSellUsd) * 100 : 0,
-    },
-    note: "Indian crypto tax: 1% TDS on every sell (Sec 194S) + 30% flat tax on net profits (Sec 115BBH). Losses cannot be offset against other income. Net Tax Payable = Income Tax − TDS Credit. INR values at current USDT/INR rate.",
+    trades: tradeRows,
+    note: "TDS (Tax Deducted at Source) — 1% deducted by Zebvix on every sell transaction (Sec 194S PMLA). INR values at current USDT/INR rate.",
   });
 });
 
