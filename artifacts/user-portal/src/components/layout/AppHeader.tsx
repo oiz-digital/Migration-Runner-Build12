@@ -272,6 +272,7 @@ const MORE_MENU: MoreSectionDef[] = [
     items: [
       { href: "/announcements", label: "Announcements",  desc: "Stay updated with the latest news and updates",       icon: Megaphone },
       { href: "/news",          label: "News & Insights", desc: "Market analysis, product launches and tutorials",    icon: Sparkles },
+      { href: "/tutorials",     label: "Tutorials",       desc: "Step-by-step video guides for every feature",        icon: BookOpen },
     ],
     itemGates: {
       "/announcements": (f) => f.showAnnouncements,

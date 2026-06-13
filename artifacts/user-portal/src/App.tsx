@@ -43,6 +43,7 @@ import Blog from "@/pages/Blog";
 import Press from "@/pages/Press";
 import Contact from "@/pages/Contact";
 import Help from "@/pages/Help";
+import Tutorials from "@/pages/Tutorials";
 import Status from "@/pages/Status";
 import P2P from "@/pages/P2P";
 import Convert from "@/pages/Convert";
@@ -185,6 +186,7 @@ function App() {
                 <Route path="/press" component={Press} />
                 <Route path="/contact" component={Contact} />
                 <Route path="/help" component={Help} />
+                <Route path="/tutorials" component={Tutorials} />
                 <Route path="/status" component={Status} />
 
                 {/* ── P2P ────────────────────────────────────────── */}
