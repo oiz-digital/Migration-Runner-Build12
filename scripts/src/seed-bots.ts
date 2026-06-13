@@ -251,6 +251,10 @@ async function main() {
     const rawSize = SIZE_OVERRIDE[baseSymbol] ?? cfg.orderSize;
     const orderSize = adjustSizeForQuote(rawSize, quoteSymbol, baseSymbol);
 
+    // Enable futures market-making for T1 (BTC/ETH) and T2 (major alts).
+    // T3 mid-caps keep futures off — shallow liquidity on perps is risky.
+    const futuresEnabled = tier === 1 || tier === 2;
+
     const botRow = {
       pairId:                 pair.id,
       enabled:                true,
@@ -262,7 +266,7 @@ async function main() {
       maxOrderAgeSec:         cfg.maxOrderAgeSec,
       fillOnCross:            cfg.fillOnCross,
       spotEnabled:            true,
-      futuresEnabled:         false,
+      futuresEnabled,
       topOfBookBoostPct:      cfg.topOfBookBoostPct,
       marketTakerEnabled:     cfg.marketTakerEnabled,
       marketTakerSizeMult:    cfg.marketTakerSizeMult,
@@ -309,7 +313,7 @@ async function main() {
     }
 
     const tierLabel = tier === 1 ? "T1" : tier === 2 ? "T2" : "T3";
-    console.log(`   ${tierLabel} [${pair.id.toString().padStart(3)}] ${baseSymbol}/${quoteSymbol} — spread=${spreadBps}bps levels=${cfg.levels} size=${orderSize} mktTaker=${cfg.marketTakerEnabled ? "✓" : "✗"}`);
+    console.log(`   ${tierLabel} [${pair.id.toString().padStart(3)}] ${baseSymbol}/${quoteSymbol} — spread=${spreadBps}bps levels=${cfg.levels} size=${orderSize} spot=✓ futures=${futuresEnabled ? "✓" : "✗"} mktTaker=${cfg.marketTakerEnabled ? "✓" : "✗"}`);
   }
 
   console.log("");
@@ -317,16 +321,17 @@ async function main() {
   console.log(`   Total bots active: ${created + updated}`);
   console.log("");
   console.log("Tier summary:");
-  console.log("  T1 (BTC/ETH)      — spread 8–12bps, 12 levels, aggressive market taker (3.5×)");
-  console.log("  T2 (major alts)   — spread 14–18bps, 10 levels, market taker 2.5×");
-  console.log("  T3 (mid-caps)     — spread 22–28bps, 8 levels, market taker 1.8×");
+  console.log("  T1 (BTC/ETH)      — spread 8–12bps, 12 levels, spot+futures, aggressive mktTaker 3.5×");
+  console.log("  T2 (major alts)   — spread 14–18bps, 10 levels, spot+futures, mktTaker 2.5×");
+  console.log("  T3 (mid-caps)     — spread 22–28bps,  8 levels, spot only,    mktTaker 1.8×");
   console.log("");
-  console.log("Bot engine upgrade features active:");
+  console.log("Bot engine features active:");
   console.log("  ✓ Exponential volume taper  — thick near mid, thin at edges");
   console.log("  ✓ Momentum-aware sizing     — bigger orders when price trends up");
   console.log("  ✓ Dynamic level count       — extra levels added on momentum side");
   console.log("  ✓ Scaled market taker       — burst size ∝ momentum strength");
   console.log("  ✓ Momentum burst mode       — oversized order on >100 bps move");
+  console.log("  ✓ Futures enabled           — T1+T2 pairs serve orderbook depth on perps");
   process.exit(0);
 }
 
