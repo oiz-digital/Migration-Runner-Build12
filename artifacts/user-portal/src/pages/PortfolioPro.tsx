@@ -36,9 +36,10 @@ type TaxTradeRow = {
 type TaxReport = {
   fyStart: string; inrRate: number;
   totals: {
-    totalVolumeUsd: number; totalVolumeInr: number;
+    totalSellVolumeUsd: number; totalSellVolumeInr: number;
+    totalBuyVolumeUsd:  number; totalBuyVolumeInr:  number;
     totalFeesUsd: number; totalFeesInr: number;
-    totalTdsUsd: number; totalTdsInr: number;
+    totalTdsUsd:  number; totalTdsInr:  number;
     buyCount: number; sellCount: number; tradeCount: number;
   };
   trades: TaxTradeRow[];
@@ -307,16 +308,25 @@ function Donut({ allocation }: { allocation: Allocation[] }) {
 }
 
 /* ─── Tax Report Panel ─── */
+// FY helper — returns April 1 of the given FY year
+function fyDate(year: number) { return `${year}-04-01`; }
+function currentFyYear() {
+  const now = new Date();
+  return now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+}
+
 function TaxReportPanel() {
-  const { data } = useQuery({
-    queryKey: ["/portfolio/analytics/tax-report"],
-    queryFn: () => get<TaxReport>("/portfolio/analytics/tax-report"),
+  const [fyYear, setFyYear] = useState(currentFyYear);
+
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ["/portfolio/analytics/tax-report", fyYear],
+    queryFn: () => get<TaxReport>(`/portfolio/analytics/tax-report?from=${fyDate(fyYear)}`),
   });
 
   const exportCsv = () => {
     if (!data) return;
     const rate = data.inrRate ?? 84;
-    const header = ["Date","Pair","Side","Volume (₹)","Volume (USDT)","Fee (₹)","Fee (USDT)","TDS (₹)","TDS (USDT)"];
+    const header = ["Date","Pair","Side","Trade Amount (₹)","Trade Amount (USDT)","Fee (₹)","Fee (USDT)","TDS 1% (₹)","TDS 1% (USDT)"];
     const tradeLines = data.trades.map((t) => [
       new Date(t.date).toLocaleDateString("en-IN"),
       t.pair,
@@ -325,152 +335,203 @@ function TaxReportPanel() {
       t.notionalUsd.toFixed(4),
       t.feeInr.toFixed(2),
       t.feeUsd.toFixed(4),
-      t.tdsInr.toFixed(2),
-      t.tdsUsd.toFixed(4),
+      t.side === "sell" ? t.tdsInr.toFixed(2) : "0.00",
+      t.side === "sell" ? t.tdsUsd.toFixed(4) : "0.0000",
     ]);
-    const summaryLines = [
+    const summaryLines: string[][] = [
       [],
-      ["SUMMARY","","","","","","","",""],
-      ["Total Volume","","", fmtInr(data.totals.totalVolumeInr), data.totals.totalVolumeUsd.toFixed(2),"","","",""],
-      ["Total Fees","","",   fmtInr(data.totals.totalFeesInr),   data.totals.totalFeesUsd.toFixed(2),"","","",""],
-      ["Total TDS","","",    fmtInr(data.totals.totalTdsInr),    data.totals.totalTdsUsd.toFixed(2),"","","",""],
-      ["USDT/INR Rate","","",`₹${rate.toFixed(2)}`,"1","","","",""],
+      ["=== SUMMARY ==="],
+      [`FY ${fyYear}-${fyYear + 1}`],
+      ["Sell Volume (₹)", data.totals.totalSellVolumeInr.toFixed(2), "USDT", data.totals.totalSellVolumeUsd.toFixed(4)],
+      ["Buy Volume (₹)",  data.totals.totalBuyVolumeInr.toFixed(2),  "USDT", data.totals.totalBuyVolumeUsd.toFixed(4)],
+      ["Total Fees (₹)",  data.totals.totalFeesInr.toFixed(2),        "USDT", data.totals.totalFeesUsd.toFixed(4)],
+      ["Total TDS (₹)",   data.totals.totalTdsInr.toFixed(2),         "USDT", data.totals.totalTdsUsd.toFixed(4)],
+      [`USDT/INR Rate: ₹${rate.toFixed(2)}`],
+      ["TDS = 1% of every sell trade amount (Sec 194S PMLA)"],
     ];
     const rows = [header, ...tradeLines, ...summaryLines];
-    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const csv = rows.map((r) => r.map((c) => `"${String(c)}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `zebvix-tds-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url; a.download = `zebvix-tds-fy${fyYear}-${fyYear + 1}.csv`;
     a.click(); URL.revokeObjectURL(url);
     toast.success("TDS report exported");
   };
 
-  if (!data) return <SectionCard><div className="py-12 text-center text-muted-foreground">Loading…</div></SectionCard>;
+  // FY options — current FY and 4 previous years
+  const cur = currentFyYear();
+  const fyOptions = Array.from({ length: 5 }, (_, i) => cur - i);
 
-  const rate = data.inrRate ?? 84;
+  const rate = data?.inrRate ?? 84;
 
   return (
     <div className="space-y-4">
       <SectionCard
-        title="TDS Report (FY)"
-        description="Tax Deducted at Source — 1% deducted by Zebvix on every sell (Sec 194S)"
+        title="TDS Report"
+        description="Tax Deducted at Source — 1% on every sell (Sec 194S PMLA)"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* FY Selector */}
+            <select
+              value={fyYear}
+              onChange={(e) => setFyYear(Number(e.target.value))}
+              className="text-[11px] font-mono h-7 px-2 rounded border border-border bg-background text-foreground cursor-pointer"
+            >
+              {fyOptions.map((y) => (
+                <option key={y} value={y}>FY {y}-{y + 1}</option>
+              ))}
+            </select>
             <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground hidden sm:flex">
               1 USDT = ₹{rate.toFixed(2)}
             </Badge>
-            <Button variant="outline" size="sm" onClick={exportCsv}>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!data}>
               <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
             </Button>
           </div>
         }
       >
-        {/* Summary cards */}
-        <div className="grid sm:grid-cols-3 gap-3 text-sm">
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-amber-400">Total TDS Deducted</div>
-            <div className="font-mono font-bold text-xl text-amber-400 mt-1">
-              {fmtInr(data.totals.totalTdsInr)}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              ≈ {data.totals.totalTdsUsd.toFixed(2)} USDT · {data.totals.sellCount} sell trades
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">1% per sell · Deducted at source</div>
+        {isLoading && (
+          <div className="py-12 text-center text-muted-foreground text-sm">Loading…</div>
+        )}
+        {isError && (
+          <div className="py-12 text-center text-rose-400 text-sm">
+            Failed to load TDS report. Please try again.
           </div>
+        )}
 
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Sell Volume</div>
-            <div className="font-mono font-bold text-xl mt-1">
-              {fmtInr(data.totals.totalVolumeInr, 0)}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              ≈ {data.totals.totalVolumeUsd.toFixed(2)} USDT
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {data.totals.buyCount} buys · {data.totals.sellCount} sells · {data.totals.tradeCount} total
-            </div>
-          </div>
+        {data && (
+          <>
+            {/* Summary cards */}
+            <div className="grid sm:grid-cols-3 gap-3 text-sm">
+              {/* Card 1 — TDS Deducted (primary) */}
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-amber-400">Total TDS Deducted</div>
+                <div className="font-mono font-bold text-xl text-amber-400 mt-1">
+                  {fmtInr(data.totals.totalTdsInr)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  ≈ {data.totals.totalTdsUsd.toFixed(2)} USDT
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  1% × ₹{fmtInrShort(data.totals.totalSellVolumeInr)} sell volume = TDS
+                </div>
+              </div>
 
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Trading Fees</div>
-            <div className="font-mono font-bold text-xl mt-1">
-              {fmtInr(data.totals.totalFeesInr)}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              ≈ {data.totals.totalFeesUsd.toFixed(2)} USDT
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">Maker + taker fees across all trades</div>
-          </div>
-        </div>
+              {/* Card 2 — Sell volume (TDS base) */}
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Sell Volume (TDS Base)</div>
+                <div className="font-mono font-bold text-xl mt-1">
+                  {fmtInr(data.totals.totalSellVolumeInr, 0)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  ≈ {data.totals.totalSellVolumeUsd.toFixed(2)} USDT · {data.totals.sellCount} sells
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  Buy volume: {fmtInr(data.totals.totalBuyVolumeInr, 0)} · {data.totals.buyCount} buys
+                </div>
+              </div>
 
-        {/* Per-trade TDS table */}
-        <div className="mt-4">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
-            Per-Trade TDS Breakdown
-            {data.trades.length >= 200 && (
-              <span className="ml-2 normal-case font-normal">(latest 200 shown — export CSV for full history)</span>
-            )}
-          </div>
-
-          {data.trades.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No trades found in this financial year
-            </div>
-          ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-muted/40 border-b border-border">
-                      <th className="text-left px-3 py-2 text-muted-foreground font-medium">Date</th>
-                      <th className="text-left px-3 py-2 text-muted-foreground font-medium">Pair</th>
-                      <th className="text-left px-3 py-2 text-muted-foreground font-medium">Side</th>
-                      <th className="text-right px-3 py-2 text-muted-foreground font-medium">Volume (₹)</th>
-                      <th className="text-right px-3 py-2 text-muted-foreground font-medium">Fee (₹)</th>
-                      <th className="text-right px-3 py-2 text-amber-400/80 font-medium">TDS (₹)</th>
-                      <th className="text-right px-3 py-2 text-amber-400/80 font-medium">TDS (USDT)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.trades.map((t, i) => (
-                      <tr key={t.id} className={`border-b border-border/40 ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
-                        <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap">
-                          {new Date(t.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}
-                        </td>
-                        <td className="px-3 py-1.5 font-mono font-semibold">{t.pair}</td>
-                        <td className="px-3 py-1.5">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${t.side === "sell" ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400"}`}>
-                            {t.side}
-                          </span>
-                        </td>
-                        <td className="px-3 py-1.5 text-right font-mono">{fmtInr(t.notionalInr, 0)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">{fmtInr(t.feeInr, 2)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono text-amber-400 font-semibold">
-                          {t.side === "sell" ? fmtInr(t.tdsInr, 2) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-3 py-1.5 text-right font-mono text-amber-400/80">
-                          {t.side === "sell" ? t.tdsUsd.toFixed(4) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-muted/30 border-t-2 border-border font-bold">
-                      <td colSpan={3} className="px-3 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">Total</td>
-                      <td className="px-3 py-2 text-right font-mono">{fmtInr(data.totals.totalVolumeInr, 0)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-muted-foreground">{fmtInr(data.totals.totalFeesInr, 2)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-amber-400">{fmtInr(data.totals.totalTdsInr, 2)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-amber-400">{data.totals.totalTdsUsd.toFixed(4)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              {/* Card 3 — Fees */}
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Total Trading Fees</div>
+                <div className="font-mono font-bold text-xl mt-1">
+                  {fmtInr(data.totals.totalFeesInr)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  ≈ {data.totals.totalFeesUsd.toFixed(2)} USDT
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {data.totals.tradeCount} total trades (buys + sells)
+                </div>
               </div>
             </div>
-          )}
-        </div>
 
-        <p className="mt-3 text-[11px] text-muted-foreground italic">{data.note}</p>
+            {/* Per-trade TDS table */}
+            <div className="mt-4">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+                Per-Trade Breakdown — FY {fyYear}–{fyYear + 1}
+                {data.trades.length >= 200 && (
+                  <span className="ml-2 normal-case font-normal text-amber-400/70">
+                    (latest 200 shown — export CSV for full history)
+                  </span>
+                )}
+              </div>
+
+              {data.trades.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  No trades found in FY {fyYear}–{fyYear + 1}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-muted/40 border-b border-border">
+                          <th className="text-left px-3 py-2 text-muted-foreground font-medium">Date</th>
+                          <th className="text-left px-3 py-2 text-muted-foreground font-medium">Pair</th>
+                          <th className="text-left px-3 py-2 text-muted-foreground font-medium">Side</th>
+                          <th className="text-right px-3 py-2 text-muted-foreground font-medium">Trade Amount (₹)</th>
+                          <th className="text-right px-3 py-2 text-muted-foreground font-medium">Fee (₹)</th>
+                          <th className="text-right px-3 py-2 text-amber-400/80 font-medium">TDS 1% (₹)</th>
+                          <th className="text-right px-3 py-2 text-amber-400/60 font-medium hidden sm:table-cell">TDS (USDT)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.trades.map((t, i) => (
+                          <tr key={t.id} className={`border-b border-border/40 ${i % 2 === 0 ? "" : "bg-muted/10"}`}>
+                            <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap">
+                              {new Date(t.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" })}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono font-semibold">{t.pair}</td>
+                            <td className="px-3 py-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${t.side === "sell" ? "bg-rose-500/15 text-rose-400" : "bg-emerald-500/15 text-emerald-400"}`}>
+                                {t.side}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono">{fmtInr(t.notionalInr, 0)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-muted-foreground">{fmtInr(t.feeInr, 2)}</td>
+                            <td className="px-3 py-1.5 text-right font-mono text-amber-400 font-semibold">
+                              {t.side === "sell"
+                                ? fmtInr(t.tdsInr, 2)
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-mono text-amber-400/70 hidden sm:table-cell">
+                              {t.side === "sell"
+                                ? t.tdsUsd.toFixed(4)
+                                : <span className="text-muted-foreground">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-muted/30 border-t-2 border-border font-bold text-xs">
+                          <td colSpan={3} className="px-3 py-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+                            Sell totals
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {fmtInr(data.totals.totalSellVolumeInr, 0)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                            {fmtInr(data.totals.totalFeesInr, 2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-amber-400">
+                            {fmtInr(data.totals.totalTdsInr, 2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-amber-400 hidden sm:table-cell">
+                            {data.totals.totalTdsUsd.toFixed(4)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="mt-3 text-[11px] text-muted-foreground italic">{data.note}</p>
+          </>
+        )}
       </SectionCard>
     </div>
   );

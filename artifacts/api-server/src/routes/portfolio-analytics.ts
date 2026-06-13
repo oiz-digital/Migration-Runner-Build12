@@ -204,7 +204,8 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
     .orderBy(desc(tradesTable.createdAt))
     .limit(5000);
 
-  let totalVolumeUsd = 0, totalFeesUsd = 0, totalTdsUsd = 0;
+  let totalSellVolumeUsd = 0, totalBuyVolumeUsd = 0;
+  let totalFeesUsd = 0, totalTdsUsd = 0;
   let buyCount = 0, sellCount = 0;
 
   // Per-trade rows for display (most recent 200)
@@ -218,23 +219,27 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
   for (const t of rows) {
     const rawNotional = Number(t.price) * Number(t.qty);
     const rawFee      = Number(t.fee ?? 0);
-    const rawTds      = Number(t.tds ?? 0);
 
     const quoteSymbol = t.pairSymbol?.split("/")[1]?.toUpperCase() ?? "USDT";
     const isInrQuote  = quoteSymbol === "INR";
 
-    // Normalise to USDT; INR pair amounts are divided by current rate
+    // Normalise to USDT; INR pair amounts divided by live rate
     const notionalUsd = isInrQuote ? rawNotional / inrRate : rawNotional;
     const feeUsd      = isInrQuote ? rawFee      / inrRate : rawFee;
 
-    // TDS = always 1% of sell notional (deterministic — stored tds column may be 0/missing)
-    // Both notionalInr and notionalUsd already correct for the quote currency above
-    const tdsUsdEff   = t.side === "sell" ? notionalUsd * 0.01 : 0;
-    const tdsInrEff   = tdsUsdEff * inrRate;
+    // TDS = exactly 1% of sell notional (Sec 194S — deterministic)
+    const tdsUsd = t.side === "sell" ? notionalUsd * 0.01 : 0;
+    const tdsInr = tdsUsd * inrRate;
 
-    totalVolumeUsd += notionalUsd;
-    totalFeesUsd   += feeUsd;
-    if (t.side === "sell") { totalTdsUsd += tdsUsdEff; sellCount++; } else { buyCount++; }
+    totalFeesUsd += feeUsd;
+    if (t.side === "sell") {
+      totalSellVolumeUsd += notionalUsd;
+      totalTdsUsd        += tdsUsd;
+      sellCount++;
+    } else {
+      totalBuyVolumeUsd += notionalUsd;
+      buyCount++;
+    }
 
     if (tradeRows.length < 200) {
       tradeRows.push({
@@ -246,8 +251,8 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
         notionalUsd,
         feeInr:      feeUsd * inrRate,
         feeUsd,
-        tdsInr:      tdsInrEff,
-        tdsUsd:      tdsUsdEff,
+        tdsInr,
+        tdsUsd,
       });
     }
   }
@@ -256,13 +261,16 @@ router.get("/portfolio/analytics/tax-report", requireAuth, async (req, res): Pro
     fyStart: fyStart.toISOString(),
     inrRate,
     totals: {
-      totalVolumeUsd,  totalVolumeInr:  totalVolumeUsd * inrRate,
-      totalFeesUsd,    totalFeesInr:    totalFeesUsd   * inrRate,
-      totalTdsUsd,     totalTdsInr:     totalTdsUsd    * inrRate,
+      // sell volume only (TDS base)
+      totalSellVolumeUsd, totalSellVolumeInr: totalSellVolumeUsd * inrRate,
+      // buy volume for context
+      totalBuyVolumeUsd,  totalBuyVolumeInr:  totalBuyVolumeUsd  * inrRate,
+      totalFeesUsd,       totalFeesInr:       totalFeesUsd       * inrRate,
+      totalTdsUsd,        totalTdsInr:        totalTdsUsd        * inrRate,
       buyCount, sellCount, tradeCount: rows.length,
     },
     trades: tradeRows,
-    note: "TDS (Tax Deducted at Source) — 1% deducted by Zebvix on every sell transaction (Sec 194S PMLA). INR values at current USDT/INR rate.",
+    note: "TDS (Tax Deducted at Source) — 1% on every sell (Sec 194S PMLA). INR values at current USDT/INR rate.",
   });
 });
 
