@@ -374,7 +374,7 @@ router.get("/ai-trading/statement", requireAuth, async (req: any, res): Promise<
   const netProfit       = grossProfit - tdsUsdt;
   const roiPct          = totalInvested > 0 ? (netProfit / totalInvested) * 100 : 0;
   const mmYY            = `${String(from.getUTCMonth() + 1).padStart(2, "0")}${from.getUTCFullYear()}`;
-  const statementNo     = `ZBX-AI-${mmYY}-${userId}`;
+  const statementNo     = `AIS-${mmYY}-${String(userId).padStart(6,"0")}`;
   const toInr           = (u: number) => u * inrRate;
 
   res.json({

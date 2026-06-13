@@ -301,6 +301,17 @@ APP_NAME=${APP_NAME}
 DOMAIN=${DOMAIN}
 BASE_URL=https://${DOMAIN}
 
+# ── Company / Invoice Details ────────────────────────────────
+COMPANY_NAME=Zebvix Technologies Private Limited
+COMPANY_SHORT=Zebvix
+COMPANY_CIN=U66190UW2026PTC251591
+COMPANY_PAN=AACCZ9728R
+COMPANY_TAN=MRTZ01489F
+COMPANY_GST=
+COMPANY_ADDRESS=105, Vill Subari, Shamli, Jhinjhana, Kairana, Muzaffarnagar — 247773, Uttar Pradesh, India
+COMPANY_EMAIL=support@zebvix.com
+COMPANY_WEBSITE=zebvix.com
+
 # ── Email (configure in Admin → API Integrations → Email) ────
 # SMTP_HOST=smtp.example.com
 # SMTP_PORT=587

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Download, Loader2, AlertCircle,
   CheckCircle2, TrendingUp, TrendingDown, Shield,
-  Zap, Hash, Calendar, User, Globe,
+  Zap, Hash, Calendar, User,
 } from "lucide-react";
 
 interface InvoiceData {
@@ -234,11 +234,6 @@ export default function Invoice() {
                   <Calendar style={{ width: 10, height: 10, color: "#64748b" }} />
                   <p className="text-[11px] text-slate-400">Issued: {fmtDate(issuedAt)}</p>
                 </div>
-                <div className="flex items-center justify-end gap-1.5 mt-0.5">
-                  <Globe style={{ width: 10, height: 10, color: "#64748b" }} />
-                  <p className="text-[10px] text-slate-500">{brand.website}</p>
-                </div>
-
                 {/* Status chip */}
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-bold"
                   style={isFilled
