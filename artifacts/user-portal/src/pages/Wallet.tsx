@@ -73,7 +73,7 @@ type WalletItem = {
 };
 type Tx = {
   id: string;
-  type: "DEPOSIT" | "WITHDRAW" | "TRADE";
+  type: "DEPOSIT" | "WITHDRAW" | "TRADE" | "TRANSFER";
   status: string;
   amount: number;
   fee: number;
@@ -88,6 +88,8 @@ type Tx = {
   toAddress?: string | null;
   memo?: string | null;
   rejectReason?: string | null;
+  // Internal wallet-to-wallet transfer
+  metadata?: { fromWallet?: string; toWallet?: string; [k: string]: unknown } | null;
   createdAt: string;
   wallet: { currency: string; type: string };
 };
@@ -805,6 +807,7 @@ function TransactionHistory() {
               <SelectItem value="DEPOSIT">Deposit</SelectItem>
               <SelectItem value="WITHDRAW">Withdraw</SelectItem>
               <SelectItem value="TRADE">Trade</SelectItem>
+              <SelectItem value="TRANSFER">Transfer</SelectItem>
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={(v) => setStatus(v as any)}>
@@ -1046,7 +1049,13 @@ function TxDetailsDialog({ tx, onClose }: { tx: Tx | null; onClose: () => void }
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TxTypeBadge type={tx.type} />
-            <span>{tx.type === "TRADE" ? `${meta.side ?? "Trade"} ${meta.pair ?? ccy}` : `${tx.type === "DEPOSIT" ? "Deposit" : "Withdraw"} ${ccy}`}</span>
+            <span>
+              {tx.type === "TRADE"
+                ? `${meta.side ?? "Trade"} ${meta.pair ?? ccy}`
+                : tx.type === "TRANSFER"
+                ? `Transfer ${ccy}`
+                : `${tx.type === "DEPOSIT" ? "Deposit" : "Withdraw"} ${ccy}`}
+            </span>
           </DialogTitle>
           <DialogDescription>
             {absTime} · <span className="text-muted-foreground">{relTime(tx.createdAt)}</span>
@@ -1072,6 +1081,18 @@ function TxDetailsDialog({ tx, onClose }: { tx: Tx | null; onClose: () => void }
           )}
           {tx.description && (
             <DetailRow label="Description" value={<span className="text-foreground/90">{tx.description}</span>} />
+          )}
+          {tx.type === "TRANSFER" && tx.metadata?.fromWallet && (
+            <DetailRow
+              label="From Wallet"
+              value={<span className="font-semibold text-violet-300 uppercase">{String(tx.metadata.fromWallet)}</span>}
+            />
+          )}
+          {tx.type === "TRANSFER" && tx.metadata?.toWallet && (
+            <DetailRow
+              label="To Wallet"
+              value={<span className="font-semibold text-violet-300 uppercase">{String(tx.metadata.toWallet)}</span>}
+            />
           )}
           {tx.type === "WITHDRAW" && tx.toAddress && (
             <DetailRow
@@ -1214,12 +1235,14 @@ function DiscountCard({ discount }: { discount: DiscountInfo }) {
   );
 }
 
-function TxTypeBadge({ type }: { type: "DEPOSIT" | "WITHDRAW" | "TRADE" }) {
+function TxTypeBadge({ type }: { type: "DEPOSIT" | "WITHDRAW" | "TRADE" | "TRANSFER" }) {
   const cfg =
     type === "DEPOSIT"
       ? { cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", Icon: ArrowDownToLine }
       : type === "WITHDRAW"
       ? { cls: "bg-rose-500/15 text-rose-400 border-rose-500/30", Icon: ArrowUpFromLine }
+      : type === "TRANSFER"
+      ? { cls: "bg-violet-500/15 text-violet-400 border-violet-500/30", Icon: ArrowLeftRight }
       : { cls: "bg-sky-500/15 text-sky-400 border-sky-500/30", Icon: ArrowLeftRight };
   return (
     <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${cfg.cls}`}>

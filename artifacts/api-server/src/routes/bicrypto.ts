@@ -11,7 +11,7 @@ import {
   networksTable, cryptoWithdrawalsTable, inrWithdrawalsTable, bankAccountsTable,
   cryptoDepositsTable, inrDepositsTable,
   ordersTable, tradesTable, futuresTradesTable,
-  walletAddressesTable,
+  walletAddressesTable, transfersTable,
 } from "@workspace/db";
 import { deriveEvmWallet } from "../lib/hd-wallet";
 import { encryptSecret } from "../lib/crypto-vault";
@@ -981,7 +981,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
   const want = (t: string) => !typeFilter || typeFilter === "ALL" || typeFilter === t;
 
   // Pull recent rows from each source. We cap each side at 200 then merge.
-  const [trades, inrDeps, cryptoDeps, inrWdrs, cryptoWdrs, coins, pairs] = await Promise.all([
+  const [trades, inrDeps, cryptoDeps, inrWdrs, cryptoWdrs, transfers, coins, pairs] = await Promise.all([
     // SECURITY: exclude bot-originated trades from the user's transaction
     // history. See orders.ts GET /trades for the same NOT EXISTS pattern.
     want("TRADE")
@@ -1001,6 +1001,9 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       : Promise.resolve([] as any[]),
     want("WITHDRAW")
       ? db.select().from(cryptoWithdrawalsTable).where(eq(cryptoWithdrawalsTable.userId, userId)).orderBy(desc(cryptoWithdrawalsTable.createdAt)).limit(200)
+      : Promise.resolve([] as any[]),
+    want("TRANSFER")
+      ? db.select().from(transfersTable).where(eq(transfersTable.userId, userId)).orderBy(desc(transfersTable.createdAt)).limit(200)
       : Promise.resolve([] as any[]),
     db.select().from(coinsTable),
     db.select().from(pairsTable),
@@ -1091,6 +1094,27 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
 
   for (const w of inrWdrs) pushWithdrawal(w, "INR", "FIAT");
   for (const w of cryptoWdrs) pushWithdrawal(w, coinById.get(w.coinId) ?? "", "SPOT");
+
+  for (const t of transfers) {
+    const currency = coinById.get(t.coinId) ?? "";
+    rows.push({
+      id: `trx-${t.id}`,
+      userId: String(userId),
+      walletId: "",
+      type: "TRANSFER",
+      status: String(t.status || "completed").toUpperCase(),
+      amount: Number(t.amount),
+      fee: 0,
+      feeCurrency: currency,
+      description: `Transfer ${currency} · ${t.fromWallet} → ${t.toWallet}`,
+      metadata: { fromWallet: t.fromWallet, toWallet: t.toWallet },
+      referenceId: String(t.id),
+      trxId: String(t.id),
+      createdAt: t.createdAt,
+      updatedAt: t.createdAt,
+      wallet: { currency, type: t.fromWallet.toUpperCase() },
+    });
+  }
 
   // Apply optional currency / status filters and sort newest first.
   const filtered = rows.filter(r => {
