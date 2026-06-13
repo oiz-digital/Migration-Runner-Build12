@@ -1,0 +1,20 @@
+2026-06-13 02:58:35 +00:00: 2026/06/13 02:58:35 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:37 +00:00: 2026/06/13 02:58:37 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:37 +00:00: 2026/06/13 02:58:37 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:39 +00:00: 2026/06/13 02:58:39 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:39 +00:00: 2026/06/13 02:58:39 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:41 +00:00: 2026/06/13 02:58:41 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:41 +00:00: 2026/06/13 02:58:41 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:43 +00:00: 2026/06/13 02:58:43 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:43 +00:00: 2026/06/13 02:58:43 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:45 +00:00: 2026/06/13 02:58:45 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:45 +00:00: 2026/06/13 02:58:45 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:47 +00:00: 2026/06/13 02:58:47 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:47 +00:00: 2026/06/13 02:58:47 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:49 +00:00: 2026/06/13 02:58:49 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:49 +00:00: 2026/06/13 02:58:49 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:51 +00:00: 2026/06/13 02:58:51 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:51 +00:00: 2026/06/13 02:58:51 listen tcp 127.0.0.1:23004: bind: address already in use
+2026-06-13 02:58:53 +00:00: 2026/06/13 02:58:53 cryptox-go listening on 127.0.0.1:23004 (futures matching engine ready)
+2026-06-13 02:58:53 +00:00: 2026/06/13 02:58:53 listen tcp 127.0.0.1:23004: bind: address already in use
+ubuntu@ip-172-31-11-99:/opt/cryptox$
