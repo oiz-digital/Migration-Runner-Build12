@@ -79,9 +79,14 @@ export default function Invoice() {
     try {
       const { toPng } = await import("html-to-image");
       const { default: jsPDF } = await import("jspdf");
-      const dataUrl = await toPng(invoiceRef.current, {
+      const el = invoiceRef.current;
+      const captureWidth = 794;
+      const dataUrl = await toPng(el, {
         cacheBust: true, pixelRatio: 2, quality: 1,
         backgroundColor: "#0f172a",
+        width: captureWidth,
+        height: el.scrollHeight,
+        style: { width: `${captureWidth}px`, maxWidth: `${captureWidth}px`, overflow: "visible" },
       });
       const img = new Image();
       img.src = dataUrl;
