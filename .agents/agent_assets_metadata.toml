@@ -156,6 +156,54 @@ uri = "file://attached_assets/flutter_profile.png"
 type = "image"
 title = "flutter profile kyc screen"
 
+[[generated]]
+id = "nQ_SzUYVgByA_TCxjRTrf"
+uri = "file://attached_assets/premium_dashboard.png"
+type = "image"
+title = "premium exchange dashboard"
+
+[[generated]]
+id = "PkkNFPqgoeSw9n2Uago02"
+uri = "file://attached_assets/premium_chart.png"
+type = "image"
+title = "premium trading chart"
+
+[[generated]]
+id = "drhiVQak0M0KbTPDsFdE6"
+uri = "file://attached_assets/premium_portfolio.png"
+type = "image"
+title = "premium portfolio wealth screen"
+
+[[generated]]
+id = "vCNxneIwK0gF8Gq8NxUdg"
+uri = "file://attached_assets/premium_futures.png"
+type = "image"
+title = "premium futures trading"
+
+[[generated]]
+id = "UJ1owQ9MnTFQAvJtj5dbt"
+uri = "file://attached_assets/premium_markets.png"
+type = "image"
+title = "premium markets list"
+
+[[generated]]
+id = "w7W3hT1N6EYcZzt-6Egin"
+uri = "file://attached_assets/premium_order.png"
+type = "image"
+title = "premium order placement"
+
+[[generated]]
+id = "vRvbwhzNcDqC9ERf44xFB"
+uri = "file://attached_assets/premium_home.png"
+type = "image"
+title = "premium exchange home screen"
+
+[[generated]]
+id = "Ax003f7yRNAAIWVUcHocL"
+uri = "file://attached_assets/premium_ai_trading.png"
+type = "image"
+title = "premium AI trading analytics"
+
 [[outputs]]
 id = "CnBLpCBMhM8_QfEiOuf_s"
 uri = "file://docs/MOBILE_API_GUIDE.md"
@@ -329,3 +377,51 @@ id = "DhILFD1pbBvp5bMCPqCp4"
 uri = "file://attached_assets/flutter_profile.png"
 type = "image"
 title = "👤 Profile & KYC"
+
+[[outputs]]
+id = "w7QkSnMtgjeR9TYDEZiRg"
+uri = "file://attached_assets/premium_home.png"
+type = "image"
+title = "🏆 Premium Home Screen"
+
+[[outputs]]
+id = "y6l9zVTfYE3GQMVgLF1s3"
+uri = "file://attached_assets/premium_dashboard.png"
+type = "image"
+title = "💎 Glassmorphism Dashboard"
+
+[[outputs]]
+id = "cElTOXmvKS5Y0UgvhooWj"
+uri = "file://attached_assets/premium_chart.png"
+type = "image"
+title = "📈 Pro Trading Chart"
+
+[[outputs]]
+id = "KWHo_jZ92G_Bn5DNzN-pT"
+uri = "file://attached_assets/premium_markets.png"
+type = "image"
+title = "🌐 Premium Markets"
+
+[[outputs]]
+id = "FYeNyEwKDvtQOYY9JPBvf"
+uri = "file://attached_assets/premium_order.png"
+type = "image"
+title = "⚡ Order Placement"
+
+[[outputs]]
+id = "PKuWtol0jNwSQPiWOOtUb"
+uri = "file://attached_assets/premium_futures.png"
+type = "image"
+title = "🚀 Futures Terminal"
+
+[[outputs]]
+id = "bdsjbgDSe1tw7rC2hdHbW"
+uri = "file://attached_assets/premium_portfolio.png"
+type = "image"
+title = "💰 Wealth Portfolio"
+
+[[outputs]]
+id = "0ckWHyBoclNzTLZozqUob"
+uri = "file://attached_assets/premium_ai_trading.png"
+type = "image"
+title = "🤖 AI Trading Analytics"
