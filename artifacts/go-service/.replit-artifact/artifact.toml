@@ -16,7 +16,7 @@ run = "go run ."
 [services.production]
 
 [services.production.build]
-args = ["sh", "-c", "cd artifacts/go-service && go build -o server ."]
+args = ["sh", "-c", "cd artifacts/go-service && CGO_ENABLED=0 go build -ldflags='-s -w' -o server ."]
 
 [services.production.run]
 args = ["./artifacts/go-service/server"]
