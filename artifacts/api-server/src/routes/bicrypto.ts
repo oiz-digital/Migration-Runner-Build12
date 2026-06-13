@@ -1029,10 +1029,9 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       walletId: "",
       type: "TRADE",
       status: "COMPLETED",
+      currency: base,
       amount: Number(t.qty),
       fee: Number(t.fee || 0),
-      // Spot fees settle in the quote coin; surface this so clients can
-      // render "1.72 INR" instead of mistakenly labelling it as base coin.
       feeCurrency: quote,
       description: `${String(t.side).toUpperCase()} ${sym} @ ${Number(t.price)}`,
       metadata: { pair: sym, side: t.side, price: Number(t.price), orderId: t.orderId, quote },
@@ -1051,9 +1050,9 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       walletId: "",
       type: "DEPOSIT",
       status: String(d.status || "pending").toUpperCase(),
+      currency,
       amount: Number(d.amount),
       fee: Number(d.fee || 0),
-      // Deposit/withdraw fee is in the same coin as the amount.
       feeCurrency: currency,
       description: `Deposit ${currency}`,
       metadata: { refId: d.refId ?? d.txHash ?? null },
@@ -1075,6 +1074,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       walletId: "",
       type: "WITHDRAW",
       status: String(w.status || "pending").toUpperCase(),
+      currency,
       amount: Number(w.amount),
       fee: Number(w.fee || 0),
       feeCurrency: currency,
@@ -1082,7 +1082,6 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       metadata: { refId: w.refId ?? w.txHash ?? null },
       referenceId: w.refId ?? w.txHash ?? null,
       trxId: w.uid,
-      // Destination address — only present for on-chain crypto withdrawals
       toAddress: w.toAddress ?? null,
       memo: w.memo ?? null,
       rejectReason: w.rejectReason ?? null,
@@ -1103,6 +1102,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       walletId: "",
       type: "TRANSFER",
       status: String(t.status || "completed").toUpperCase(),
+      currency,
       amount: Number(t.amount),
       fee: 0,
       feeCurrency: currency,

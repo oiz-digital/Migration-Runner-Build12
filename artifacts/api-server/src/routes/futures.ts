@@ -917,7 +917,11 @@ r.get("/futures/position", bicryptoAuth, async (req: any, res: Response): Promis
         lastPrice: Number(p.lastPrice ?? 0),
       });
     }
-    res.json({ data: rows.map((r) => positionToFlutter(r, pairById.get(r.pairId)!, pairById.get(r.pairId)?.lastPrice ?? Number(r.markPrice))).filter(Boolean) });
+    res.json({ data: rows.flatMap((r) => {
+      const p = pairById.get(r.pairId);
+      if (!p) return [];
+      return [positionToFlutter(r, p, p.lastPrice ?? Number(r.markPrice))];
+    }) });
     return;
   }
   res.json({ data: rows.map((r) => positionToFlutter(r, pair!, pair!.lastPrice || Number(r.markPrice))) });
