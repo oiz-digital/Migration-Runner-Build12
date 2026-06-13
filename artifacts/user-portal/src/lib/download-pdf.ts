@@ -16,9 +16,9 @@
 export interface PdfOptions {
   /** Background fill colour for the captured element (default: "#ffffff") */
   backgroundColor?: string;
-  /** Device-pixel ratio for the capture (default: 1.5) */
+  /** Device-pixel ratio for the capture (default: 2.5 — high-DPI for sharp text) */
   pixelRatio?: number;
-  /** JPEG quality 0-1 (default: 0.82) */
+  /** JPEG quality 0-1 (default: 0.95 — near-lossless for premium output) */
   quality?: number;
 }
 
@@ -42,7 +42,7 @@ export async function downloadElementAsPdf(
   filename: string,
   options: PdfOptions = {}
 ): Promise<void> {
-  const { backgroundColor = "#ffffff", pixelRatio = 1.5, quality = 0.82 } = options;
+  const { backgroundColor = "#ffffff", pixelRatio = 2.5, quality = 0.95 } = options;
 
   const { toJpeg } = await import("html-to-image");
   const { default: jsPDF } = await import("jspdf");
