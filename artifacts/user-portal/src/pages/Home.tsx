@@ -806,7 +806,7 @@ export default function Home() {
               </span>
             </div>
 
-            <h1 className="fade-in-up delay-75 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05]">
+            <h1 className="fade-in-up delay-75 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.05]">
               The exchange built on{" "}
               <span className="shimmer-text">its own Blockchain</span>
             </h1>
@@ -1322,7 +1322,7 @@ export default function Home() {
             </span>
             Blockchain Under Development · Coming Soon
           </div>
-          <h2 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1]">
+          <h2 className="text-xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight leading-[1.1]">
             Ready to trade on a{" "}
             <span className="shimmer-text">real Blockchain?</span>
           </h2>

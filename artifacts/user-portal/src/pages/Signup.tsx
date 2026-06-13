@@ -605,7 +605,7 @@ export default function Signup() {
               <Badge className="bg-primary/15 text-primary border-primary/30 backdrop-blur">
                 <Gift className="h-3 w-3 mr-1" /> Sign-up bonus
               </Badge>
-              <h2 className="mt-6 text-4xl xl:text-5xl font-bold tracking-tight leading-tight">
+              <h2 className="mt-6 text-3xl xl:text-4xl font-bold tracking-tight leading-tight">
                 Get up to{" "}
                 <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                   ₹500 in ZBX

@@ -487,7 +487,7 @@ export default function Markets() {
                 Markets
               </h1>
               <p className="text-sm text-muted-foreground mt-1.5 max-w-xl">
-                Real-time spot markets across INR, USDT, BTC and ZBX pairs. Tap any pair to open the trade terminal.
+                Real-time spot markets across INR, USDT, BTC and ZBX pairs.
               </p>
             </div>
 

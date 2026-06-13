@@ -173,7 +173,7 @@ export default function Web3Page() {
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">PREVIEW</span>
           </div>
           <p className="text-amber-300/70 text-xs leading-relaxed">
-            Web3 swap, bridge and on-chain wallets are running in <strong className="text-amber-300">testnet-only</strong> mode — no real funds. All quotes and transactions are simulated. Exchange spot &amp; futures trading is fully live with real balances.
+            Web3 swap and bridge are in <strong className="text-amber-300">testnet preview</strong> — no real funds are used. Spot and futures trading is fully live.
           </p>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function Web3Page() {
       <PageHeader
         eyebrow="Multi-Chain"
         title="Web3 Trading"
-        description="8 chains par swap aur bridge: Ethereum, BSC, Solana, Polygon, Arbitrum, Avalanche, Optimism, Base."
+        description="Swap and bridge across 8 chains: Ethereum, BSC, Solana, Polygon, Arbitrum, Avalanche, Optimism, Base."
       />
 
       {/* Network strip */}
@@ -390,7 +390,7 @@ export default function Web3Page() {
               <Button className="w-full" disabled={!user || !newWallet.address || addWallet.isPending} onClick={() => addWallet.mutate()} data-testid="btn-add-wallet">
                 {addWallet.isPending ? "Adding…" : "Add Wallet"}
               </Button>
-              <p className="text-[10px] text-muted-foreground">Only public address store hoti hai — private key kabhi nahi puchi jati.</p>
+              <p className="text-[10px] text-muted-foreground">Only your public address is stored — your private key is never requested.</p>
             </div>
           </SectionCard>
         </TabsContent>

@@ -80,7 +80,7 @@ export default function PortfolioPro() {
       <PageHeader
         eyebrow="Pro Analytics"
         title="Portfolio PRO"
-        description="Equity curve, allocation breakdown, aur Indian crypto tax report — sab ek jagah."
+        description="Equity curve, allocation breakdown, and Indian crypto tax report — all in one place."
         actions={
           summary?.inrRate ? (
             <Badge variant="outline" className="text-xs font-mono text-muted-foreground">
@@ -345,7 +345,7 @@ function TaxReportPanel() {
     <div className="space-y-4">
       <SectionCard
         title="Indian Crypto Tax Report (FY)"
-        description="1% TDS har sell pe (Sec 194S) + 30% flat tax profits pe (Sec 115BBH)."
+        description="1% TDS on every sell (Sec 194S) + 30% flat tax on profits (Sec 115BBH)."
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground hidden sm:flex">

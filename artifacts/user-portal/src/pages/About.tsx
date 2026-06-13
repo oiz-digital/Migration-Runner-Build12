@@ -175,7 +175,7 @@ export default function About() {
           <Badge variant="outline" className="mb-4 bg-background/50">
             <Sparkles className="h-3 w-3 mr-1.5 text-primary" /> About Zebvix Exchange
           </Badge>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] mb-5">
+          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight leading-[1.05] mb-5">
             India's pro-grade crypto exchange,{" "}
             <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
               built on its own L1

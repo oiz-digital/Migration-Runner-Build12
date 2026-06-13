@@ -377,7 +377,7 @@ export default function Wallet() {
                 </button>
               </div>
               <div className="space-y-1">
-                <div className="text-4xl sm:text-5xl font-bold font-mono tracking-tight" data-testid="text-total-inr">
+                <div className="text-3xl sm:text-4xl font-bold font-mono tracking-tight" data-testid="text-total-inr">
                   {mask(fmtInr(totalInr))}
                 </div>
                 <div className="text-base text-muted-foreground font-mono" data-testid="text-total-usd">

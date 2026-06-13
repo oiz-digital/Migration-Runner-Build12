@@ -110,7 +110,7 @@ export default function Invite() {
                 <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 mb-3 backdrop-blur-sm" data-testid="badge-program">
                   <Sparkles className="h-3 w-3 mr-1" /> Affiliate Program
                 </Badge>
-                <h1 className="text-3xl md:text-5xl font-bold leading-tight tracking-tight text-white drop-shadow-2xl">
+                <h1 className="text-2xl md:text-4xl font-bold leading-tight tracking-tight text-white drop-shadow-2xl">
                   Earn <span className="bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">{COMMISSION_PCT}% commission</span><br />
                   on every friend's trade
                 </h1>
@@ -533,7 +533,7 @@ function StepCard({
   };
   return (
     <Card className="p-5 border-border relative overflow-hidden">
-      <div className="absolute top-3 right-4 text-5xl font-black text-zinc-900 select-none">{n}</div>
+      <div className="absolute top-3 right-4 text-4xl font-black text-zinc-900 select-none">{n}</div>
       <div className={`relative w-10 h-10 rounded-xl border flex items-center justify-center ${accents[accent]}`}>
         {icon}
       </div>

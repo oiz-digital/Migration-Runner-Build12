@@ -755,7 +755,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
 
           <div>
             <Label>Pay window</Label>
-            <p className="text-sm text-muted-foreground">Fixed at 15 minutes for this release.</p>
+            <p className="text-sm text-muted-foreground">15 minutes to complete payment.</p>
           </div>
 
           <div>

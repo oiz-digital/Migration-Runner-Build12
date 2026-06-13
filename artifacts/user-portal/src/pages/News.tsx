@@ -81,7 +81,7 @@ export default function NewsPage() {
       <PageHeader
         eyebrow="Insights"
         title="News"
-        description="Market updates, product launches, trading guides aur platform insights — fresh from the Zebvix desk."
+        description="Market updates, product launches, trading guides, and platform insights — fresh from the Zebvix desk."
         actions={<StatusPill status="active">{items.length} articles</StatusPill>}
       />
 

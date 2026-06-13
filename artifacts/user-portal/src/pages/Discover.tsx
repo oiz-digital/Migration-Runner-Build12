@@ -219,7 +219,7 @@ export default function DiscoverPage() {
         )}
 
         <div className="mt-4 text-xs text-muted-foreground text-center">
-          Data DexScreener + CoinGecko se. Auto-refresh har 60 sec. <span className="text-amber-500">⚠ Trading apne risk pe.</span>
+          Data sourced from DexScreener &amp; CoinGecko. Auto-refreshes every 60 sec. <span className="text-amber-500">⚠ Trading involves risk.</span>
         </div>
       </SectionCard>
     </div>

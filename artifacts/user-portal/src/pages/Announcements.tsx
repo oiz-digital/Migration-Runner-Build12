@@ -139,7 +139,7 @@ export default function AnnouncementsPage() {
       <PageHeader
         eyebrow="Promotion"
         title="Announcements"
-        description="Latest news, product updates, security alerts aur platform announcements ek jagah."
+        description="Latest product updates, security alerts, and platform announcements — all in one place."
         actions={<StatusPill status="active">{items.length} updates</StatusPill>}
       />
 

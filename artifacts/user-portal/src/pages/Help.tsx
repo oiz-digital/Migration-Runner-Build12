@@ -76,7 +76,7 @@ export default function Help() {
           <Badge variant="outline" className="mb-3 bg-background/50">
             <LifeBuoy className="h-3 w-3 mr-1.5 text-primary" /> Help Center
           </Badge>
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-4 leading-tight">
             How can we help{" "}
             <span className="bg-gradient-to-r from-primary to-amber-400 bg-clip-text text-transparent">
               you today?

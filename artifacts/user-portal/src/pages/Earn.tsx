@@ -212,7 +212,7 @@ export default function Earn() {
       <PageHeader
         eyebrow="Passive Income"
         title="Zebvix Earn"
-        description="Put your idle crypto to work. Flexible savings and locked products — interest accrues every second."
+        description="Flexible and locked savings products — earn passive yield on your idle crypto."
         actions={
           <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-xs font-bold uppercase">
             <Star className="h-3 w-3 mr-1 fill-current" /> Up to 18.5% APY
@@ -235,7 +235,7 @@ export default function Earn() {
           value={user ? fmtNum(summary?.totalPendingYield ?? 0, 6) : "—"}
           icon={Activity}
           loading={summaryQ.isLoading}
-          hint="Accruing every second"
+          hint="Accrued continuously"
         />
         <PremiumStatCard
           title="Active Positions"

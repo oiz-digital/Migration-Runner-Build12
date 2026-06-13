@@ -62,7 +62,7 @@ export default function Fees() {
           <Badge variant="outline" className="mb-3 bg-background/50">
             <Receipt className="h-3 w-3 mr-1.5 text-primary" /> Fee Schedule
           </Badge>
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-4 leading-tight">
             Transparent fees.{" "}
             <span className="bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
               No surprises.

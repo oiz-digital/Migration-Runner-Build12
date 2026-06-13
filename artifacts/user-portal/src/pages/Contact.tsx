@@ -80,7 +80,7 @@ export default function Contact() {
           <Badge variant="outline" className="mb-3 bg-background/50">
             <MessageSquare className="h-3 w-3 mr-1.5 text-primary" /> Get in touch
           </Badge>
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-4 leading-tight">
             We'd love to{" "}
             <span className="bg-gradient-to-r from-primary to-amber-400 bg-clip-text text-transparent">
               hear from you.

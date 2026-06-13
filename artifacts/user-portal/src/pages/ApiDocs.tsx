@@ -355,7 +355,7 @@ export default function ApiDocs() {
           <Badge variant="outline" className="mb-3 bg-background/50">
             <Code2 className="h-3 w-3 mr-1.5 text-primary" /> API Documentation
           </Badge>
-          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-4 leading-tight">
             Build on Zebvix.{" "}
             <span className="bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent">
               Trade programmatically.
