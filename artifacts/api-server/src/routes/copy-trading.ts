@@ -15,7 +15,7 @@
 import { Router, type IRouter } from "express";
 import { db, traderProfilesTable, copyRelationsTable, usersTable } from "@workspace/db";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -197,6 +197,54 @@ router.post("/copy/relations/:id/stop", requireAuth, async (req, res): Promise<v
     aumUsd: sql`GREATEST(0, ${traderProfilesTable.aumUsd} - ${rel.allocationUsd})`,
   }).where(eq(traderProfilesTable.id, rel.traderId));
   res.json({ relation: row });
+});
+
+// ─── Own trader profile ──────────────────────────────────────────────────────
+router.get("/copy/me/profile", requireAuth, async (req, res): Promise<void> => {
+  const [row] = await db.select().from(traderProfilesTable)
+    .where(eq(traderProfilesTable.userId, req.user!.id));
+  res.json({ trader: row ?? null });
+});
+
+// ─── Admin: manage trader profiles ──────────────────────────────────────────
+const adminOnly = requireRole("admin", "superadmin");
+
+router.get("/admin/copy/traders", adminOnly, async (req, res): Promise<void> => {
+  const rows = await db.select({
+    trader: traderProfilesTable,
+    user: { id: usersTable.id, email: usersTable.email, name: usersTable.name },
+  }).from(traderProfilesTable)
+    .leftJoin(usersTable, eq(usersTable.id, traderProfilesTable.userId))
+    .orderBy(desc(traderProfilesTable.aumUsd))
+    .limit(500);
+  res.json({ items: rows });
+});
+
+router.patch("/admin/copy/traders/:id", adminOnly, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const updates: Record<string, unknown> = {};
+  if (typeof req.body?.isVerified === "boolean") updates.isVerified = req.body.isVerified;
+  if (typeof req.body?.isActive === "boolean")   updates.isActive   = req.body.isActive;
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "nothing to update" }); return; }
+  updates.updatedAt = new Date();
+  const [row] = await db.update(traderProfilesTable).set(updates)
+    .where(eq(traderProfilesTable.id, id)).returning();
+  if (!row) { res.status(404).json({ error: "not found" }); return; }
+  res.json({ trader: row });
+});
+
+router.get("/admin/copy/stats", adminOnly, async (req, res): Promise<void> => {
+  const [stats] = await db.select({
+    totalTraders: sql<number>`count(*)::int`,
+    activeTraders: sql<number>`count(*) filter (where ${traderProfilesTable.isActive})::int`,
+    totalFollowers: sql<number>`coalesce(sum(${traderProfilesTable.followersCount}), 0)::int`,
+    totalAum: sql<string>`coalesce(sum(${traderProfilesTable.aumUsd}), 0)::text`,
+  }).from(traderProfilesTable);
+  const [relStats] = await db.select({
+    activeRelations: sql<number>`count(*) filter (where ${copyRelationsTable.status} = 'active')::int`,
+  }).from(copyRelationsTable);
+  res.json({ ...stats, ...relStats });
 });
 
 export default router;

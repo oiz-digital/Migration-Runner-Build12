@@ -18,6 +18,8 @@ export const traderProfilesTable = pgTable("trader_profiles", {
   followersCount: integer("followers_count").notNull().default(0),
   aumUsd: numeric("aum_usd", { precision: 28, scale: 8 }).notNull().default("0"),
   riskScore: integer("risk_score").notNull().default(50),
+  pnlAllTimePct: numeric("pnl_all_time_pct", { precision: 12, scale: 4 }).notNull().default("0"),
+  maxDrawdownPct: numeric("max_drawdown_pct", { precision: 8, scale: 4 }).notNull().default("0"),
   tags: jsonb("tags").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

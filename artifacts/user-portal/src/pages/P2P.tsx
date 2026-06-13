@@ -6,6 +6,7 @@ import {
   Check, X, Hourglass, CircleDot, IndianRupee, Building, Smartphone,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useFeatureFlags } from "@/lib/features";
 import { KycGate } from "@/components/KycGate";
 import { get, ApiError } from "@/lib/api";
 import {
@@ -131,12 +132,11 @@ function methodLabel(m: string): string {
 }
 
 
-const COMING_SOON_P2P: boolean = false;
-
 export default function P2P() {
   const { user } = useAuth();
+  const { flags } = useFeatureFlags();
 
-  if (COMING_SOON_P2P) {
+  if (!flags.p2p) {
     return (
       <div className="min-h-[calc(100vh-56px)] flex flex-col items-center justify-center gap-6 px-4 text-center bg-background">
         <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">

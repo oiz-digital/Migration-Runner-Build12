@@ -59,6 +59,7 @@ import BrokerApplicationsPage from "@/pages/broker-applications";
 import AITradingPlansPage from "@/pages/ai-trading-plans";
 import ExchangeSettingsPage from "@/pages/exchange-settings";
 import FeaturesPage from "@/pages/features";
+import CopyTradingAdminPage from "@/pages/copy-trading-admin";
 import WalletManagerPage from "@/pages/wallet-manager";
 import SupportAdminPage from "@/pages/support-admin";
 import SystemStatusPage from "@/pages/system-status";
@@ -129,6 +130,7 @@ function Protected() {
         <Route path="/bots" component={BotsPage} />
         <Route path="/orders" component={OrdersPage} />
         <Route path="/p2p" component={P2PAdminPage} />
+        <Route path="/copy-trading" component={CopyTradingAdminPage} />
         <Route path="/fees">
           <RoleGated allow={["admin", "superadmin"]}>
             <FeesAdminPage />

@@ -88,6 +88,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/orders",            label: "Orders & Trades",    icon: ArrowDownUp, roles: ["support", "finance", "compliance", "admin", "superadmin"] },
       { href: "/tds-report",        label: "TDS Report",         icon: Percent,     roles: ["support", "finance", "compliance", "admin", "superadmin"] },
       { href: "/p2p",               label: "P2P Marketplace",    icon: Users,       roles: ["support", "finance", "admin", "superadmin"] },
+      { href: "/copy-trading",      label: "Copy Trading",       icon: Activity,    roles: ["support", "admin", "superadmin"] },
       { href: "/fees",              label: "Fees & VIP Tiers",   icon: Crown,       roles: ["admin", "superadmin"] },
       { href: "/trading-engine",    label: "Trading Engine",     icon: Cpu,         roles: ["admin", "superadmin"] },
     ],
