@@ -240,24 +240,26 @@ router.post("/auth/register", validate(RegisterBody), async (req, res): Promise<
         const refConfig = await loadReferralConfig();
         if (!refConfig.enabled) return;
         const REGISTRATION_BONUS_USDT = refConfig.registrationBonus;
-        // Upsert referrer's USDT spot wallet.
-        const [rw] = await db.select().from(walletsTable)
-          .where(eq(walletsTable.userId, referredBy!))
-          // filter by coinId and walletType in JS to keep query simple
-          .then(rows => rows.filter(r => r.coinId === usdtCoinId && r.walletType === "spot"));
-        if (rw) {
-          await db.update(walletsTable)
-            .set({ balance: sql`${walletsTable.balance} + ${REGISTRATION_BONUS_USDT}`, updatedAt: new Date() })
-            .where(eq(walletsTable.id, rw.id));
-        } else {
-          await db.insert(walletsTable).values({
+        // Atomic upsert: create the wallet row if absent, otherwise increment
+        // balance. Eliminates the SELECT→INSERT race condition against the
+        // unique (user_id, wallet_type, coin_id) index — safe under concurrent
+        // signups with the same referral code.
+        await db.insert(walletsTable)
+          .values({
             userId: referredBy!, coinId: usdtCoinId, walletType: "spot",
             balance: String(REGISTRATION_BONUS_USDT), locked: "0",
+          })
+          .onConflictDoUpdate({
+            target: [walletsTable.userId, walletsTable.walletType, walletsTable.coinId],
+            set: {
+              balance: sql`${walletsTable.balance} + ${REGISTRATION_BONUS_USDT}`,
+              updatedAt: new Date(),
+            },
           });
-        }
         await db.insert(referralsTable).values({
           referrerId: referredBy!, referredId: user.id,
           bonusCredited: true, bonusAmount: String(REGISTRATION_BONUS_USDT),
+          commissionRate: String(REGISTRATION_BONUS_USDT),
           level: 1, sourceType: "registration",
         }).catch(() => null);
       } catch { /* non-critical */ }

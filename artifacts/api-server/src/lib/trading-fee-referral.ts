@@ -13,28 +13,17 @@
 import {
   db, usersTable, walletsTable, referralsTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { loadReferralConfig } from "../routes/admin-referrals";
-
-async function ensureSpotWallet(userId: number, coinId: number): Promise<string | null> {
-  const [w] = await db.select({ id: walletsTable.id })
-    .from(walletsTable)
-    .where(and(
-      eq(walletsTable.userId, userId),
-      eq(walletsTable.coinId, coinId),
-      eq(walletsTable.walletType, "spot"),
-    )).limit(1);
-  if (w) return String(w.id);
-  const [inserted] = await db.insert(walletsTable).values({
-    userId, coinId, walletType: "spot", balance: "0", locked: "0",
-  }).returning({ id: walletsTable.id });
-  return inserted ? String(inserted.id) : null;
-}
 
 /**
  * Generic 5-level referral chain creditor.
  * Walks up the referral chain from `originUserId` and credits each ancestor.
+ *
+ * Uses an atomic INSERT … ON CONFLICT DO UPDATE to credit the referrer's spot
+ * wallet in a single round-trip, eliminating the SELECT-then-INSERT race
+ * condition that existed against the (userId, walletType, coinId) unique index.
  */
 export async function creditReferralChain(
   originUserId: number,
@@ -59,21 +48,38 @@ export async function creditReferralChain(
     const commission = parseFloat((amount * pct / 100).toFixed(8));
     if (commission < 0.000001) { currentId = user.referredBy; continue; }
 
-    const walletId = await ensureSpotWallet(user.referredBy, coinId);
-    if (walletId) {
-      await db.update(walletsTable)
-        .set({ balance: sql`${walletsTable.balance} + ${commission}`, updatedAt: new Date() })
-        .where(eq(walletsTable.id, Number(walletId)));
-    }
+    // Atomic upsert: create the wallet if absent, otherwise increment balance.
+    // Avoids the SELECT→INSERT race condition against the unique
+    // (user_id, wallet_type, coin_id) index — any concurrent credit will
+    // safely queue on the same row rather than losing data.
+    await db.insert(walletsTable)
+      .values({
+        userId: user.referredBy,
+        coinId,
+        walletType: "spot",
+        balance: String(commission),
+        locked: "0",
+      })
+      .onConflictDoUpdate({
+        target: [walletsTable.userId, walletsTable.walletType, walletsTable.coinId],
+        set: {
+          balance: sql`${walletsTable.balance} + ${commission}`,
+          updatedAt: new Date(),
+        },
+      });
 
     await db.insert(referralsTable).values({
-      referrerId: user.referredBy, referredId: originUserId,
-      bonusCredited: true, bonusAmount: String(commission),
-      level, sourceType,
+      referrerId:      user.referredBy,
+      referredId:      originUserId,
+      bonusCredited:   true,
+      bonusAmount:     String(commission),
+      commissionRate:  String(pct),
+      level,
+      sourceType,
     }).catch(() => null);
 
     logger.debug(
-      { referrerId: user.referredBy, level, commission, originUserId, sourceType },
+      { referrerId: user.referredBy, level, commission, pct, originUserId, sourceType },
       "referral-chain: commission credited",
     );
 
