@@ -283,7 +283,36 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
         const ledgerRows: any[] = [];
         if (!takerIsBot) {
           if (taker.side === "buy") {
-            // Taker received base coin
+            // Recompute the per-fill lock slice (same formula used in the wallet
+            // settlement above) so we can reconstruct the "pre-lock" balance.
+            // Adding it back to takerQuoteBalBefore gives the quote balance as
+            // it was BEFORE this fill's slice was frozen at order placement.
+            // Ledger balances then cascade correctly and the final balanceAfter
+            // equals the actual post-fill wallet balance:
+            //   preTrade − notional − takerFee
+            //   = takerQuoteBalBefore + takerQuoteLocked − notional − takerFee
+            //   = takerQuoteBalBefore + takerRefund  ← actual balance after update ✓
+            const takerQuoteLockedLedger = fillQty * limitPrice * (1 + takerFeeRate);
+            const preTrade = takerQuoteBalBefore + takerQuoteLockedLedger;
+            // Quote: notional cost of the purchase
+            ledgerRows.push({
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_buy", amount: String(-notional),
+              balanceBefore: String(preTrade),
+              balanceAfter: String(preTrade - notional),
+              refType: "trade", refId: tradeRefId,
+              note: `Buy ${tradeNote}`,
+            });
+            // Quote: trading fee (cascaded from notional entry)
+            if (takerFee > 0) ledgerRows.push({
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_fee", amount: String(-takerFee),
+              balanceBefore: String(preTrade - notional),
+              balanceAfter: String(preTrade - notional - takerFee),
+              refType: "trade", refId: tradeRefId,
+              note: `Fee ${tradeNote}`,
+            });
+            // Base: coins received
             ledgerRows.push({
               userId: taker.userId, coinId: pair.baseCoinId, walletType: "spot",
               type: "trade_buy", amount: String(fillQty),
@@ -291,15 +320,6 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               balanceAfter: String(takerBaseBalBefore + fillQty),
               refType: "trade", refId: tradeRefId,
               note: `Buy ${tradeNote}`,
-            });
-            // Taker paid fee in quote
-            if (takerFee > 0) ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
-              type: "trade_fee", amount: String(-takerFee),
-              balanceBefore: String(takerQuoteBalBefore),
-              balanceAfter: String(takerQuoteBalBefore - takerFee),
-              refType: "trade", refId: tradeRefId,
-              note: `Fee ${tradeNote}`,
             });
           } else {
             // Taker sold base coin, received quote
@@ -327,7 +347,33 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Sell ${tradeNote}`,
             });
           } else {
-            // Maker bought base coin
+            // Maker bought base coin. Mirror the taker-buy approach: reconstruct
+            // the pre-lock balance using the fee-buffered lock slice (same formula
+            // as the wallet settlement: fillQty × tradePrice × (1 + makerRates.taker)).
+            // preTrade − notional − makerFee
+            //   = makerQuoteBalBefore + makerQuoteLockedLedger − notional − makerFee
+            //   = makerQuoteBalBefore + makerRefund  ← actual balance after update ✓
+            const makerQuoteLockedLedger = fillQty * tradePrice * (1 + makerRates.taker);
+            const makerPreTrade = makerQuoteBalBefore + makerQuoteLockedLedger;
+            // Quote: notional cost of the purchase
+            ledgerRows.push({
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_buy", amount: String(-notional),
+              balanceBefore: String(makerPreTrade),
+              balanceAfter: String(makerPreTrade - notional),
+              refType: "trade", refId: tradeRefId,
+              note: `Buy ${tradeNote}`,
+            });
+            // Quote: trading fee (cascaded from notional entry)
+            if (makerFee > 0) ledgerRows.push({
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              type: "trade_fee", amount: String(-makerFee),
+              balanceBefore: String(makerPreTrade - notional),
+              balanceAfter: String(makerPreTrade - notional - makerFee),
+              refType: "trade", refId: tradeRefId,
+              note: `Fee ${tradeNote}`,
+            });
+            // Base: coins received
             ledgerRows.push({
               userId: maker.userId, coinId: pair.baseCoinId, walletType: "spot",
               type: "trade_buy", amount: String(fillQty),
@@ -335,15 +381,6 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               balanceAfter: String(makerBaseBalBefore + fillQty),
               refType: "trade", refId: tradeRefId,
               note: `Buy ${tradeNote}`,
-            });
-            // Maker paid fee in quote
-            if (makerFee > 0) ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
-              type: "trade_fee", amount: String(-makerFee),
-              balanceBefore: String(makerQuoteBalBefore),
-              balanceAfter: String(makerQuoteBalBefore - makerFee),
-              refType: "trade", refId: tradeRefId,
-              note: `Fee ${tradeNote}`,
             });
           }
         }
