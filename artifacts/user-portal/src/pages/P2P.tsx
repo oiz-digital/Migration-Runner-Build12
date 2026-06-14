@@ -315,9 +315,9 @@ function MarketplaceTab() {
               <SelectTrigger className="w-[140px]" data-testid="p2p-filter-coin">
                 <SelectValue placeholder="All coins" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="max-h-[240px]" sideOffset={4}>
                 <SelectItem value="all">All coins</SelectItem>
-                {(coinsQ.data ?? []).filter(c => c.symbol !== "INR").slice(0, 30).map(c => (
+                {(coinsQ.data ?? []).filter(c => c.symbol !== "INR").map(c => (
                   <SelectItem key={c.id} value={c.symbol}>{c.symbol}</SelectItem>
                 ))}
               </SelectContent>
@@ -696,6 +696,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const [adSuccess, setAdSuccess] = useState<GenericSuccess | null>(null);
   const [side, setSide] = useState<"buy" | "sell">("sell");
   const [coinSymbol, setCoinSymbol] = useState("");
+  const [coinSearch, setCoinSearch] = useState("");
   const [price, setPrice] = useState("");
   const [totalQty, setTotalQty] = useState("");
   const [minFiat, setMinFiat] = useState("");
@@ -707,7 +708,23 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const coinsQ = useQuery<Coin[]>({
     queryKey: ["/coins"],
     queryFn: () => get<Coin[]>("/coins"),
+    staleTime: 60_000,
   });
+
+  // Available balance for sell ads
+  const walletQ = useQuery<{ balance: string; currency: string }[]>({
+    queryKey: ["/finance/wallet", "spot"],
+    queryFn: () => get<any>("/finance/wallet").then((d: any) => d?.spot ?? d?.wallets ?? []),
+    enabled: side === "sell",
+    staleTime: 30_000,
+  });
+  const availBal = side === "sell" && coinSymbol
+    ? Number((walletQ.data ?? []).find((w: any) => (w.currency ?? w.symbol ?? "")?.toUpperCase() === coinSymbol.toUpperCase())?.balance ?? 0)
+    : null;
+
+  const filteredCoins = (coinsQ.data ?? [])
+    .filter(c => c.symbol !== "INR")
+    .filter(c => !coinSearch || c.symbol.toLowerCase().includes(coinSearch.toLowerCase()) || c.name.toLowerCase().includes(coinSearch.toLowerCase()));
 
   const createMut = useCreateP2pOffer({
     request: COOKIE_REQ,
@@ -741,102 +758,243 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
 
   return (<>
     <Dialog open onOpenChange={adSuccess ? undefined : onClose}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="p2p-create-ad-dialog">
-        <DialogHeader>
-          <DialogTitle>Post a P2P Ad</DialogTitle>
-          <DialogDescription>Choose what side you want to take and your terms.</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden flex flex-col max-h-[92vh]" data-testid="p2p-create-ad-dialog">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-border/50 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/15 ring-1 ring-violet-500/30">
+              <Tag className="h-4 w-4 text-violet-400" />
+            </div>
+            Post a P2P Ad
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-1 ml-10">
+            Set your price, quantity, and payment terms. Counterparties can open orders against live ads.
+          </DialogDescription>
+        </div>
 
-        <div className="space-y-3 py-2">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+          {/* Side + Coin row */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>I want to</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">I want to</Label>
               <Select value={side} onValueChange={(v) => setSide(v as "buy" | "sell")}>
-                <SelectTrigger data-testid="p2p-ad-side"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10" data-testid="p2p-ad-side"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sell">Sell crypto for INR</SelectItem>
                   <SelectItem value="buy">Buy crypto with INR</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Coin</Label>
-              <Select value={coinSymbol} onValueChange={setCoinSymbol}>
-                <SelectTrigger data-testid="p2p-ad-coin"><SelectValue placeholder="Select coin" /></SelectTrigger>
-                <SelectContent>
-                  {(coinsQ.data ?? []).filter(c => c.symbol !== "INR").map(c => (
-                    <SelectItem key={c.id} value={c.symbol}>{c.symbol} – {c.name}</SelectItem>
-                  ))}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Coin</Label>
+              <Select
+                value={coinSymbol}
+                onValueChange={(v) => { setCoinSymbol(v); setCoinSearch(""); }}
+              >
+                <SelectTrigger className="h-10" data-testid="p2p-ad-coin">
+                  <SelectValue placeholder="Select coin" />
+                </SelectTrigger>
+                {/* position=popper avoids Dialog overflow clipping the dropdown */}
+                <SelectContent position="popper" className="max-h-[260px]" sideOffset={4}>
+                  {/* Coin search */}
+                  <div className="px-2 pb-1.5 pt-1 border-b border-border/50">
+                    <Input
+                      value={coinSearch}
+                      onChange={e => setCoinSearch(e.target.value)}
+                      placeholder="Search coin…"
+                      className="h-7 text-xs"
+                      onKeyDown={e => e.stopPropagation()}
+                    />
+                  </div>
+                  {coinsQ.isLoading ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">Loading…</div>
+                  ) : filteredCoins.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">No coins found</div>
+                  ) : (
+                    filteredCoins.map(c => (
+                      <SelectItem key={c.id} value={c.symbol}>
+                        <span className="font-semibold">{c.symbol}</span>
+                        <span className="ml-1.5 text-muted-foreground text-xs">{c.name}</span>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
+              {/* Show available balance for sell ads */}
+              {side === "sell" && coinSymbol && availBal !== null && (
+                <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Wallet className="h-2.5 w-2.5" />
+                  Available: <span className="font-medium text-foreground">{availBal.toFixed(6)} {coinSymbol}</span>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Price + Qty */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Price per coin (₹)</Label>
-              <Input type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="e.g. 5500000" data-testid="p2p-ad-price" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Price per coin</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="e.g. 5500000"
+                  className="h-10 pl-8"
+                  data-testid="p2p-ad-price"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Total Quantity (crypto)</Label>
-              <Input type="number" value={totalQty} onChange={(e) => setTotalQty(e.target.value)} placeholder="e.g. 0.05" data-testid="p2p-ad-qty" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Total Quantity {coinSymbol ? `(${coinSymbol})` : "(crypto)"}
+              </Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  value={totalQty}
+                  onChange={(e) => setTotalQty(e.target.value)}
+                  placeholder="e.g. 0.05"
+                  className="h-10 pr-14"
+                  data-testid="p2p-ad-qty"
+                />
+                {coinSymbol && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">{coinSymbol}</span>
+                )}
+              </div>
+              {/* Total value preview */}
+              {Number(price) > 0 && Number(totalQty) > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                  Total: <span className="font-medium text-foreground">₹{(Number(price) * Number(totalQty)).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Sell balance warning */}
+          {side === "sell" && availBal !== null && Number(totalQty) > availBal && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Quantity exceeds available balance ({availBal.toFixed(6)} {coinSymbol})
+            </div>
+          )}
+
+          {/* Order limits */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Min order (₹)</Label>
-              <Input type="number" value={minFiat} onChange={(e) => setMinFiat(e.target.value)} placeholder="e.g. 500" data-testid="p2p-ad-min" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Min order (₹)</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="number"
+                  value={minFiat}
+                  onChange={(e) => setMinFiat(e.target.value)}
+                  placeholder="e.g. 500"
+                  className="h-10 pl-8"
+                  data-testid="p2p-ad-min"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Max order (₹)</Label>
-              <Input type="number" value={maxFiat} onChange={(e) => setMaxFiat(e.target.value)} placeholder="e.g. 100000" data-testid="p2p-ad-max" />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Max order (₹)</Label>
+              <div className="relative">
+                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  type="number"
+                  value={maxFiat}
+                  onChange={(e) => setMaxFiat(e.target.value)}
+                  placeholder="e.g. 100000"
+                  className="h-10 pl-8"
+                  data-testid="p2p-ad-max"
+                />
+              </div>
+              {Number(minFiat) > 0 && Number(maxFiat) > 0 && Number(maxFiat) < Number(minFiat) && (
+                <div className="text-[11px] text-rose-400">Max must be ≥ Min</div>
+              )}
             </div>
           </div>
 
-          <div>
-            <Label>Accepted payment methods</Label>
-            <div className="grid grid-cols-3 gap-2 mt-1">
-              {PAYMENT_METHODS.map(m => (
-                <label key={m.value} className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1.5 cursor-pointer hover:bg-muted/40">
-                  <Checkbox
-                    checked={methods.includes(m.value)}
-                    onCheckedChange={(c) => setMethods(c ? [...methods, m.value] : methods.filter(x => x !== m.value))}
-                    data-testid={`p2p-ad-method-${m.value}`}
-                  />
-                  <span className="text-xs font-medium">{m.label}</span>
-                </label>
-              ))}
+          {/* Payment methods */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Accepted payment methods <span className="normal-case font-normal">(select at least one)</span>
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {PAYMENT_METHODS.map(m => {
+                const Icon = m.icon;
+                const checked = methods.includes(m.value);
+                return (
+                  <label
+                    key={m.value}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
+                      checked
+                        ? "border-violet-500/50 bg-violet-500/10 text-violet-300"
+                        : "border-border/60 hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(c) => setMethods(c ? [...methods, m.value] : methods.filter(x => x !== m.value))}
+                      className="shrink-0"
+                      data-testid={`p2p-ad-method-${m.value}`}
+                    />
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="text-xs font-medium truncate">{m.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {methods.length === 0 && (
+              <div className="text-[11px] text-rose-400">Select at least one payment method</div>
+            )}
+          </div>
+
+          {/* Pay window */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pay window</Label>
+              <Select value={String(payWindowMins)} onValueChange={(v) => setPayWindowMins(Number(v))}>
+                <SelectTrigger className="h-10" data-testid="p2p-ad-paywindow"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">60 minutes</SelectItem>
+                  <SelectItem value="90">90 minutes</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-[11px] text-muted-foreground">Buyer must pay within this window</div>
             </div>
           </div>
 
-          <div>
-            <Label>Pay window</Label>
-            <Select value={String(payWindowMins)} onValueChange={(v) => setPayWindowMins(Number(v))}>
-              <SelectTrigger data-testid="p2p-ad-paywindow"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">15 minutes</SelectItem>
-                <SelectItem value="30">30 minutes</SelectItem>
-                <SelectItem value="45">45 minutes</SelectItem>
-                <SelectItem value="60">60 minutes</SelectItem>
-                <SelectItem value="90">90 minutes</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Terms */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Terms <span className="normal-case font-normal">(optional)</span></Label>
+            <Textarea
+              value={terms}
+              onChange={(e) => setTerms(e.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="e.g. Only KYC L2 users. UPI only. Pay within 10 mins."
+              className="resize-none text-sm"
+              data-testid="p2p-ad-terms"
+            />
+            <div className="text-[11px] text-muted-foreground text-right">{terms.length}/500</div>
           </div>
 
-          <div>
-            <Label>Terms (optional)</Label>
-            <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} maxLength={500} rows={2} placeholder="e.g. Only KYC L2 users. UPI only. Pay within 10 mins." data-testid="p2p-ad-terms" />
-          </div>
-
+          {/* Sell escrow note */}
           {side === "sell" && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300">
-              For SELL ads, your spot balance must cover the total quantity. Escrow only locks when a buyer opens an order.
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 p-3 text-xs text-amber-300/90 flex items-start gap-2">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>For SELL ads, crypto is escrowed when a buyer opens an order — your balance is locked at that point, not now.</span>
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border/50 flex justify-end gap-2 shrink-0">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={() => createMut.mutate({
@@ -856,10 +1014,9 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
             disabled={!valid || createMut.isPending}
             data-testid="p2p-ad-submit"
           >
-            {createMut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Post Ad
+            {createMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Posting…</> : <><Tag className="w-4 h-4 mr-2" />Post Ad</>}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
 
