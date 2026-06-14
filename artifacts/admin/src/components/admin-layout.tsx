@@ -30,7 +30,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import zebvixMark from "@/assets/zebvix-mark.png";
+import { ZebvixMark } from "@/components/ZebvixMark";
 
 function AdminThemeToggle() {
   const { resolved, setTheme } = useTheme();
@@ -228,9 +228,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           onClick={() => setOpen(false)}
           className="flex items-center gap-2.5 px-5 py-4 border-b border-sidebar-border hover-elevate group"
         >
-          <div className="relative w-9 h-9 rounded-lg overflow-hidden gold-glow shrink-0">
-            <img src={zebvixMark} alt="Zebvix" className="absolute inset-0 w-full h-full object-cover" />
-          </div>
+          <ZebvixMark size={36} className="shrink-0" />
           <div className="min-w-0">
             <div className="font-bold text-base leading-tight gold-text tracking-wide">ZEBVIX</div>
             <div className="text-[10px] text-muted-foreground leading-tight uppercase tracking-[0.18em]">

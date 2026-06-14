@@ -58,6 +58,7 @@ import {
   Sun,
   type LucideIcon,
 } from "lucide-react";
+import { ZebvixLogo } from "@/components/ZebvixLogo";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
 import { useFeatures } from "@/lib/siteConfig";
@@ -454,14 +455,9 @@ export function AppHeader() {
         {/* ── Left: logo + mode switcher + nav ─────────────── */}
         <div className="flex items-center gap-3 sm:gap-5 min-w-0 flex-shrink">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 font-bold text-xl flex-shrink-0">
-            <span className="relative h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 text-black font-extrabold text-sm flex items-center justify-center shadow-lg shadow-amber-500/30">
-              Z
-              <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-card" />
-            </span>
-            <span className="tracking-tight hidden xs:inline sm:inline">
-              Zebvix<span className="text-primary">.</span>
-            </span>
+          <Link href="/" className="flex items-center flex-shrink-0">
+            <ZebvixLogo variant="wordmark" size={30} className="hidden sm:inline-flex" />
+            <ZebvixLogo variant="mark" size={30} className="sm:hidden" showDot={false} />
           </Link>
 
           {/* Mode switcher: Exchange / DEX */}

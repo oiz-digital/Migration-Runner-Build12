@@ -10,3 +10,4 @@
 - [Zebvix wallet/P2P/AI audit fixes](zebvix-wallet-p2p-audit.md) — AI INR→USDT bug (fundingCoinId schema), KYC on bicrypto withdrawals, P2P ledger zero-balances, dup bank accounts, fee cache 30s TTL, referral on base fee
 - [Zebvix INR rate consistency audit](zebvix-inr-rate-audit.md) — 5 hardcoded INR rate gaps found+fixed; referralsTable has no coinId so old INR commissions stay mixed in sum (known historical data issue)
 - [Zebvix Go service production binary](zebvix-go-prod-binary.md) — Go binary MUST be built with CGO_ENABLED=0; Nix's Go toolchain produces dynamically linked binaries that fail in production with "no such file or directory" (missing ELF interpreter)
+- [Zebvix premium UI components](zebvix-premium-ui.md) — dialog/alert-dialog glassmorphism; toast glassmorphism+success variant; ZebvixMark SVG component (admin); ZebvixLogo SVG component (user-portal); favicon.svg amber gradient Z

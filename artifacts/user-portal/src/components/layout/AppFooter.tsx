@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { ZebvixLogo } from "@/components/ZebvixLogo";
 import {
   Twitter,
   Send,
@@ -79,13 +80,8 @@ export function AppFooter() {
         {/* Brand block */}
         <div className="lg:col-span-4 space-y-5">
           {/* Logo */}
-          <Link href="/" className="inline-flex items-center gap-2.5 group">
-            <span className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-black font-extrabold text-lg flex items-center justify-center shadow-md group-hover:shadow-orange-500/30 transition-shadow">
-              {brand.name.charAt(0).toUpperCase()}
-            </span>
-            <span className="text-xl font-extrabold tracking-tight">
-              {brand.name}<span className="text-primary">.</span>
-            </span>
+          <Link href="/" className="inline-flex">
+            <ZebvixLogo variant="wordmark" size={34} />
           </Link>
 
           {/* Tagline */}

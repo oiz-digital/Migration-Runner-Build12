@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import zebvixMark from "@/assets/zebvix-mark.png";
+import { ZebvixMark } from "@/components/ZebvixMark";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -37,9 +37,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative">
         {/* Brand strip on top */}
         <div className="flex flex-col items-center mb-6">
-          <div className="relative w-16 h-16 rounded-2xl overflow-hidden gold-glow mb-3">
-            <img src={zebvixMark} alt="Zebvix" className="absolute inset-0 w-full h-full object-cover" />
-          </div>
+          <ZebvixMark size={64} className="mb-3" />
           <div className="text-3xl font-bold tracking-wider gold-text">ZEBVIX</div>
           <div className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground mt-1">
             Admin Console
