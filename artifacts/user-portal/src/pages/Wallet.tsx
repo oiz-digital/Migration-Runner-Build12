@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { KycProgressBanner } from "@/components/KycGate";
 import { useTickers, useInrRate } from "@/lib/marketSocket";
 import { useMemo, useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -746,6 +746,9 @@ function AssetTable({
                     {r.currency !== "INR" && (
                       <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => onTrade(r.currency)} data-testid={`button-trade-${r.currency}`}>Trade</Button>
                     )}
+                    <Link href={`/ledger?coin=${r.currency}`}>
+                      <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" data-testid={`button-history-${r.currency}`}>History</Button>
+                    </Link>
                   </div>
                 </td>
               </tr>
@@ -781,10 +784,13 @@ function AssetTable({
                 <div className="font-mono">{mask(fmtNum(r.locked, r.currency === "INR" ? 2 : 6))}</div>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" onClick={() => onDeposit(r.currency, r.type)}>Deposit</Button>
               <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" onClick={() => onWithdraw(r.currency, r.type)}>Withdraw</Button>
               <Button size="sm" variant="outline" className="flex-1 h-9 text-xs" onClick={() => onTransfer(r.currency)}>Transfer</Button>
+              <Link href={`/ledger?coin=${r.currency}`} className="flex-1">
+                <Button size="sm" variant="ghost" className="w-full h-9 text-xs">History</Button>
+              </Link>
             </div>
           </div>
         ))}

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { db, ordersTable, tradesTable, pairsTable, walletsTable, coinsTable, usersTable, settingsTable } from "@workspace/db";
+import { db, ordersTable, tradesTable, pairsTable, walletsTable, coinsTable, usersTable, settingsTable, futuresOrdersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { rZadd, rZrem, rPublish, rLpush, rSet } from "../lib/redis";
 import { tryMatch, getDepth, getRecentTrades } from "../lib/matching-engine";
@@ -82,14 +82,73 @@ async function ensureWallet(tx: any, userId: number, coinId: number, walletType:
 // placed them. Bot rows remain visible only via the admin endpoints in admin.ts.
 router.get("/orders", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const status = (req.query.status as string) || "all";
-  const conds = [eq(ordersTable.userId, userId), eq(ordersTable.isBot, 0)];
-  if (status !== "all") conds.push(eq(ordersTable.status, status));
-  const rows = await db.select().from(ordersTable)
-    .where(and(...conds))
+  const statusQ = (req.query.status as string) || "all";
+
+  // ── Spot orders ──────────────────────────────────────────────────────────
+  const spotConds = [eq(ordersTable.userId, userId), eq(ordersTable.isBot, 0)] as any[];
+  if (statusQ !== "all") spotConds.push(eq(ordersTable.status, statusQ));
+  const spotRows = await db.select().from(ordersTable)
+    .where(and(...spotConds))
     .orderBy(desc(ordersTable.createdAt))
     .limit(200);
-  res.json(rows);
+
+  // ── Futures orders ───────────────────────────────────────────────────────
+  const futConds = [eq(futuresOrdersTable.userId, userId), eq(futuresOrdersTable.isBot, 0)] as any[];
+  const futRows = await db.select().from(futuresOrdersTable)
+    .where(and(...futConds))
+    .orderBy(desc(futuresOrdersTable.createdAt))
+    .limit(200);
+
+  // Resolve pair symbols for futures
+  const pairIds = [...new Set(futRows.map(r => r.pairId))];
+  const pairSymMap = new Map<number, string>();
+  if (pairIds.length > 0) {
+    const pairs = await db.select({ id: pairsTable.id, symbol: pairsTable.symbol })
+      .from(pairsTable).where(inArray(pairsTable.id, pairIds));
+    for (const p of pairs) pairSymMap.set(p.id, p.symbol || "");
+  }
+
+  // Normalize futures status to lowercase to match spot conventions
+  function normFutStatus(s: string): string {
+    const u = s.toUpperCase();
+    if (u === "OPEN")      return "open";
+    if (u === "PARTIAL")   return "partially_filled";
+    if (u === "FILLED")    return "filled";
+    if (u === "CANCELLED") return "cancelled";
+    if (u === "REJECTED")  return "cancelled";
+    return s.toLowerCase();
+  }
+
+  const normalizedFut = futRows.map(r => ({
+    id: r.id,
+    uid: r.uid,
+    userId: r.userId,
+    pairId: r.pairId,
+    symbol: (pairSymMap.get(r.pairId) || "").replace("/", "") + "-PERP",
+    side: r.side,
+    type: r.type,
+    price: r.price ? String(r.price) : null,
+    avgPrice: r.avgFillPrice ? String(r.avgFillPrice) : null,
+    qty: String(r.qty),
+    filledQty: String(r.filledQty),
+    amount: String(r.qty),
+    status: normFutStatus(r.status),
+    fee: String(r.fee),
+    leverage: r.leverage,
+    marginType: r.marginType,
+    isBot: r.isBot,
+    createdAt: r.createdAt,
+    source: "futures" as const,
+  }));
+
+  const normalizedSpot = spotRows.map(r => ({ ...r, source: "spot" as const }));
+
+  // Merge and sort newest-first, cap at 300
+  const merged = [...normalizedSpot, ...normalizedFut].sort(
+    (a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime()
+  ).slice(0, 300);
+
+  res.json(merged);
 });
 
 router.get("/trades", requireAuth, async (req, res): Promise<void> => {

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { get, post } from "@/lib/api";
+import { get, post, del } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,6 +39,7 @@ type Order = {
   amount: string | number;
   status: string;
   createdAt: string;
+  source?: "spot" | "futures";
 };
 
 type ConvertRow = {
@@ -76,7 +77,7 @@ function fmtNum(n: number | string | null | undefined, digits = 4) {
 
 export default function Orders() {
   const queryClient = useQueryClient();
-  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [confirmOrder, setConfirmOrder] = useState<Order | null>(null);
   const [genericSuccess, setGenericSuccess] = useState<GenericSuccess | null>(null);
   const [fillsOrderId, setFillsOrderId] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterTab>("all");
@@ -105,6 +106,7 @@ export default function Orders() {
   }, [ordersData]);
 
   function isFutures(o: Order) {
+    if (o.source === "futures") return true;
     const s = String(o.symbol || "").toUpperCase();
     const ty = String(o.type || "").toLowerCase();
     return s.includes("PERP") || s.endsWith("-SWAP") || ty.includes("perp") || ty.includes("futures");
@@ -145,11 +147,14 @@ export default function Orders() {
   }, [allOrders]);
 
   const cancelMutation = useMutation({
-    mutationFn: (id: number) => post(`/orders/${id}/cancel`),
+    mutationFn: (order: Order) =>
+      order.source === "futures"
+        ? del(`/futures/order/${order.id}`)
+        : post(`/orders/${order.id}/cancel`),
     onSuccess: () => {
-      setConfirmId(null);
+      setConfirmOrder(null);
       queryClient.invalidateQueries({ queryKey: ["orders"] });
-      setGenericSuccess({ kind: "generic", iconKind: "futures", accentColor: "rose", title: "Order Cancelled", subtitle: "Your order has been cancelled. Any locked funds have been released back to your wallet.", rows: [], primaryLabel: "Done" });
+      setGenericSuccess({ kind: "generic", iconKind: "futures", accentColor: "#F87171", title: "Order Cancelled", subtitle: "Your order has been cancelled. Any locked funds have been released back to your wallet.", rows: [], primaryLabel: "Done" });
     },
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Failed to cancel order");
@@ -435,7 +440,7 @@ export default function Orders() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={e => { e.stopPropagation(); setConfirmId(o.id); }}
+                              onClick={e => { e.stopPropagation(); setConfirmOrder(o); }}
                               aria-label={`Cancel order ${o.id}`}
                               className="h-7 px-2 text-xs text-rose-400 border-rose-500/30 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
@@ -474,7 +479,7 @@ export default function Orders() {
         onOpenChange={o => !o && setFillsOrderId(null)}
       />
 
-      <AlertDialog open={confirmId !== null} onOpenChange={o => !o && setConfirmId(null)}>
+      <AlertDialog open={confirmOrder !== null} onOpenChange={o => !o && setConfirmOrder(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
@@ -485,7 +490,7 @@ export default function Orders() {
           <AlertDialogFooter>
             <AlertDialogCancel>Go back</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => confirmId !== null && cancelMutation.mutate(confirmId)}
+              onClick={() => confirmOrder !== null && cancelMutation.mutate(confirmOrder)}
               disabled={cancelMutation.isPending}
               className="bg-rose-500 hover:bg-rose-600 text-white"
             >

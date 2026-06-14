@@ -89,8 +89,10 @@ const TYPE_META: Record<string, { label: string; icon: React.ReactNode; tone: st
   admin_credit:        { label: "Admin Credit",      icon: <ShieldCheck    className="h-3.5 w-3.5" />, tone: "text-emerald-400", credit: true  },
   admin_debit:         { label: "Admin Debit",       icon: <ShieldCheck    className="h-3.5 w-3.5" />, tone: "text-rose-400",    credit: false },
   convert:             { label: "Convert",           icon: <RefreshCw      className="h-3.5 w-3.5" />, tone: "text-sky-400",     credit: null  },
-  options_pnl:         { label: "Options P&L",       icon: <TrendingUp     className="h-3.5 w-3.5" />, tone: "text-violet-400",  credit: null  },
-  futures_pnl:         { label: "Futures P&L",       icon: <TrendingUp     className="h-3.5 w-3.5" />, tone: "text-violet-400",  credit: null  },
+  options_pnl:            { label: "Options P&L",       icon: <TrendingUp     className="h-3.5 w-3.5" />, tone: "text-violet-400",  credit: null  },
+  futures_pnl:            { label: "Futures P&L",       icon: <TrendingUp     className="h-3.5 w-3.5" />, tone: "text-violet-400",  credit: null  },
+  instruments_margin:     { label: "Futures Margin",    icon: <BarChart3      className="h-3.5 w-3.5" />, tone: "text-amber-400",   credit: false },
+  instruments_pnl:        { label: "Instruments P&L",   icon: <TrendingUp     className="h-3.5 w-3.5" />, tone: "text-violet-400",  credit: null  },
 };
 
 const FILTER_TYPES = [
@@ -115,6 +117,8 @@ const FILTER_TYPES = [
   { value: "convert",            label: "Convert"            },
   { value: "futures_pnl",        label: "Futures P&L"        },
   { value: "options_pnl",        label: "Options P&L"        },
+  { value: "instruments_margin", label: "Futures Margin"     },
+  { value: "instruments_pnl",   label: "Instruments P&L"    },
   { value: "referral_bonus",     label: "Referral Bonus"     },
   { value: "admin_credit",       label: "Admin Credit"       },
   { value: "admin_debit",        label: "Admin Debit"        },
