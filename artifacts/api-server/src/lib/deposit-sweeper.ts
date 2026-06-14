@@ -5,6 +5,7 @@ import {
   walletAddressesTable,
   cryptoDepositsTable,
   walletsTable,
+  walletLedgerTable,
   usersTable,
 } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
@@ -90,6 +91,23 @@ async function evmGetTxReceipt(rpcUrl: string, txHash: string): Promise<{ blockN
     const r = await rpcCall(rpcUrl, "eth_getTransactionReceipt", [txHash]);
     if (!r) return null;
     return { blockNumber: parseInt(r.blockNumber, 16), status: r.status };
+  } catch { return null; }
+}
+
+/** Full receipt including event logs — used for user-claim verification */
+async function evmGetFullReceipt(rpcUrl: string, txHash: string): Promise<{
+  blockNumber: number;
+  status: string;
+  logs: Array<{ address: string; topics: string[]; data: string }>;
+} | null> {
+  try {
+    const r = await rpcCall(rpcUrl, "eth_getTransactionReceipt", [txHash]);
+    if (!r) return null;
+    return {
+      blockNumber: parseInt(r.blockNumber, 16),
+      status: r.status,
+      logs: Array.isArray(r.logs) ? r.logs : [],
+    };
   } catch { return null; }
 }
 
@@ -424,4 +442,193 @@ export function getSweeperStatus() {
 
 export async function manualScan(networkId: number): Promise<SweepResult> {
   return sweepNetwork(networkId);
+}
+
+// ─── User-Claim Auto-Verification ─────────────────────────────────────────────
+/**
+ * Verifies a user-submitted deposit claim against the blockchain.
+ * Called fire-and-forget from the /finance/deposit/claim and
+ * /crypto-deposits/notify endpoints immediately after record insertion.
+ *
+ * Steps:
+ *  1. Fetch full TX receipt via eth_getTransactionReceipt
+ *  2. Verify the Transfer event logs: token contract + to == user's deposit address
+ *  3. Use the ACTUAL on-chain amount (ignores user-submitted amount — prevents inflation fraud)
+ *  4a. Enough confirmations → credit immediately (same DB tx as the sweeper)
+ *  4b. Not enough confirmations → set blockNumber + detectedBy="sweeper" so the
+ *      regular sweeper tick auto-credits when the block is deep enough
+ *
+ * Logs all outcomes; never throws (errors are swallowed so the HTTP response
+ * has already been sent before this runs).
+ */
+export async function autoVerifyUserDeposit(depositId: number): Promise<void> {
+  try {
+    const [dep] = await db.select().from(cryptoDepositsTable)
+      .where(eq(cryptoDepositsTable.id, depositId)).limit(1);
+    if (!dep || dep.status !== "pending" || !dep.txHash) {
+      logger.warn({ depositId }, "auto-verify: deposit not found or not pending");
+      return;
+    }
+
+    // ── Resolve network & RPC ────────────────────────────────────────────────
+    const [net] = await db.select().from(networksTable)
+      .where(eq(networksTable.id, dep.networkId)).limit(1);
+    if (!net?.nodeAddress || !net.contractAddress) {
+      logger.warn({ depositId, networkId: dep.networkId }, "auto-verify: network not configured for RPC");
+      return;
+    }
+
+    // Only EVM chains are auto-verifiable
+    const chainUp = (net.chain || "").toUpperCase();
+    const isEvm = ["BNB", "BSC", "ETH", "POLYGON", "ARBITRUM", "BASE", "AVAX"].includes(chainUp)
+      || (net.providerType || "").toLowerCase() === "alchemy"
+      || (net.providerType || "").toLowerCase() === "infura";
+    if (!isEvm) {
+      logger.info({ depositId, chain: chainUp }, "auto-verify: non-EVM chain — manual review required");
+      return;
+    }
+
+    // Build authenticated RPC URL
+    let rpcUrl = net.nodeAddress;
+    if (net.rpcApiKey) {
+      try {
+        const key = decryptSecret(net.rpcApiKey);
+        if (key && (net.providerType === "alchemy" || net.providerType === "infura")) {
+          rpcUrl = rpcUrl.replace(/\/$/, "") + "/" + key;
+        }
+      } catch { /* ignore decrypt fail */ }
+    }
+
+    // ── Fetch full receipt from chain ────────────────────────────────────────
+    const receipt = await evmGetFullReceipt(rpcUrl, dep.txHash);
+    if (!receipt) {
+      logger.warn({ depositId, txHash: dep.txHash }, "auto-verify: tx not found on chain (may be pending)");
+      return;
+    }
+    if (receipt.status !== "0x1") {
+      // TX failed — reject immediately
+      await db.update(cryptoDepositsTable)
+        .set({ status: "rejected", processedAt: new Date() })
+        .where(and(eq(cryptoDepositsTable.id, dep.id), eq(cryptoDepositsTable.status, "pending")));
+      logger.info({ depositId, txHash: dep.txHash }, "auto-verify: tx failed on chain — rejected");
+      return;
+    }
+
+    // ── Verify Transfer event ────────────────────────────────────────────────
+    // Find a log: address = token contract, topics[0] = Transfer, topics[2] = deposit address
+    const [coin] = await db.select().from(coinsTable)
+      .where(eq(coinsTable.id, dep.coinId)).limit(1);
+    const decimals = (net as any).tokenDecimals ?? coin?.decimals ?? 18;
+    const contractLower = net.contractAddress.toLowerCase();
+    const depositAddrPadded = padTopicAddress(dep.address);
+
+    let onChainAmount: string | null = null;
+    for (const log of receipt.logs) {
+      if (
+        log.address?.toLowerCase() === contractLower &&
+        log.topics?.[0] === TRANSFER_TOPIC &&
+        log.topics?.[2]?.toLowerCase() === depositAddrPadded.toLowerCase()
+      ) {
+        onChainAmount = applyDecimals(hexToDecimalString(log.data), decimals);
+        break;
+      }
+    }
+
+    if (!onChainAmount || parseFloat(onChainAmount) <= 0) {
+      logger.warn({ depositId, txHash: dep.txHash, depositAddr: dep.address },
+        "auto-verify: no matching Transfer log to deposit address — fraud or wrong address");
+      return;
+    }
+
+    // ── Confirmations check ─────────────────────────────────────────────────
+    let head = receipt.blockNumber;
+    try { head = await evmGetBlockNumber(rpcUrl); } catch { /* use receipt block */ }
+    const confs = Math.max(0, head - receipt.blockNumber);
+    const required = dep.requiredConfirmations ?? net.confirmations ?? 1;
+
+    // Mark deposit with verified on-chain data (use real amount, not user-supplied)
+    await db.update(cryptoDepositsTable).set({
+      amount:      onChainAmount,
+      blockNumber: receipt.blockNumber,
+      confirmations: confs,
+      detectedBy:  "sweeper",      // now eligible for regular sweeper auto-credit
+    }).where(and(eq(cryptoDepositsTable.id, dep.id), eq(cryptoDepositsTable.status, "pending")));
+
+    if (confs < required) {
+      // Not enough confirmations yet — sweeper will credit on next tick when confirmed
+      logger.info({ depositId, txHash: dep.txHash, confs, required },
+        "auto-verify: verified — waiting for confirmations, sweeper will credit");
+      return;
+    }
+
+    // ── Enough confirmations → credit immediately ────────────────────────────
+    await db.transaction(async (tx) => {
+      const [cur] = await tx.select().from(cryptoDepositsTable)
+        .where(eq(cryptoDepositsTable.id, dep.id)).for("update").limit(1);
+      if (!cur || cur.status !== "pending") return; // already credited (race guard)
+
+      const amt = parseFloat(onChainAmount!);
+      // Upsert wallet balance
+      await tx.insert(walletsTable).values({
+        userId: cur.userId, coinId: cur.coinId, walletType: "spot",
+        balance: String(amt), locked: "0",
+      }).onConflictDoUpdate({
+        target: [walletsTable.userId, walletsTable.walletType, walletsTable.coinId],
+        set: { balance: sql`${walletsTable.balance} + ${amt}`, updatedAt: new Date() },
+      });
+
+      // Wallet ledger entry
+      const [wallet] = await tx.select({ balance: walletsTable.balance })
+        .from(walletsTable)
+        .where(and(
+          eq(walletsTable.userId, cur.userId),
+          eq(walletsTable.coinId, cur.coinId),
+          eq(walletsTable.walletType, "spot"),
+        )).limit(1);
+      const balAfter  = parseFloat(wallet?.balance ?? "0");
+      const balBefore = balAfter - amt;
+      await tx.insert(walletLedgerTable).values({
+        userId: cur.userId, coinId: cur.coinId, walletType: "spot",
+        type: "deposit_crypto",
+        amount: String(amt),
+        balanceBefore: String(Math.max(0, balBefore)),
+        balanceAfter:  String(balAfter),
+        refType: "crypto_deposit",
+        refId: String(cur.id),
+        note: `Crypto deposit ${cur.txHash?.slice(0, 16) ?? ""}…`,
+      });
+
+      // Mark deposit complete
+      await tx.update(cryptoDepositsTable).set({
+        status: "completed",
+        confirmations: confs,
+        processedAt: new Date(),
+        ...(net.autoSweepEnabled ? { sweepStatus: "pending" } : {}),
+      }).where(eq(cryptoDepositsTable.id, cur.id));
+    });
+
+    logger.info({ depositId, txHash: dep.txHash, amount: onChainAmount, confs },
+      "auto-verify: deposit credited successfully");
+
+    // Fire-and-forget confirmation email
+    void (async () => {
+      try {
+        const [user] = await db.select({ email: usersTable.email })
+          .from(usersTable).where(eq(usersTable.id, dep.userId)).limit(1);
+        if (user?.email && coin) {
+          await sendCryptoDepositConfirmedEmail(user.email, {
+            amount: onChainAmount!,
+            currency: coin.symbol,
+            network: net.name ?? "Blockchain",
+            txHash: dep.txHash ?? undefined,
+            confirmations: required,
+            explorerUrl: net.explorerUrl ?? undefined,
+          });
+        }
+      } catch { /* email must not block */ }
+    })();
+
+  } catch (e: any) {
+    logger.error({ err: e?.message, depositId }, "auto-verify: unexpected error");
+  }
 }

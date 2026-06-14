@@ -23,6 +23,7 @@ import { requireAuth } from "../middlewares/auth";
 import { consumeVerifiedOtp } from "./otp";
 import { getBankPolicy } from "./admin";
 import { loadVipTiers } from "./fees";
+import { autoVerifyUserDeposit } from "../lib/deposit-sweeper";
 
 const router: IRouter = Router();
 
@@ -728,8 +729,16 @@ router.post("/crypto-deposits/notify", requireAuth, async (req, res): Promise<vo
     userId, coinId: Number(coinId), networkId: Number(networkId),
     amount: String(amt), address: addr.address, txHash: tx,
     confirmations: 0, status: "pending",
+    detectedBy: "user_claim",
   }).returning();
-  res.status(201).json(row);
+
+  // Fire-and-forget: auto-verify on-chain; if valid + confirmed → credits immediately
+  void autoVerifyUserDeposit(row.id).catch(() => {/* logged inside */});
+
+  res.status(201).json({
+    ...row,
+    message: "Deposit submitted — verifying on-chain. You will be credited automatically if the transaction is valid.",
+  });
 });
 
 export default router;

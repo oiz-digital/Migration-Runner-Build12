@@ -15,6 +15,7 @@ import {
 } from "@workspace/db";
 import { deriveEvmWallet } from "../lib/hd-wallet";
 import { encryptSecret } from "../lib/crypto-vault";
+import { autoVerifyUserDeposit } from "../lib/deposit-sweeper";
 import {
   hashPassword, verifyPassword, generateReferralCode, generateUid,
   readSessionCookie, getUserBySession,
@@ -1403,7 +1404,14 @@ r.post("/finance/deposit/claim", bicryptoAuth, async (req: any, res): Promise<vo
     detectedBy: "user_claim",
   }).returning();
 
-  res.status(201).json({ ok: true, claim: row });
+  // Fire-and-forget: auto-verify on-chain; if valid + confirmed → credits immediately
+  void autoVerifyUserDeposit(row.id).catch(() => {/* logged inside */});
+
+  res.status(201).json({
+    ok: true,
+    claim: row,
+    message: "Claim received — verifying on-chain. You will be credited automatically if the transaction is valid.",
+  });
 });
 
 r.get("/finance/deposit/claims", bicryptoAuth, async (req: any, res): Promise<void> => {
