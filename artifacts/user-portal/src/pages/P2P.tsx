@@ -691,6 +691,12 @@ function MyAdsTab() {
   );
 }
 
+function defaultAdTerms(side: "buy" | "sell", mins: number): string {
+  return side === "sell"
+    ? `Payment must be completed within ${mins} minutes. Only accept transfers from your KYC-verified bank account or UPI. No third-party payments. Ensure the exact amount is transferred before confirming.`
+    : `I will complete the payment within ${mins} minutes from my KYC-verified account. No cancellations after payment is sent. Please release crypto promptly once payment is confirmed.`;
+}
+
 function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [adSuccess, setAdSuccess] = useState<GenericSuccess | null>(null);
@@ -703,7 +709,13 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const [maxFiat, setMaxFiat] = useState("");
   const [methods, setMethods] = useState<string[]>(["upi"]);
   const [payWindowMins, setPayWindowMins] = useState(15);
-  const [terms, setTerms] = useState("");
+  const [terms, setTerms] = useState(() => defaultAdTerms("sell", 15));
+  const [termsEdited, setTermsEdited] = useState(false);
+
+  // Auto-update terms when side/payWindow changes — only if user hasn't manually edited
+  useEffect(() => {
+    if (!termsEdited) setTerms(defaultAdTerms(side, payWindowMins));
+  }, [side, payWindowMins, termsEdited]);
 
   const coinsQ = useQuery<Coin[]>({
     queryKey: ["/coins"],
@@ -974,9 +986,9 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
             <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Terms <span className="normal-case font-normal">(optional)</span></Label>
             <Textarea
               value={terms}
-              onChange={(e) => setTerms(e.target.value)}
+              onChange={(e) => { setTerms(e.target.value); setTermsEdited(true); }}
               maxLength={500}
-              rows={2}
+              rows={3}
               placeholder="e.g. Only KYC L2 users. UPI only. Pay within 10 mins."
               className="resize-none text-sm"
               data-testid="p2p-ad-terms"
@@ -1891,11 +1903,12 @@ function EditMethodDialog({ method, onClose }: { method: PaymentMethod; onClose:
 
 function AddMethodDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [method, setMethod] = useState("upi");
   const [label, setLabel] = useState("");
   const [account, setAccount] = useState("");
   const [ifsc, setIfsc] = useState("");
-  const [holderName, setHolderName] = useState("");
+  const [holderName, setHolderName] = useState(() => user?.fullName ?? "");
 
   const needsBank = method === "imps" || method === "neft" || method === "bank";
 
