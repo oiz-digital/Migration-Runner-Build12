@@ -252,6 +252,10 @@ export async function placeSpotOrder(opts: {
   const created = await db.transaction(async (tx) => {
       const [pair] = await tx.select().from(pairsTable).where(eq(pairsTable.id, Number(pairId))).limit(1);
       if (!pair) { const e: any = new Error("Pair not found"); e.code = 404; throw e; }
+      // Determine wallet type for quote coin (INR = "inr", all crypto = "spot")
+      const pairCoins = await tx.select({ id: coinsTable.id, symbol: coinsTable.symbol })
+        .from(coinsTable).where(or(eq(coinsTable.id, pair.baseCoinId), eq(coinsTable.id, pair.quoteCoinId)));
+      const quoteWalletType = pairCoins.find((c: any) => c.id === pair.quoteCoinId)?.symbol === "INR" ? "inr" : "spot";
       if (!pair.tradingEnabled || pair.status !== "active") { const e: any = new Error("Trading disabled for this pair"); e.code = 400; throw e; }
       if (pair.tradingStartAt && pair.tradingStartAt.getTime() > Date.now()) {
         const e: any = new Error("Trading not yet started"); e.code = 400; throw e;
@@ -288,7 +292,7 @@ export async function placeSpotOrder(opts: {
       let baseW: any = null, quoteW: any = null;
       if (side === "buy") {
         const lockQuote = qtyNum * effPrice * (1 + fees.taker);
-        quoteW = await ensureWallet(tx, userId, pair.quoteCoinId, "spot");
+        quoteW = await ensureWallet(tx, userId, pair.quoteCoinId, quoteWalletType);
         const bal = Number(quoteW.balance);
         if (bal < lockQuote) { const e: any = new Error(`Insufficient quote balance (have ${bal.toFixed(8)}, need ${lockQuote.toFixed(8)})`); e.code = 400; throw e; }
         await tx.update(walletsTable).set({
@@ -312,9 +316,9 @@ export async function placeSpotOrder(opts: {
         price: String(effPrice), qty: String(qtyNum),
         status: "open",
       }).returning();
-      return { order: o, pair };
+      return { order: o, pair, quoteWalletType };
     });
-  const { order, pair } = created as any;
+  const { order, pair, quoteWalletType } = created as any;
 
   // LIMIT orders rest in the book; MARKET orders never do (they may not be
   // fully filled inside the slippage cap, in which case the leftover is
@@ -342,7 +346,7 @@ export async function placeSpotOrder(opts: {
         const fees = await getSpotFeeRates(vipTier);
         if (final.side === "buy") {
           const refund = remainingQty * Number(final.price) * (1 + fees.taker);
-          const w = await ensureWallet(tx, userId, pair.quoteCoinId, "spot");
+          const w = await ensureWallet(tx, userId, pair.quoteCoinId, quoteWalletType);
           await tx.update(walletsTable).set({
             balance: sql`${walletsTable.balance} + ${refund}`,
             locked: sql`${walletsTable.locked} - ${refund}`,
@@ -616,6 +620,9 @@ export async function cancelSpotOrderById(userId: number, id: number): Promise<a
       if (o.status !== "open" && o.status !== "partial") { const e: any = new Error(`Cannot cancel — status is ${o.status}`); e.code = 400; throw e; }
       const [pair] = await tx.select().from(pairsTable).where(eq(pairsTable.id, o.pairId)).limit(1);
       if (!pair) { const e: any = new Error("Pair missing"); e.code = 500; throw e; }
+      const cancelCoins = await tx.select({ id: coinsTable.id, symbol: coinsTable.symbol })
+        .from(coinsTable).where(or(eq(coinsTable.id, pair.baseCoinId), eq(coinsTable.id, pair.quoteCoinId)));
+      const cancelQuoteWt = cancelCoins.find((c: any) => c.id === pair.quoteCoinId)?.symbol === "INR" ? "inr" : "spot";
       const remainingQty = Number(o.qty) - Number(o.filledQty);
       const remainingPrice = Number(o.price);
       if (o.side === "buy") {
@@ -624,7 +631,7 @@ export async function cancelSpotOrderById(userId: number, id: number): Promise<a
         const [u] = await tx.select({ vipTier: usersTable.vipTier }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
         const fees = await getSpotFeeRates(u?.vipTier ?? 0);
         const release = remainingQty * remainingPrice * (1 + fees.taker);
-        const w = await ensureWallet(tx, userId, pair.quoteCoinId, "spot");
+        const w = await ensureWallet(tx, userId, pair.quoteCoinId, cancelQuoteWt);
         await tx.update(walletsTable).set({
           balance: sql`${walletsTable.balance} + ${release}`,
           locked: sql`${walletsTable.locked} - ${release}`,
@@ -677,6 +684,9 @@ export async function adminCancelSpotOrderById(id: number): Promise<any> {
     }
     const [pair] = await tx.select().from(pairsTable).where(eq(pairsTable.id, o.pairId)).limit(1);
     if (!pair) { const e: any = new Error("Pair missing"); e.code = 500; throw e; }
+    const adminCancelCoins = await tx.select({ id: coinsTable.id, symbol: coinsTable.symbol })
+      .from(coinsTable).where(or(eq(coinsTable.id, pair.baseCoinId), eq(coinsTable.id, pair.quoteCoinId)));
+    const adminCancelQuoteWt = adminCancelCoins.find((c: any) => c.id === pair.quoteCoinId)?.symbol === "INR" ? "inr" : "spot";
     const remainingQty = Number(o.qty) - Number(o.filledQty);
     const remainingPrice = Number(o.price);
     if (o.side === "buy") {
@@ -684,7 +694,7 @@ export async function adminCancelSpotOrderById(id: number): Promise<any> {
       const [u] = await tx.select({ vipTier: usersTable.vipTier }).from(usersTable).where(eq(usersTable.id, o.userId)).limit(1);
       const fees = await getSpotFeeRates(u?.vipTier ?? 0);
       const release = remainingQty * remainingPrice * (1 + fees.taker);
-      const w = await ensureWallet(tx, o.userId, pair.quoteCoinId, "spot");
+      const w = await ensureWallet(tx, o.userId, pair.quoteCoinId, adminCancelQuoteWt);
       await tx.update(walletsTable).set({
         balance: sql`${walletsTable.balance} + ${release}`,
         locked: sql`${walletsTable.locked} - ${release}`,

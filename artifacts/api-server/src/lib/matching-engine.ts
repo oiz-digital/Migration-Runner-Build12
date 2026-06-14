@@ -1,5 +1,5 @@
 import { eq, sql, and, or, desc } from "drizzle-orm";
-import { db, ordersTable, tradesTable, walletsTable, pairsTable, usersTable, walletLedgerTable } from "@workspace/db";
+import { db, ordersTable, tradesTable, walletsTable, pairsTable, usersTable, walletLedgerTable, coinsTable } from "@workspace/db";
 import { logger } from "./logger";
 import { getRedis, rZadd, rZrem, rSet, rDel, rLpush, rPublish, rGet } from "./redis";
 import { getSpotFeeRates } from "../routes/fees";
@@ -48,15 +48,18 @@ async function getOrderForUpdate(tx: any, id: number) {
   return o;
 }
 
-async function ensureWallet(tx: any, userId: number, coinId: number) {
+async function ensureWallet(tx: any, userId: number, coinId: number, walletType: string = "spot") {
   const [w] = await tx.select().from(walletsTable)
-    .where(and(eq(walletsTable.userId, userId), eq(walletsTable.coinId, coinId), eq(walletsTable.walletType, "spot")))
+    .where(and(eq(walletsTable.userId, userId), eq(walletsTable.coinId, coinId), eq(walletsTable.walletType, walletType)))
     .for("update").limit(1);
   if (w) return w;
-  const [c] = await tx.insert(walletsTable).values({ userId, coinId, walletType: "spot", balance: "0", locked: "0" }).returning();
+  const [c] = await tx.insert(walletsTable).values({ userId, coinId, walletType, balance: "0", locked: "0" }).returning();
   const [locked] = await tx.select().from(walletsTable).where(eq(walletsTable.id, c.id)).for("update").limit(1);
   return locked;
 }
+
+/** Returns "inr" for the INR coin (fiat), "spot" for all crypto coins. */
+function spotOrInr(symbol: string | undefined) { return symbol === "INR" ? "inr" : "spot"; }
 
 // `takerInBook` tells the engine that the taker order is already a resting
 // member of the Redis ZSET orderbook (true for bot-service paths that match
@@ -96,6 +99,10 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
 
         const [pair] = await tx.select().from(pairsTable).where(eq(pairsTable.id, taker.pairId)).limit(1);
         if (!pair) { stop = true; return; }
+        // Determine wallet types: INR is stored as walletType="inr"; all crypto as "spot"
+        const pairCoins = await tx.select({ id: coinsTable.id, symbol: coinsTable.symbol })
+          .from(coinsTable).where(or(eq(coinsTable.id, pair.baseCoinId), eq(coinsTable.id, pair.quoteCoinId)));
+        const quoteWt = spotOrInr(pairCoins.find((c: any) => c.id === pair.quoteCoinId)?.symbol);
         const symbol = pair.symbol; symbolForPub = symbol;
         const isMarket = taker.type === "market";
         const limitPrice = Number(taker.price);
@@ -121,7 +128,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               // Self-trade user == taker user, so their VIP tier is the same.
               const stRates = await getSpotFeeRates(opts?.takerVipTier ?? 0);
               const release = makerRem * Number(maker.price) * (1 + stRates.taker);
-              const w = await ensureWallet(tx, maker.userId, pair.quoteCoinId);
+              const w = await ensureWallet(tx, maker.userId, pair.quoteCoinId, quoteWt);
               await tx.update(walletsTable).set({
                 balance: sql`${walletsTable.balance} + ${release}`,
                 locked: sql`${walletsTable.locked} - ${release}`,
@@ -191,7 +198,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             const takerQuoteLocked = fillQty * limitPrice * (1 + takerFeeRate);
             const takerSpend = notional + takerFee; // what we actually take from locked
             const takerRefund = takerQuoteLocked - takerSpend;
-            const tQuote = await ensureWallet(tx, taker.userId, pair.quoteCoinId);
+            const tQuote = await ensureWallet(tx, taker.userId, pair.quoteCoinId, quoteWt);
             takerQuoteBalBefore = parseFloat(tQuote.balance ?? "0");
             await tx.update(walletsTable).set({
               locked: sql`${walletsTable.locked} - ${takerQuoteLocked}`,
@@ -213,7 +220,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               locked: sql`${walletsTable.locked} - ${fillQty}`,
               updatedAt: new Date(),
             }).where(eq(walletsTable.id, mBase.id));
-            const mQuote = await ensureWallet(tx, maker.userId, pair.quoteCoinId);
+            const mQuote = await ensureWallet(tx, maker.userId, pair.quoteCoinId, quoteWt);
             makerQuoteBalBefore = parseFloat(mQuote.balance ?? "0");
             await tx.update(walletsTable).set({
               balance: sql`${walletsTable.balance} + ${notional - makerFee - makerTds}`,
@@ -229,7 +236,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               locked: sql`${walletsTable.locked} - ${fillQty}`,
               updatedAt: new Date(),
             }).where(eq(walletsTable.id, tBase.id));
-            const tQuote = await ensureWallet(tx, taker.userId, pair.quoteCoinId);
+            const tQuote = await ensureWallet(tx, taker.userId, pair.quoteCoinId, quoteWt);
             takerQuoteBalBefore = parseFloat(tQuote.balance ?? "0");
             await tx.update(walletsTable).set({
               balance: sql`${walletsTable.balance} + ${notional - takerFee - takerTds}`,
@@ -245,7 +252,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             // refund path above and ensuring locked never leaks.
             const makerQuoteLocked = fillQty * tradePrice * (1 + makerRates.taker);
             const makerRefund = makerQuoteLocked - notional - makerFee;
-            const mQuote = await ensureWallet(tx, maker.userId, pair.quoteCoinId);
+            const mQuote = await ensureWallet(tx, maker.userId, pair.quoteCoinId, quoteWt);
             makerQuoteBalBefore = parseFloat(mQuote.balance ?? "0");
             await tx.update(walletsTable).set({
               locked: sql`${walletsTable.locked} - ${makerQuoteLocked}`,
@@ -296,7 +303,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             const preTrade = takerQuoteBalBefore + takerQuoteLockedLedger;
             // Quote: notional cost of the purchase
             ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_buy", amount: String(-notional),
               balanceBefore: String(preTrade),
               balanceAfter: String(preTrade - notional),
@@ -305,7 +312,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             });
             // Quote: trading fee (cascaded from notional entry)
             if (takerFee > 0) ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_fee", amount: String(-takerFee),
               balanceBefore: String(preTrade - notional),
               balanceAfter: String(preTrade - notional - takerFee),
@@ -338,7 +345,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             // Quote: gross proceeds → fee → TDS, cascading so the final
             // balanceAfter = takerQuoteBalBefore + (notional−fee−tds) = actual ✓
             ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_sell", amount: String(notional),
               balanceBefore: String(takerQuoteBalBefore),
               balanceAfter: String(takerQuoteBalBefore + notional),
@@ -346,7 +353,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Sell ${tradeNote}`,
             });
             if (takerFee > 0) ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_fee", amount: String(-takerFee),
               balanceBefore: String(takerQuoteBalBefore + notional),
               balanceAfter: String(takerQuoteBalBefore + notional - takerFee),
@@ -354,7 +361,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Fee ${tradeNote}`,
             });
             if (takerTds > 0) ledgerRows.push({
-              userId: taker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: taker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_tds", amount: String(-takerTds),
               balanceBefore: String(takerQuoteBalBefore + notional - takerFee),
               balanceAfter: String(takerQuoteBalBefore + notional - takerFee - takerTds),
@@ -377,7 +384,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Sell ${tradeNote}`,
             });
             ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_sell", amount: String(notional),
               balanceBefore: String(makerQuoteBalBefore),
               balanceAfter: String(makerQuoteBalBefore + notional),
@@ -385,7 +392,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Sell ${tradeNote}`,
             });
             if (makerFee > 0) ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_fee", amount: String(-makerFee),
               balanceBefore: String(makerQuoteBalBefore + notional),
               balanceAfter: String(makerQuoteBalBefore + notional - makerFee),
@@ -393,7 +400,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
               note: `Fee ${tradeNote}`,
             });
             if (makerTds > 0) ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_tds", amount: String(-makerTds),
               balanceBefore: String(makerQuoteBalBefore + notional - makerFee),
               balanceAfter: String(makerQuoteBalBefore + notional - makerFee - makerTds),
@@ -411,7 +418,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             const makerPreTrade = makerQuoteBalBefore + makerQuoteLockedLedger;
             // Quote: notional cost of the purchase
             ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_buy", amount: String(-notional),
               balanceBefore: String(makerPreTrade),
               balanceAfter: String(makerPreTrade - notional),
@@ -420,7 +427,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
             });
             // Quote: trading fee (cascaded from notional entry)
             if (makerFee > 0) ledgerRows.push({
-              userId: maker.userId, coinId: pair.quoteCoinId, walletType: "spot",
+              userId: maker.userId, coinId: pair.quoteCoinId, walletType: quoteWt,
               type: "trade_fee", amount: String(-makerFee),
               balanceBefore: String(makerPreTrade - notional),
               balanceAfter: String(makerPreTrade - notional - makerFee),

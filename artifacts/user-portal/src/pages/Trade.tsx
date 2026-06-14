@@ -20,6 +20,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { SuccessModal, type OrderSuccess } from "@/components/SuccessModal";
+import { ErrorModal } from "@/components/ErrorModal";
 import { useAuth } from "@/lib/auth";
 import { PriceChart } from "@/components/PriceChart";
 import { OrderFillsDialog } from "@/components/OrderFillsDialog";
@@ -552,6 +553,7 @@ export default function Trade() {
     quote: string; amount: string; price: string;
   } | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<OrderSuccess | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   // ─── Mutations ────────────────────────────
   const orderMutation = useMutation({
@@ -579,7 +581,7 @@ export default function Trade() {
       qc.invalidateQueries({ queryKey: ["wallet"] });
       qc.invalidateQueries({ queryKey: ["my-trades"] });
     },
-    onError: (err: any) => toast.error(err?.message || "Failed to place order"),
+    onError: (err: any) => setOrderError(err?.message || "Failed to place order"),
   });
 
   const cancelMutation = useMutation({
@@ -1344,6 +1346,14 @@ export default function Trade() {
         onClose={() => setOrderSuccess(null)}
         payload={orderSuccess}
         onViewOrders={() => { window.location.href = window.location.origin + "/user/orders"; }}
+      />
+
+      <ErrorModal
+        open={orderError !== null}
+        onClose={() => setOrderError(null)}
+        kind="error"
+        title="Order Failed"
+        message={orderError ?? ""}
       />
 
       {/* ── AI Trade Suggestion Dialog ───────────────────────────── */}
