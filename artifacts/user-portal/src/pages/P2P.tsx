@@ -708,6 +708,8 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const [minFiat, setMinFiat] = useState("");
   const [maxFiat, setMaxFiat] = useState("");
   const [methods, setMethods] = useState<string[]>(["upi"]);
+  // Specific payment method IDs the seller pins for this ad (sell ads only)
+  const [selectedMethodIds, setSelectedMethodIds] = useState<number[]>([]);
   const [payWindowMins, setPayWindowMins] = useState(15);
   const [terms, setTerms] = useState(() => defaultAdTerms("sell", 15));
   const [termsEdited, setTermsEdited] = useState(false);
@@ -801,7 +803,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
 
   const valid = !!coinSymbol && Number(price) > 0 && Number(totalQty) > 0
     && Number(minFiat) > 0 && Number(maxFiat) >= Number(minFiat) && methods.length > 0
-    && (side !== "sell" || hasSavedMethods);
+    && (side !== "sell" || (hasSavedMethods && selectedMethodIds.length > 0));
 
   return (<>
     <Dialog open onOpenChange={adSuccess ? undefined : onClose}>
@@ -1012,7 +1014,16 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
                     <Checkbox
                       checked={checked}
                       disabled={disabled}
-                      onCheckedChange={(c) => !disabled && setMethods(c ? [...methods, m.value] : methods.filter(x => x !== m.value))}
+                      onCheckedChange={(c) => {
+                        if (disabled) return;
+                        const next = c ? [...methods, m.value] : methods.filter(x => x !== m.value);
+                        setMethods(next);
+                        // When unchecking a type, remove its account IDs from selection
+                        if (!c) {
+                          const typeIds = savedMethods.filter(sm => sm.method === m.value).map(sm => sm.id);
+                          setSelectedMethodIds(prev => prev.filter(id => !typeIds.includes(id)));
+                        }
+                      }}
                       className="shrink-0"
                       data-testid={`p2p-ad-method-${m.value}`}
                     />
@@ -1027,6 +1038,66 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
                 );
               })}
             </div>
+
+            {/* Sell ads: per-type specific account picker */}
+            {side === "sell" && hasSavedMethods && methods.length > 0 && (
+              <div className="space-y-2 mt-1">
+                {methods.map(mType => {
+                  const mDef = PAYMENT_METHODS.find(p => p.value === mType);
+                  const Icon = mDef?.icon ?? Smartphone;
+                  const accountsOfType = savedMethods.filter(sm => sm.method === mType && sm.active);
+                  if (accountsOfType.length === 0) return null;
+                  return (
+                    <div key={mType} className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Icon className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          {mDef?.label ?? mType} — select receiving account(s)
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {accountsOfType.map(acc => {
+                          const picked = selectedMethodIds.includes(acc.id);
+                          return (
+                            <label
+                              key={acc.id}
+                              className={`flex items-center gap-2.5 rounded-md border px-2.5 py-2 cursor-pointer transition-colors ${
+                                picked
+                                  ? "border-violet-500/50 bg-violet-500/10"
+                                  : "border-border/40 hover:bg-muted/40"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={picked}
+                                onCheckedChange={(c) =>
+                                  setSelectedMethodIds(prev =>
+                                    c ? [...prev, acc.id] : prev.filter(x => x !== acc.id)
+                                  )
+                                }
+                                className="shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-medium text-foreground truncate">{acc.account}</div>
+                                {acc.label && acc.label !== acc.account && (
+                                  <div className="text-[10px] text-muted-foreground truncate">{acc.label}</div>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {selectedMethodIds.length === 0 && (
+                  <div className="text-[11px] text-amber-400 flex items-center gap-1.5">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    Select at least one account that will receive payment
+                  </div>
+                )}
+              </div>
+            )}
+
             {methods.length === 0 && hasSavedMethods && (
               <div className="text-[11px] text-rose-400">Select at least one payment method</div>
             )}
@@ -1088,6 +1159,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
                 minFiat: Number(minFiat),
                 maxFiat: Number(maxFiat),
                 paymentMethods: methods as Array<"upi" | "imps" | "neft" | "bank" | "paytm" | "phonepe" | "gpay">,
+                ...(side === "sell" && selectedMethodIds.length > 0 ? { paymentMethodIds: selectedMethodIds } : {}),
                 payWindowMins: payWindowMins as 15,
                 ...(terms ? { terms } : {}),
               },

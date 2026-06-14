@@ -65,6 +65,10 @@ export const p2pOffersTable = pgTable("p2p_offers", {
   // Comma-separated payment method types the merchant accepts:
   // e.g. "upi,imps,neft". Matched against the counterparty's saved methods.
   paymentMethods: text("payment_methods").notNull(),
+  // Optional: comma-separated IDs of specific saved payment methods the seller
+  // wants to expose for this ad (e.g. "42,17"). When set, /seller-methods
+  // returns only those accounts instead of all methods of accepted types.
+  paymentMethodIds: text("payment_method_ids"),
   // Time the buyer has to mark "paid" before the order auto-cancels (mins).
   payWindowMins: integer("pay_window_mins").notNull().default(15),
   // Free-form terms: KYC requirements, instructions, etc.

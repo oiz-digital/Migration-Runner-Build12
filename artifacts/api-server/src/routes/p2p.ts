@@ -233,7 +233,6 @@ router.get("/p2p/offers/:id/seller-methods", requireAuth, async (req, res): Prom
   // Only relevant for SELL offers (where the counterparty is the buyer).
   // For BUY offers the counterparty (seller) supplies their OWN method.
   if (offer.side !== "sell") { res.json([]); return; }
-  const accepted = String(offer.paymentMethods || "").split(",").filter(Boolean);
   const rows = await db.select({
     id: p2pPaymentMethodsTable.id,
     method: p2pPaymentMethodsTable.method,
@@ -241,8 +240,12 @@ router.get("/p2p/offers/:id/seller-methods", requireAuth, async (req, res): Prom
   }).from(p2pPaymentMethodsTable)
     .where(and(eq(p2pPaymentMethodsTable.userId, offer.userId), eq(p2pPaymentMethodsTable.active, true)))
     .limit(20);
-  // Filter only methods compatible with the offer's accepted list.
-  const filtered = rows.filter(r => accepted.includes(r.method));
+  // If the seller pinned specific method IDs on the offer, show only those.
+  // Otherwise fall back to type-based filtering (paymentMethods types).
+  const pinnedIds = String(offer.paymentMethodIds || "").split(",").map(Number).filter(Boolean);
+  const filtered = pinnedIds.length > 0
+    ? rows.filter(r => pinnedIds.includes(r.id))
+    : rows.filter(r => String(offer.paymentMethods || "").split(",").filter(Boolean).includes(r.method));
   req.log.debug({ userId: req.user!.id, offerId: id, count: filtered.length }, "p2p seller methods fetched");
   res.json(filtered);
 });
@@ -259,6 +262,10 @@ const OfferBody = z.object({
   minFiat: z.coerce.number().finite().positive(),
   maxFiat: z.coerce.number().finite().positive(),
   paymentMethods: z.array(z.enum(PAYMENT_METHOD_TYPES)).min(1).max(7),
+  // Specific saved payment-method IDs the seller has pinned for this ad.
+  // When set, /seller-methods returns only those accounts; otherwise all
+  // active accounts matching the paymentMethods types are shown.
+  paymentMethodIds: z.array(z.number().int().positive()).max(20).optional(),
   // Initial rollout fixes the pay window at 15 minutes (matches the
   // task spec). Schema is a literal so the API can't be used to widen
   // or shrink it; widen this when configurable windows ship.
@@ -295,6 +302,7 @@ router.post("/p2p/offers", requireAuth, async (req, res): Promise<void> => {
         minFiat: String(d.minFiat),
         maxFiat: String(d.maxFiat),
         paymentMethods: d.paymentMethods.join(","),
+        paymentMethodIds: d.paymentMethodIds?.length ? d.paymentMethodIds.join(",") : null,
         payWindowMins: d.payWindowMins,
         terms: d.terms ?? null,
         minKycLevel: d.minKycLevel,
