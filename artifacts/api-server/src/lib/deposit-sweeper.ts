@@ -18,6 +18,56 @@ const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a
 const MAX_BLOCK_RANGE = 2000;
 const SAFETY_LAG_BLOCKS = 1;
 
+// ─── EVM Detection Helpers ────────────────────────────────────────────────────
+/**
+ * All recognised EVM chain identifiers (stored in networks.chain).
+ * BSC appears as "BNB", "BSC", "BSCMAINNET", "SMARTCHAIN", or "BNBSMARTCHAIN"
+ * depending on how the admin configured the network.
+ */
+const EVM_CHAINS = new Set([
+  "ETH", "ETHEREUM",
+  "BNB", "BSC", "BSCMAINNET", "SMARTCHAIN", "BNBSMARTCHAIN",
+  "POLYGON", "MATIC",
+  "ARBITRUM", "ARB",
+  "BASE",
+  "AVAX", "AVALANCHE",
+  "OPBNB",
+  "LINEA",
+  "ZKSYNC", "ZKSYNCERAMAINET",
+]);
+
+/** EVM-compatible provider types (providerType field) */
+const EVM_PROVIDERS = new Set(["alchemy", "infura", "quicknode", "ankr", "nodereal"]);
+
+function isEvmNetwork(net: { chain?: string | null; providerType?: string | null }): boolean {
+  const chain    = (net.chain        || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const provider = (net.providerType || "").toLowerCase();
+  return EVM_CHAINS.has(chain) || EVM_PROVIDERS.has(provider);
+}
+
+/**
+ * Build the authenticated RPC URL for a network.
+ * - Alchemy / Infura: key is appended as a path segment (`/KEY`)
+ * - QuickNode: key is already embedded in the URL — skip
+ * - Others (nodereal, ankr, custom): key may be a query param or embedded — skip
+ */
+function buildRpcUrl(net: {
+  nodeAddress: string | null;
+  rpcApiKey?: string | null;
+  providerType?: string | null;
+}): string {
+  let url = net.nodeAddress ?? "";
+  if (!net.rpcApiKey || url.includes("/v2/") || url.includes("apikey=")) return url;
+  try {
+    const key = decryptSecret(net.rpcApiKey);
+    const prov = (net.providerType || "").toLowerCase();
+    if (key && (prov === "alchemy" || prov === "infura")) {
+      url = url.replace(/\/$/, "") + "/" + key;
+    }
+  } catch { /* ignore decrypt failure */ }
+  return url;
+}
+
 type SweepResult = {
   networkId: number;
   networkName: string;
@@ -149,12 +199,8 @@ export async function sweepNetwork(networkId: number): Promise<SweepResult> {
   if (!net.nodeAddress) { result.errors.push("no rpc url"); return result; }
   if (!net.contractAddress) { result.errors.push("no token contract"); return result; }
 
-  const chainUp = (net.chain || "").toUpperCase();
-  const isEvm = ["BNB", "BSC", "ETH", "POLYGON", "ARBITRUM", "BASE", "AVAX"].includes(chainUp)
-    || (net.providerType || "").toLowerCase() === "alchemy"
-    || (net.providerType || "").toLowerCase() === "infura";
-  if (!isEvm) {
-    result.errors.push(`auto-sweep not implemented for chain ${chainUp}`);
+  if (!isEvmNetwork(net)) {
+    result.errors.push(`auto-sweep not implemented for chain ${net.chain ?? "unknown"}`);
     return result;
   }
 
@@ -163,16 +209,7 @@ export async function sweepNetwork(networkId: number): Promise<SweepResult> {
   if (!coin) { result.errors.push("coin not found"); return result; }
   const decimals = net.tokenDecimals ?? coin.decimals ?? 18;
 
-  // Build RPC url with API key if provided
-  let rpcUrl = net.nodeAddress;
-  if (net.rpcApiKey && !rpcUrl.includes("/v2/") && !rpcUrl.includes("apikey=")) {
-    try {
-      const apiKey = decryptSecret(net.rpcApiKey);
-      if (apiKey && (net.providerType === "alchemy" || net.providerType === "infura")) {
-        rpcUrl = rpcUrl.replace(/\/$/, "") + "/" + apiKey;
-      }
-    } catch { /* ignore decrypt fail */ }
-  }
+  const rpcUrl = buildRpcUrl(net);
 
   // Current chain head
   let head: number;
@@ -479,25 +516,12 @@ export async function autoVerifyUserDeposit(depositId: number): Promise<void> {
     }
 
     // Only EVM chains are auto-verifiable
-    const chainUp = (net.chain || "").toUpperCase();
-    const isEvm = ["BNB", "BSC", "ETH", "POLYGON", "ARBITRUM", "BASE", "AVAX"].includes(chainUp)
-      || (net.providerType || "").toLowerCase() === "alchemy"
-      || (net.providerType || "").toLowerCase() === "infura";
-    if (!isEvm) {
-      logger.info({ depositId, chain: chainUp }, "auto-verify: non-EVM chain — manual review required");
+    if (!isEvmNetwork(net)) {
+      logger.info({ depositId, chain: net.chain }, "auto-verify: non-EVM chain — manual review required");
       return;
     }
 
-    // Build authenticated RPC URL
-    let rpcUrl = net.nodeAddress;
-    if (net.rpcApiKey) {
-      try {
-        const key = decryptSecret(net.rpcApiKey);
-        if (key && (net.providerType === "alchemy" || net.providerType === "infura")) {
-          rpcUrl = rpcUrl.replace(/\/$/, "") + "/" + key;
-        }
-      } catch { /* ignore decrypt fail */ }
-    }
+    const rpcUrl = buildRpcUrl(net);
 
     // ── Fetch full receipt from chain ────────────────────────────────────────
     const receipt = await evmGetFullReceipt(rpcUrl, dep.txHash);
