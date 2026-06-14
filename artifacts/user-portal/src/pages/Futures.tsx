@@ -335,14 +335,13 @@ export default function Futures() {
     if (Array.isArray(walletData.wallets)) return walletData.wallets;
     return [];
   }, [walletData]);
-  const collateralWallet = wallets.find((w) => (w.currency || w.symbol || w.coin) === quote);
-  const collateral = collateralWallet
-    ? collateralWallet.available != null
-      ? Number(collateralWallet.available)
-      : collateralWallet.free != null
-        ? Number(collateralWallet.free)
-        : Math.max(0, Number(collateralWallet.balance ?? 0))
-    : 0;
+  // API returns { type: "FUTURES"|"SPOT"|"FIAT", currency: "USDT", balance: number }
+  // Must match both FUTURES type AND quote currency to avoid picking the SPOT wallet.
+  const collateralWallet = wallets.find(
+    (w) => (w.type || "").toUpperCase() === "FUTURES" &&
+           (w.currency || w.symbol || w.coin || "").toUpperCase() === quote.toUpperCase()
+  );
+  const collateral = collateralWallet ? Math.max(0, Number(collateralWallet.balance ?? 0)) : 0;
 
   // ─── Positions (this symbol) ─────────────────
   // NOTE: no silent .catch fallback — react-query surfaces error state so the
