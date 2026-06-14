@@ -93,6 +93,8 @@ type Tx = {
   toAddress?: string | null;
   memo?: string | null;
   rejectReason?: string | null;
+  // Blockchain explorer URL (from network config, crypto deposit/withdraw only)
+  explorerUrl?: string | null;
   // Internal wallet-to-wallet transfer
   metadata?: { fromWallet?: string; toWallet?: string; [k: string]: unknown } | null;
   createdAt: string;
@@ -1207,6 +1209,22 @@ function TxDetailsDialog({ tx, onClose }: { tx: Tx | null; onClose: () => void }
             <DetailRow
               label="Reject Reason"
               value={<span className="text-rose-400 text-xs">{tx.rejectReason}</span>}
+            />
+          )}
+          {tx.explorerUrl && (tx.referenceId || tx.trxId) && (
+            <DetailRow
+              label="View on Explorer"
+              value={
+                <a
+                  href={`${tx.explorerUrl.replace(/\/$/, "")}/${tx.referenceId || tx.trxId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-400 hover:text-sky-300 text-xs flex items-center gap-1 transition-colors"
+                >
+                  <span className="font-mono truncate max-w-[200px]">{tx.referenceId || tx.trxId}</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 shrink-0"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              }
             />
           )}
           <DetailRow

@@ -550,7 +550,7 @@ function ProductCard({ product: p, canEarn, onSubscribe }: {
 
       {/* Flags */}
       <div className="flex flex-wrap gap-1 mb-2">
-        {p.compounding && <Badge variant="outline" className="text-[9px] h-4 border-sky-500/40 text-sky-400">Compound</Badge>}
+        {p.compounding && <Badge variant="outline" className="text-[9px] h-4 border-sky-500/40 text-sky-400">Auto-renew</Badge>}
         {p.earlyRedemption && <Badge variant="outline" className="text-[9px] h-4">Early exit</Badge>}
         {p.minVipTier > 0 && <Badge variant="outline" className="text-[9px] h-4 border-purple-500/40 text-purple-400">VIP {p.minVipTier}+</Badge>}
       </div>
@@ -800,7 +800,7 @@ function SubscribeDialog({
             <div className="rounded-lg bg-muted/30 p-3 space-y-1.5 text-xs">
               <Row label="APY" value={fmtPct(apy)} highlight />
               <Row label="Payout" value={product.payoutInterval} />
-              <Row label="Compounding" value={product.compounding ? "Yes" : "No"} />
+              <Row label="Auto-renew" value={product.compounding ? "Yes" : "No"} />
               {isLocked && (
                 <Row label="Early exit" value={product.earlyRedemption ? `Allowed (${fmtPct(product.earlyRedemptionPenaltyPct)} penalty)` : "Not allowed"} />
               )}

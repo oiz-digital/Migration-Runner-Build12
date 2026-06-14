@@ -363,24 +363,44 @@ async function creditTick(): Promise<void> {
 
       // ── Return principal on plan expiry ───────────────────────────────────
       if (isExpired) {
-        const w2 = await getSpotWallet(sub.userId, usdtCoinId);
+        // Respect the original funding coin — INR-funded subs get INR back.
+        // Legacy subs with no fundingCoinId recorded fall back to USDT.
+        const refundCoinId  = sub.fundingCoinId ?? usdtCoinId;
+        const refundAmount  = parseFloat(String(sub.fundingAmount ?? sub.investedAmount));
+        const w2 = await getSpotWallet(sub.userId, refundCoinId);
         if (w2 && w2.id) {
+          const prevBal = parseFloat(w2.balance ?? "0");
           // Use SQL expressions to avoid a read-then-write race condition.
           // Two concurrent expiry ticks (e.g. leader failover) must not
-          // double-credit the principal. The GREATEST(0,...) guard on locked
-          // ensures we never push the locked column below zero even if the
-          // subscription was funded in a different coin (e.g. INR path).
+          // double-credit the principal. GREATEST(0,...) on locked ensures
+          // we never push it below zero.
           await db
             .update(walletsTable)
             .set({
-              balance:   sql`${walletsTable.balance} + ${invested}`,
-              locked:    sql`GREATEST(0, ${walletsTable.locked} - ${invested})`,
+              balance:   sql`${walletsTable.balance} + ${refundAmount}`,
+              locked:    sql`GREATEST(0, ${walletsTable.locked} - ${refundAmount})`,
               updatedAt: new Date(),
             })
             .where(eq(walletsTable.id, w2.id));
+          // Ledger entry so the principal return is visible to the user.
+          await db.insert(walletLedgerTable).values({
+            userId:        sub.userId,
+            coinId:        refundCoinId,
+            walletType:    "spot",
+            type:          "ai_principal_return",
+            amount:        String(refundAmount),
+            balanceBefore: String(prevBal),
+            balanceAfter:  String(prevBal + refundAmount),
+            refType:       "ai_trading_subscription",
+            refId:         String(sub.id),
+            note:          "AI plan completed — principal returned",
+            createdAt:     now,
+          }).catch(err =>
+            logger.warn({ err: (err as Error)?.message }, "ai-credit: principal ledger write failed"),
+          );
         }
         logger.info(
-          { subId: sub.id, userId: sub.userId },
+          { subId: sub.id, userId: sub.userId, refundCoinId, refundAmount },
           "ai-credit: subscription completed, principal returned",
         );
       }

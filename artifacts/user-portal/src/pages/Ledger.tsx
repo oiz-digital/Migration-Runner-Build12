@@ -253,6 +253,7 @@ export default function LedgerPage() {
   const [coinFilter, setCoinFilter] = useState("");
   const [page,       setPage]       = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [csvLoading, setCsvLoading] = useState(false);
 
   /* period → dates */
   const periodDates = getPeriodDates(period);
@@ -391,6 +392,63 @@ export default function LedgerPage() {
     }
   }, [walletTab, period, typeFilter, coinFilter, periodDates, user, pdfLoading]);
 
+  /* ── CSV Download ─────────────────────────────────────────────────────────── */
+  const downloadCsv = useCallback(async () => {
+    if (csvLoading) return;
+    setCsvLoading(true);
+    try {
+      const exportParams = new URLSearchParams({
+        ...(walletTab !== "all" && { wallet: walletTab }),
+        ...(typeFilter           && { type:   typeFilter }),
+        ...(coinFilter           && { coin:   coinFilter.toUpperCase() }),
+        ...(periodDates.from     && { from:   periodDates.from }),
+        ...(periodDates.to       && { to:     periodDates.to   }),
+      });
+      const data: { entries: LedgerEntry[] } = await get(`/ledger/export?${exportParams}`);
+      const rows = data.entries;
+
+      const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+      const headers = ["#", "Date & Time", "Type", "Wallet", "Coin", "Amount", "Balance Before", "Balance After", "Note"];
+      const csvRows = [
+        headers.map(escape).join(","),
+        ...rows.map((e, i) => {
+          const meta = TYPE_META[e.type];
+          const sign = e.amount >= 0 ? "+" : "−";
+          return [
+            String(i + 1),
+            escape(fmtDate(e.createdAt)),
+            escape(meta?.label ?? e.type),
+            escape(e.walletType.charAt(0).toUpperCase() + e.walletType.slice(1)),
+            escape(e.coin),
+            escape(`${sign}${fmt(e.amount, e.coin)}`),
+            escape(fmtBal(e.balanceBefore, e.coin)),
+            escape(fmtBal(e.balanceAfter, e.coin)),
+            escape(e.note ?? (e.refId ? `Ref: ${e.refId}` : "")),
+          ].join(",");
+        }),
+      ];
+
+      const fileName = [
+        "zebvix-ledger",
+        walletTab !== "all" ? walletTab : "",
+        period !== "all" ? period : "",
+        new Date().toISOString().slice(0, 10),
+      ].filter(Boolean).join("-") + ".csv";
+
+      const blob = new Blob(["\uFEFF" + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("CSV export failed:", err);
+    } finally {
+      setCsvLoading(false);
+    }
+  }, [walletTab, period, typeFilter, coinFilter, periodDates, csvLoading]);
+
   /* ── Auth guard ──────────────────────────────────────────────────────────── */
   if (!user) {
     return (
@@ -427,6 +485,19 @@ export default function LedgerPage() {
           >
             <RefreshCw className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Refresh</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            onClick={downloadCsv}
+            disabled={csvLoading}
+          >
+            {csvLoading
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Download className="h-3.5 w-3.5" />
+            }
+            <span className="hidden sm:inline">{csvLoading ? "Exporting…" : "CSV"}</span>
           </Button>
           <Button
             size="sm"

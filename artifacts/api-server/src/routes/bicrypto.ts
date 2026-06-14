@@ -982,7 +982,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
   const want = (t: string) => !typeFilter || typeFilter === "ALL" || typeFilter === t;
 
   // Pull recent rows from each source. We cap each side at 200 then merge.
-  const [trades, inrDeps, cryptoDeps, inrWdrs, cryptoWdrs, transfers, coins, pairs] = await Promise.all([
+  const [trades, inrDeps, cryptoDeps, inrWdrs, cryptoWdrs, transfers, coins, pairs, nets] = await Promise.all([
     // SECURITY: exclude bot-originated trades from the user's transaction
     // history. See orders.ts GET /trades for the same NOT EXISTS pattern.
     want("TRADE")
@@ -1008,9 +1008,11 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       : Promise.resolve([] as any[]),
     db.select().from(coinsTable),
     db.select().from(pairsTable),
+    db.select({ id: networksTable.id, explorerUrl: networksTable.explorerUrl }).from(networksTable),
   ]);
 
   const coinById = new Map(coins.map(c => [c.id, c.symbol]));
+  const netById  = new Map(nets.map((n: any) => [n.id as number, n.explorerUrl as string | null]));
   const pairById = new Map(pairs.map(p => [p.id, p.symbol]));
   // Resolve each pair's quote coin so the row can advertise the correct
   // fee currency. Spot fee is taken from the QUOTE coin (e.g. INR for
@@ -1044,7 +1046,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
     });
   }
 
-  const pushDeposit = (d: any, currency: string, walletType: string) => {
+  const pushDeposit = (d: any, currency: string, walletType: string, explorerUrl?: string | null) => {
     rows.push({
       id: `dep-${walletType.toLowerCase()}-${d.id}`,
       userId: String(userId),
@@ -1059,6 +1061,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       metadata: { refId: d.refId ?? d.txHash ?? null },
       referenceId: d.refId ?? d.txHash ?? null,
       trxId: d.uid,
+      explorerUrl: explorerUrl ?? null,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt ?? d.createdAt,
       wallet: { currency, type: walletType },
@@ -1066,9 +1069,9 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
   };
 
   for (const d of inrDeps) pushDeposit(d, "INR", "FIAT");
-  for (const d of cryptoDeps) pushDeposit(d, coinById.get(d.coinId) ?? "", "SPOT");
+  for (const d of cryptoDeps) pushDeposit(d, coinById.get(d.coinId) ?? "", "SPOT", netById.get(d.networkId) ?? null);
 
-  const pushWithdrawal = (w: any, currency: string, walletType: string) => {
+  const pushWithdrawal = (w: any, currency: string, walletType: string, explorerUrl?: string | null) => {
     rows.push({
       id: `wd-${walletType.toLowerCase()}-${w.id}`,
       userId: String(userId),
@@ -1086,6 +1089,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
       toAddress: w.toAddress ?? null,
       memo: w.memo ?? null,
       rejectReason: w.rejectReason ?? null,
+      explorerUrl: explorerUrl ?? null,
       createdAt: w.createdAt,
       updatedAt: w.updatedAt ?? w.createdAt,
       wallet: { currency, type: walletType },
@@ -1093,7 +1097,7 @@ r.get("/finance/transaction", bicryptoAuth, async (req: any, res): Promise<void>
   };
 
   for (const w of inrWdrs) pushWithdrawal(w, "INR", "FIAT");
-  for (const w of cryptoWdrs) pushWithdrawal(w, coinById.get(w.coinId) ?? "", "SPOT");
+  for (const w of cryptoWdrs) pushWithdrawal(w, coinById.get(w.coinId) ?? "", "SPOT", netById.get(w.networkId) ?? null);
 
   for (const t of transfers) {
     const currency = coinById.get(t.coinId) ?? "";
