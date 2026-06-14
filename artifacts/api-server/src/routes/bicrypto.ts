@@ -12,7 +12,9 @@ import {
   cryptoDepositsTable, inrDepositsTable,
   ordersTable, tradesTable, futuresTradesTable,
   walletAddressesTable, transfersTable, walletLedgerTable,
+  settingsTable, withdrawalWhitelistTable,
 } from "@workspace/db";
+import { checkWhitelistForWithdraw, getWithdrawSecuritySettings } from "./withdrawal-whitelist";
 import { deriveEvmWallet } from "../lib/hd-wallet";
 import { encryptSecret } from "../lib/crypto-vault";
 import { autoVerifyUserDeposit } from "../lib/deposit-sweeper";
@@ -501,8 +503,16 @@ r.post("/auth/change-password", bicryptoAuth, async (req: any, res): Promise<voi
   if (!(await verifyPassword(currentPassword, u.passwordHash))) {
     res.status(400).json({ message: "Current password wrong" }); return;
   }
-  await db.update(usersTable).set({ passwordHash: await hashPassword(newPassword), updatedAt: new Date() }).where(eq(usersTable.id, u.id));
-  res.json({ message: "Password changed" });
+  // Determine lock duration from settings (default 24h)
+  const [lockSetting] = await db.select().from(settingsTable).where(eq(settingsTable.key, "withdraw.lock_hours_on_pw_change")).limit(1);
+  const lockHours = Math.max(1, Number(lockSetting?.value ?? "24"));
+  const withdrawLockUntil = new Date(Date.now() + lockHours * 3600_000);
+  await db.update(usersTable).set({
+    passwordHash: await hashPassword(newPassword),
+    withdrawLockUntil,
+    updatedAt: new Date(),
+  }).where(eq(usersTable.id, u.id));
+  res.json({ message: "Password changed", withdrawLockedUntil: withdrawLockUntil.toISOString() });
 });
 
 // Email verification: status check (GET) + send a fresh code (POST resend).
@@ -1501,6 +1511,34 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
   }
   if (!otpId) { res.status(400).json({ message: "OTP verification required — verify your email before withdrawing" }); return; }
 
+  // ── Withdrawal security checks ──────────────────────────────────────────
+  // 1. Withdraw lock after password change
+  const [freshUser] = await db.select({ withdrawLockUntil: usersTable.withdrawLockUntil })
+    .from(usersTable).where(eq(usersTable.id, req.bcUser.id)).limit(1);
+  if (freshUser?.withdrawLockUntil && freshUser.withdrawLockUntil > new Date()) {
+    const hoursLeft = Math.ceil((freshUser.withdrawLockUntil.getTime() - Date.now()) / 3_600_000);
+    res.status(403).json({ message: `Withdrawals are locked for ${hoursLeft}h after a password change. This protects your funds from unauthorized access.` }); return;
+  }
+
+  // 2. Whitelist enforcement
+  const secSettings = await getWithdrawSecuritySettings();
+  const userWhitelist = await db.select().from(withdrawalWhitelistTable)
+    .where(eq(withdrawalWhitelistTable.userId, req.bcUser.id));
+  const hasWhitelist = userWhitelist.length > 0;
+
+  if (secSettings.whitelistRequired || hasWhitelist) {
+    const wlCheck = await checkWhitelistForWithdraw(req.bcUser.id, String(address).trim(), coin.id, net.id);
+    if (!wlCheck.allowed) {
+      res.status(403).json({ message: wlCheck.message }); return;
+    }
+  }
+
+  // 3. Determine if auto-approve applies
+  const autoApprove = secSettings.autoApproveEnabled
+    && hasWhitelist
+    && amt <= secSettings.autoApproveMaxAmount
+    && (await checkWhitelistForWithdraw(req.bcUser.id, String(address).trim(), coin.id, net.id)).allowed;
+
   // Fee = max(flatFee + amount*pct, feeMin)
   const flat = Number(net.withdrawFee);
   const pct = Number(net.withdrawFeePercent) / 100;
@@ -1513,9 +1551,11 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
     const result = await db.transaction(async (tx) => {
       const otpRes = await consumeVerifiedOtp({ otpId: Number(otpId), purpose: "withdraw", userId: req.bcUser.id, tx });
       if (!otpRes.ok) { const e: any = new Error(otpRes.error); e.code = 400; throw e; }
+      // Auto-approve: debit balance only (no locked increment — funds leave immediately)
+      // Manual pending: debit balance + increment locked (admin releases locked on approval)
       const debited = await tx.update(walletsTable).set({
         balance: sql`${walletsTable.balance} - ${amt}`,
-        locked: sql`${walletsTable.locked} + ${amt}`,
+        ...(autoApprove ? {} : { locked: sql`${walletsTable.locked} + ${amt}` }),
         updatedAt: new Date(),
       }).where(and(
         eq(walletsTable.userId, req.bcUser.id),
@@ -1526,6 +1566,7 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
       if (debited.length === 0) {
         const e: any = new Error("Insufficient balance"); e.code = 400; throw e;
       }
+      const now = new Date();
       const [wd] = await tx.insert(cryptoWithdrawalsTable).values({
         userId: req.bcUser.id,
         coinId: coin.id,
@@ -1534,7 +1575,8 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
         fee: String(fee.toFixed(8)),
         toAddress: String(address).trim(),
         memo: memo ? String(memo).trim() : null,
-        status: "pending",
+        status: autoApprove ? "completed" : "pending",
+        ...(autoApprove ? { processedAt: now } : {}),
       }).returning();
       await tx.insert(walletLedgerTable).values({
         userId: req.bcUser.id, coinId: coin.id, walletType: "spot",
@@ -1543,7 +1585,9 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
         balanceBefore: String(Number(debited[0].balance) + amt),
         balanceAfter: debited[0].balance,
         refType: "crypto_withdrawal", refId: String(wd.id),
-        note: `Crypto withdrawal ${sym} via ${net.chain}`,
+        note: autoApprove
+          ? `Crypto withdrawal ${sym} via ${net.chain} — auto-approved (whitelisted address)`
+          : `Crypto withdrawal ${sym} via ${net.chain}`,
       });
       return wd;
     });
@@ -1554,8 +1598,11 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
       fee: result.fee,
       toAddress: result.toAddress,
       status: result.status,
+      autoApproved: autoApprove,
       createdAt: result.createdAt,
-      message: "Withdrawal submitted — pending admin approval",
+      message: autoApprove
+        ? "Withdrawal auto-approved — processing (whitelisted address)"
+        : "Withdrawal submitted — pending admin approval",
     });
   } catch (e: any) {
     if (e?.code === 400) { res.status(400).json({ message: e.message }); return; }

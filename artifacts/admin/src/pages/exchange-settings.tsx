@@ -996,8 +996,159 @@ export default function ExchangeSettings() {
           {/* Geo Restrictions — separate section using site.geo via settingsTable */}
           <GeoRestrictionsSection />
 
+          {/* Withdrawal Security — whitelist + auto-approve settings */}
+          <WithdrawSecuritySection />
+
           {/* Referral Commission — admin-configurable per-level rates via /admin/referral-settings */}
           <ReferralSettingsSection />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Withdrawal Security Section ──────────────────────────────────────────────
+function WithdrawSecuritySection() {
+  const [open, setOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+
+  type WdSec = { whitelistRequired: boolean; autoApproveEnabled: boolean; autoApproveMaxAmount: number; lockHoursOnPwChange: number; whitelistCooldownHours: number };
+  const q = useQuery<WdSec>({
+    queryKey: ["admin-withdraw-security"],
+    queryFn: () => get("/admin/withdraw/auto-approve"),
+    staleTime: 30_000,
+  });
+
+  const [form, setForm] = useState<WdSec | null>(null);
+  const current = form ?? q.data ?? null;
+
+  const set = (k: keyof WdSec, v: boolean | number) => setForm(prev => ({ ...(prev ?? q.data ?? {} as WdSec), [k]: v }));
+
+  const save = useMutation({
+    mutationFn: () => put("/admin/withdraw/auto-approve", current),
+    onMutate: () => setSaving(true),
+    onSettled: () => setSaving(false),
+    onSuccess: () => {
+      toast.success("Withdrawal security settings saved");
+      qc.invalidateQueries({ queryKey: ["admin-withdraw-security"] });
+      setForm(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Save failed"),
+  });
+
+  const isDirty = form !== null;
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-muted/20 transition-colors text-left"
+        onClick={() => setOpen(v => !v)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-rose-500/15">
+            <ShieldCheck className="w-4 h-4 text-rose-400" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold">Withdrawal Security</div>
+            <div className="text-[11px] text-muted-foreground">Whitelist enforcement, auto-approve thresholds, and withdrawal locks</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isDirty && (
+            <Button variant="default" size="sm" className="h-7 px-2.5 text-xs" onClick={e => { e.stopPropagation(); save.mutate(); }} disabled={saving}>
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Save className="w-3 h-3 mr-1" />Save</>}
+            </Button>
+          )}
+          {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-border/60 px-5 py-5 space-y-5">
+          {q.isLoading ? (
+            <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-10 rounded-lg bg-muted/20 animate-pulse" />)}</div>
+          ) : !current ? (
+            <div className="text-sm text-muted-foreground">Failed to load — <button className="underline" onClick={() => q.refetch()}>retry</button></div>
+          ) : (
+            <div className="space-y-5">
+              {/* Whitelist required */}
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium">Require Whitelisted Addresses</Label>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">Users can only withdraw to addresses they have pre-whitelisted. Bypass is blocked for non-whitelisted addresses.</div>
+                </div>
+                <Switch checked={current.whitelistRequired} onCheckedChange={v => set("whitelistRequired", v)} />
+              </div>
+              {/* Auto-approve */}
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium">Auto-Approve Whitelisted Withdrawals</Label>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">Automatically complete withdrawals to whitelisted addresses below the maximum amount. Above the threshold still requires manual admin approval.</div>
+                </div>
+                <Switch checked={current.autoApproveEnabled} onCheckedChange={v => set("autoApproveEnabled", v)} />
+              </div>
+              {/* Auto-approve max amount */}
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium">Auto-Approve Max Amount (USD equivalent)</Label>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">Withdrawals up to this value (in USD) to whitelisted addresses are auto-approved. Set 0 to auto-approve all amounts.</div>
+                  <Input
+                    type="number"
+                    value={current.autoApproveMaxAmount}
+                    onChange={e => set("autoApproveMaxAmount", Number(e.target.value))}
+                    className="h-9 w-48 mt-2 font-mono text-sm"
+                    min={0}
+                  />
+                </div>
+              </div>
+              {/* Lock hours on password change */}
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium">Withdrawal Lock After Password Change (hours)</Label>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">After a user changes their password, withdrawals are locked for this many hours as a security measure.</div>
+                  <Input
+                    type="number"
+                    value={current.lockHoursOnPwChange}
+                    onChange={e => set("lockHoursOnPwChange", Number(e.target.value))}
+                    className="h-9 w-32 mt-2 font-mono text-sm"
+                    min={0}
+                    max={168}
+                  />
+                </div>
+              </div>
+              {/* Whitelist cooldown hours */}
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm font-medium">Whitelist Cooling Period (hours)</Label>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">New whitelist addresses must wait this many hours before they can receive withdrawals.</div>
+                  <Input
+                    type="number"
+                    value={current.whitelistCooldownHours}
+                    onChange={e => set("whitelistCooldownHours", Number(e.target.value))}
+                    className="h-9 w-32 mt-2 font-mono text-sm"
+                    min={1}
+                    max={72}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-9 px-5"
+                  onClick={() => save.mutate()}
+                  disabled={saving || !isDirty}
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Settings
+                </Button>
+                {!isDirty && <span className="ml-3 text-xs text-muted-foreground">No unsaved changes</span>}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

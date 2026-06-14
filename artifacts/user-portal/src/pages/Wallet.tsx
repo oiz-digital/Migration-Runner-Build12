@@ -54,10 +54,15 @@ import {
   Download,
   ScanLine,
   Shield,
+  ShieldPlus,
   SendHorizontal,
   Users,
   UserCheck,
   Mail,
+  ListChecks,
+  Trash2,
+  Timer,
+  BadgeCheck,
 } from "lucide-react";
 import QRCodeSVG from "react-qr-code";
 
@@ -243,6 +248,7 @@ export default function Wallet() {
   const [withdrawOpen, setWithdrawOpen] = useState<{ currency: string; type: WalletType } | null>(null);
   const [transferOpen, setTransferOpen] = useState<{ currency?: string } | null>(null);
   const [sendOpen, setSendOpen] = useState<{ currency?: string } | null>(null);
+  const [whitelistOpen, setWhitelistOpen] = useState(false);
   const [walletSuccess, setWalletSuccess] = useState<GenericSuccess | null>(null);
 
   const handleWithdraw = (currency: string, type: WalletType) => {
@@ -417,7 +423,7 @@ export default function Wallet() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-4 gap-2 sm:gap-3 lg:max-w-xl w-full">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:max-w-2xl w-full">
               <Button
                 onClick={() => setDepositOpen({ currency: "USDT", type: "SPOT" })}
                 className="h-12 flex-col gap-0.5 bg-primary hover:bg-primary/90"
@@ -452,6 +458,15 @@ export default function Wallet() {
               >
                 <SendHorizontal className="h-4 w-4" />
                 <span className="text-xs font-semibold">Send</span>
+              </Button>
+              <Button
+                onClick={() => setWhitelistOpen(true)}
+                variant="outline"
+                className="h-12 flex-col gap-0.5 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                data-testid="button-whitelist"
+              >
+                <ListChecks className="h-4 w-4" />
+                <span className="text-xs font-semibold">Whitelist</span>
               </Button>
             </div>
           </div>
@@ -594,6 +609,8 @@ export default function Wallet() {
           onSuccess={(d) => setWalletSuccess(d)}
         />
       )}
+
+      <ManageWhitelistDialog open={whitelistOpen} onClose={() => setWhitelistOpen(false)} />
 
       <SuccessModal
         open={walletSuccess !== null}
@@ -1957,6 +1974,25 @@ function WithdrawDialog({
     if (verifiedBanks.length > 0 && !bankId) setBankId(String(verifiedBanks[0].id));
   }, [verifiedBanks, bankId]);
 
+  // ── Withdrawal security: lock + whitelist ─────────────────────────────────
+  type WlEntry = { id: number; address: string; label: string; memo?: string | null; unlocksAt: string; coinId: number | null; networkId: number | null; coinSymbol: string | null; networkChain: string | null; locked: boolean; unlocksInMs: number };
+  type SecStatus = { withdrawLocked: boolean; withdrawLockedUntil: string | null; whitelistRequired: boolean; whitelist: WlEntry[] };
+  const secQ = useQuery<SecStatus>({
+    queryKey: ["withdraw-security-status"],
+    queryFn: () => get("/finance/security-status"),
+    enabled: open && mode === "CRYPTO",
+    staleTime: 30_000,
+  });
+  const whitelistForCoinNet = useMemo(() => {
+    const wl = secQ.data?.whitelist ?? [];
+    return wl.filter(e => {
+      const coinOk = !e.coinSymbol || e.coinSymbol.toUpperCase() === currency.toUpperCase();
+      const netOk = !e.networkChain || e.networkChain.toUpperCase() === network.toUpperCase();
+      return coinOk && netOk;
+    });
+  }, [secQ.data, currency, network]);
+  const unlockedForCoinNet = whitelistForCoinNet.filter(e => !e.locked);
+
   // Available balance to display
   const wallet = allItems.find(w => {
     if (mode === "FIAT") return w.type === "FIAT" && w.currency.toUpperCase() === "INR";
@@ -1972,11 +2008,14 @@ function WithdrawDialog({
   const youReceive = Math.max(0, amt - fee);
 
   const validation = (() => {
+    if (mode === "CRYPTO" && secQ.data?.withdrawLocked) return "Withdrawals locked after password change — wait for the lock to expire";
     if (amt <= 0) return "Enter an amount";
     if (amt > available) return "Insufficient balance";
     if (mode === "CRYPTO") {
       if (!activeNet) return "Select a network";
       if (amt < activeNet.minWithdraw) return `Minimum ${activeNet.minWithdraw} ${currency}`;
+      if (secQ.data?.whitelistRequired && whitelistForCoinNet.length > 0 && unlockedForCoinNet.length === 0) return "All whitelisted addresses are still in their 3-hour cooling period";
+      if (secQ.data?.whitelistRequired && whitelistForCoinNet.length === 0) return "Whitelist enforcement is on — add an address in the Whitelist manager first";
       if (!address.trim()) return "Enter the destination address";
       if (fee >= amt) return "Amount must exceed network fee";
     } else {
@@ -2059,6 +2098,20 @@ function WithdrawDialog({
               <TabsTrigger value="FIAT" className="text-xs font-medium" data-testid="tab-withdraw-fiat">INR (Fiat)</TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* Withdraw lock banner */}
+          {mode === "CRYPTO" && secQ.data?.withdrawLocked && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 space-y-1.5" data-testid="withdraw-lock-banner">
+              <div className="flex items-center gap-2 text-sm font-semibold text-red-400">
+                <Shield className="h-4 w-4 shrink-0" />
+                Withdrawals Temporarily Locked
+              </div>
+              <p className="text-xs text-red-400/80 ml-6">
+                Your account has a temporary withdrawal hold after a recent password change. Withdrawals will be available after{" "}
+                <strong className="text-red-300">{new Date(secQ.data.withdrawLockedUntil!).toLocaleString()}</strong>.
+              </p>
+            </div>
+          )}
 
           {mode === "CRYPTO" ? (
             <>
@@ -2145,20 +2198,65 @@ function WithdrawDialog({
                 </div>
               ) : null}
 
-              {/* Destination address */}
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Destination Address</label>
-                <div className="relative">
-                  <Input
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder={activeNet ? `${wBrand?.badge ?? activeNet.chain} address` : "Select a network first"}
-                    className="font-mono text-sm h-11 pr-10"
-                    data-testid="input-withdraw-address"
-                  />
-                  <ScanLine className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+              {/* Whitelist address picker */}
+              {whitelistForCoinNet.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+                    <ListChecks className="h-3.5 w-3.5" /> Whitelisted Addresses
+                  </label>
+                  <div className="space-y-2">
+                    {whitelistForCoinNet.map(e => {
+                      const isSelected = address === e.address;
+                      return (
+                        <button
+                          key={e.id}
+                          type="button"
+                          disabled={e.locked}
+                          onClick={() => { if (!e.locked) { setAddress(e.address); if (e.memo) setMemo(e.memo); } }}
+                          className={`w-full text-left rounded-xl border p-3 transition-all duration-150 ${
+                            e.locked
+                              ? "border-border/30 bg-muted/5 opacity-50 cursor-not-allowed"
+                              : isSelected
+                              ? "border-emerald-500/60 bg-emerald-500/10 ring-1 ring-emerald-500/40"
+                              : "border-border/50 bg-muted/10 hover:bg-muted/25 hover:border-border"
+                          }`}
+                          data-testid={`wl-addr-${e.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-0.5">
+                            <span className="text-sm font-medium truncate">{e.label}</span>
+                            {e.locked ? (
+                              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-400 shrink-0 gap-1">
+                                <Timer className="h-2.5 w-2.5" />
+                                {Math.ceil(e.unlocksInMs / 60000)}m left
+                              </Badge>
+                            ) : (
+                              <BadgeCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                            )}
+                          </div>
+                          <div className="font-mono text-[11px] text-muted-foreground truncate">{e.address}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* Destination address — free input (hidden when whitelist required + entries exist) */}
+              {(!secQ.data?.whitelistRequired || whitelistForCoinNet.length === 0) && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">Destination Address</label>
+                  <div className="relative">
+                    <Input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder={activeNet ? `${wBrand?.badge ?? activeNet.chain} address` : "Select a network first"}
+                      className="font-mono text-sm h-11 pr-10"
+                      data-testid="input-withdraw-address"
+                    />
+                    <ScanLine className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+                  </div>
+                </div>
+              )}
 
               {/* Memo */}
               <div>
@@ -2845,6 +2943,207 @@ function SendToUserDialog({ open, onClose, initialCurrency, allItems, onDone, on
               {confirmMut.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending…</> : <><CheckCircle2 className="h-4 w-4 mr-2" /> Confirm Send</>}
             </Button>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Manage Whitelist Dialog
+// ──────────────────────────────────────────────────────────────────
+type WlItem = {
+  id: number; uid: string; address: string; memo: string | null; label: string;
+  coinSymbol: string | null; networkChain: string | null;
+  locked: boolean; unlocksInMs: number; unlocksAt: string;
+};
+
+function ManageWhitelistDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [addMode, setAddMode] = useState(false);
+  const [label, setLabel] = useState("");
+  const [addr, setAddr] = useState("");
+  const [memo, setMemo] = useState("");
+  const [coinSym, setCoinSym] = useState("");
+  const [netChain, setNetChain] = useState("");
+
+  const listQ = useQuery<WlItem[]>({
+    queryKey: ["whitelist"],
+    queryFn: () => get("/finance/whitelist"),
+    enabled: open,
+    staleTime: 15_000,
+  });
+  const items = listQ.data ?? [];
+
+  const addMut = useMutation({
+    mutationFn: () => post("/finance/whitelist", {
+      address: addr.trim(), label: label.trim(),
+      coinSymbol: coinSym.trim() || undefined,
+      networkChain: netChain.trim() || undefined,
+      memo: memo.trim() || undefined,
+    }),
+    onSuccess: () => {
+      toast.success("Address added", { description: "You can withdraw to it after the 3-hour security window." });
+      qc.invalidateQueries({ queryKey: ["whitelist"] });
+      qc.invalidateQueries({ queryKey: ["withdraw-security-status"] });
+      setAddMode(false); setLabel(""); setAddr(""); setMemo(""); setCoinSym(""); setNetChain("");
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to add address"),
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: number) => {
+      const del = (url: string) => fetch(url, { method: "DELETE", credentials: "include" }).then(async r => { if (!r.ok) throw new Error((await r.json()).message); return r.json(); });
+      return del(`${import.meta.env.BASE_URL}api/finance/whitelist/${id}`);
+    },
+    onSuccess: () => {
+      toast.success("Removed from whitelist");
+      qc.invalidateQueries({ queryKey: ["whitelist"] });
+      qc.invalidateQueries({ queryKey: ["withdraw-security-status"] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to remove"),
+  });
+
+  const canAdd = label.trim().length > 0 && addr.trim().length >= 8;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-[520px] p-0 overflow-hidden gap-0">
+        <div className="px-6 pt-6 pb-4 border-b border-border/50">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+              <ListChecks className="h-4 w-4 text-emerald-400" />
+            </div>
+            Withdrawal Address Whitelist
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground mt-1 ml-10">
+            Only whitelisted addresses can receive withdrawals. New addresses have a 3-hour security hold.
+          </DialogDescription>
+        </div>
+
+        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Existing addresses */}
+          {listQ.isLoading ? (
+            <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-16 rounded-xl border border-border bg-muted/20 animate-pulse" />)}</div>
+          ) : items.length === 0 ? (
+            <div className="rounded-xl border border-border bg-muted/10 p-6 text-center space-y-2">
+              <ShieldPlus className="h-8 w-8 mx-auto text-muted-foreground/40" />
+              <div className="text-sm text-muted-foreground">No whitelisted addresses yet.</div>
+              <div className="text-xs text-muted-foreground/70">Add addresses you trust below. A 3-hour cooling period applies to each new entry.</div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {items.map(e => (
+                <div
+                  key={e.id}
+                  className="rounded-xl border border-border/50 bg-muted/10 p-3 flex items-start gap-3"
+                >
+                  <div className="flex-1 min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{e.label}</span>
+                      {e.coinSymbol && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{e.coinSymbol}</Badge>
+                      )}
+                      {e.networkChain && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{e.networkChain}</Badge>
+                      )}
+                      {e.locked ? (
+                        <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-400 gap-1">
+                          <Timer className="h-2.5 w-2.5" />
+                          {Math.ceil(e.unlocksInMs / 60000)}m
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-emerald-500/40 text-emerald-400 gap-1">
+                          <BadgeCheck className="h-2.5 w-2.5" />
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="font-mono text-[11px] text-muted-foreground truncate">{e.address}</div>
+                    {e.memo && <div className="text-[11px] text-muted-foreground">Memo: {e.memo}</div>}
+                    {e.locked && (
+                      <div className="text-[11px] text-amber-400/80">
+                        Cooling period ends {new Date(e.unlocksAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10"
+                    onClick={() => delMut.mutate(e.id)}
+                    disabled={delMut.isPending}
+                    data-testid={`btn-del-wl-${e.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add address form */}
+          {addMode ? (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+              <div className="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                <ShieldPlus className="h-4 w-4" />
+                Add New Address
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Label *</label>
+                <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. My Binance Hot Wallet" className="h-10 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Address *</label>
+                <Input value={addr} onChange={e => setAddr(e.target.value)} placeholder="Destination wallet address" className="h-10 font-mono text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Coin (optional)</label>
+                  <Input value={coinSym} onChange={e => setCoinSym(e.target.value.toUpperCase())} placeholder="e.g. USDT" className="h-10 text-sm font-mono" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Network (optional)</label>
+                  <Input value={netChain} onChange={e => setNetChain(e.target.value.toUpperCase())} placeholder="e.g. TRC20" className="h-10 text-sm font-mono" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5 block">Memo / Tag (optional)</label>
+                <Input value={memo} onChange={e => setMemo(e.target.value)} placeholder="If required by destination" className="h-10 text-sm font-mono" />
+              </div>
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 p-3 text-xs text-amber-300/90">
+                <strong className="text-amber-300">3-hour security hold:</strong> This address cannot be used for withdrawals until the cooling period expires.
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => { setAddMode(false); setLabel(""); setAddr(""); setMemo(""); setCoinSym(""); setNetChain(""); }}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 h-9 bg-emerald-600 hover:bg-emerald-600/90"
+                  onClick={() => addMut.mutate()}
+                  disabled={!canAdd || addMut.isPending}
+                  data-testid="btn-add-whitelist"
+                >
+                  {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldPlus className="h-4 w-4 mr-1.5" />Add Address</>}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-10 text-xs font-medium border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+              onClick={() => setAddMode(true)}
+              data-testid="btn-show-add-whitelist"
+            >
+              <ShieldPlus className="h-4 w-4 mr-2" />
+              Add New Address
+            </Button>
+          )}
+        </div>
+
+        <div className="px-6 pb-5">
+          <Button variant="outline" size="sm" className="w-full h-9" onClick={onClose}>Close</Button>
         </div>
       </DialogContent>
     </Dialog>

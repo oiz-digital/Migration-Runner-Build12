@@ -99,6 +99,24 @@ export const cryptoWithdrawalsTable = pgTable("crypto_withdrawals", {
 
 export type CryptoWithdrawal = typeof cryptoWithdrawalsTable.$inferSelect;
 
+export const withdrawalWhitelistTable = pgTable("withdrawal_whitelist", {
+  id: serial("id").primaryKey(),
+  uid: varchar("uid", { length: 32 }).notNull().unique().$defaultFn(() => ulid()).default(sql`replace(gen_random_uuid()::text, '-', '')`),
+  userId: integer("user_id").notNull(),
+  coinId: integer("coin_id"),
+  networkId: integer("network_id"),
+  address: text("address").notNull(),
+  memo: text("memo"),
+  label: text("label").notNull().default(""),
+  unlocksAt: timestamp("unlocks_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  byUser: index("withdrawal_whitelist_user_idx").on(t.userId),
+  byUserAddr: uniqueIndex("withdrawal_whitelist_user_addr_net_idx").on(t.userId, t.address, t.networkId),
+}));
+
+export type WithdrawalWhitelist = typeof withdrawalWhitelistTable.$inferSelect;
+
 export const transfersTable = pgTable("transfers", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
