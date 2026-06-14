@@ -723,15 +723,19 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
     staleTime: 60_000,
   });
 
-  // Available balance for sell ads
-  const walletQ = useQuery<{ balance: string; currency: string }[]>({
+  // Available balance for sell ads — /finance/wallet returns { items: [...] }
+  // each item: { type: "SPOT"|"FIAT"|"FUTURES"|"ECO", currency: "BTC", balance: number }
+  const walletQ = useQuery<{ balance: number; currency: string; type: string }[]>({
     queryKey: ["/finance/wallet", "spot"],
-    queryFn: () => get<any>("/finance/wallet").then((d: any) => d?.spot ?? d?.wallets ?? []),
+    queryFn: () =>
+      get<any>("/finance/wallet").then((d: any) =>
+        (d?.items ?? []).filter((w: any) => w.type === "SPOT")
+      ),
     enabled: side === "sell",
     staleTime: 30_000,
   });
   const availBal = side === "sell" && coinSymbol
-    ? Number((walletQ.data ?? []).find((w: any) => (w.currency ?? w.symbol ?? "")?.toUpperCase() === coinSymbol.toUpperCase())?.balance ?? 0)
+    ? Number((walletQ.data ?? []).find((w: any) => w.currency?.toUpperCase() === coinSymbol.toUpperCase())?.balance ?? 0)
     : null;
 
   const filteredCoins = (coinsQ.data ?? [])
