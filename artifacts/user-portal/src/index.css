@@ -89,42 +89,47 @@
 
 /* ── Dark mode ──────────────────────────────────────────────── */
 .dark {
-  --background: 222 47% 5%;
-  --foreground: 210 40% 98%;
+  /* Background: deep navy-black (Binance/Bybit style ~#070d1a) */
+  --background: 220 50% 4%;
+  --foreground: 214 30% 92%;
 
-  --border: 217 33% 15%;
-  --input: 217 33% 15%;
-  --ring: 45 100% 50%;
+  --border: 218 28% 10%;
+  --input: 218 28% 11%;
+  --ring: 43 95% 54%;
 
-  --card: 222 47% 7%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 15%;
+  /* Cards: slightly lifted off the background */
+  --card: 220 44% 6%;
+  --card-foreground: 214 30% 92%;
+  --card-border: 218 26% 12%;
 
-  --popover: 222 47% 7%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 15%;
+  --popover: 220 44% 6%;
+  --popover-foreground: 214 30% 92%;
+  --popover-border: 218 26% 12%;
 
-  --primary: 45 100% 50%;
-  --primary-foreground: 222 47% 5%;
+  /* Primary: vivid amber */
+  --primary: 43 95% 54%;
+  --primary-foreground: 220 50% 4%;
 
-  --secondary: 217 33% 15%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 218 28% 10%;
+  --secondary-foreground: 214 30% 92%;
 
-  --muted: 217 33% 15%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 218 28% 10%;
+  --muted-foreground: 214 16% 50%;
 
-  --accent: 217 33% 15%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 218 28% 13%;
+  --accent-foreground: 214 30% 92%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 2 88% 60%;
+  --destructive-foreground: 214 30% 92%;
 
-  --success: 142 70% 45%;
-  --success-foreground: 210 40% 98%;
+  /* Success: Binance-style crypto green */
+  --success: 148 72% 44%;
+  --success-foreground: 220 50% 4%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', 'Menlo', monospace;
-  --radius: 0.25rem;
+  /* Slightly more rounded for a premium app feel */
+  --radius: 0.5rem;
 }
 
 @layer base {
@@ -489,10 +494,10 @@
 }
 .dark .premium-card {
   background:
-    radial-gradient(120% 120% at 100% 0%, hsla(45, 100%, 51%, 0.06) 0%, transparent 55%),
-    linear-gradient(180deg, hsl(222 16% 12%) 0%, hsl(222 18% 10%) 100%);
-  border: 1px solid hsl(220 14% 18%);
-  box-shadow: 0 1px 0 hsla(0,0%,100%,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.55);
+    radial-gradient(120% 120% at 100% 0%, hsla(43, 95%, 54%, 0.07) 0%, transparent 55%),
+    linear-gradient(180deg, hsl(220 22% 9%) 0%, hsl(220 28% 7%) 100%);
+  border: 1px solid hsl(218 24% 13%);
+  box-shadow: 0 1px 0 hsla(0,0%,100%,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.7);
 }
 .premium-card-hero {
   background:
@@ -503,14 +508,14 @@
 }
 .dark .premium-card-hero {
   background:
-    radial-gradient(80% 100% at 100% 0%, hsla(45, 100%, 51%, 0.18) 0%, transparent 60%),
-    radial-gradient(60% 80% at 0% 100%, hsla(45, 100%, 51%, 0.08) 0%, transparent 60%),
-    linear-gradient(180deg, hsl(222 18% 12%) 0%, hsl(222 22% 8%) 100%);
-  border: 1px solid hsla(45, 100%, 51%, 0.18);
-  box-shadow: 0 1px 0 hsla(0,0%,100%,0.04) inset, 0 18px 60px -24px rgba(0,0,0,0.7);
+    radial-gradient(80% 100% at 100% 0%, hsla(43, 95%, 54%, 0.2) 0%, transparent 60%),
+    radial-gradient(60% 80% at 0% 100%, hsla(43, 95%, 54%, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, hsl(220 24% 9%) 0%, hsl(220 30% 6%) 100%);
+  border: 1px solid hsla(43, 95%, 54%, 0.2);
+  box-shadow: 0 1px 0 hsla(0,0%,100%,0.05) inset, 0 18px 60px -24px rgba(0,0,0,0.8);
 }
 .gold-glow {
-  box-shadow: 0 0 0 1px hsla(45, 100%, 51%, 0.25), 0 0 24px -4px hsla(45, 100%, 51%, 0.35);
+  box-shadow: 0 0 0 1px hsla(43, 95%, 54%, 0.28), 0 0 24px -4px hsla(43, 95%, 54%, 0.4);
 }
 .stat-orb {
   background: linear-gradient(135deg, hsla(45, 100%, 51%, 0.15), hsla(45, 100%, 51%, 0.05));
@@ -518,7 +523,86 @@
   box-shadow: 0 2px 8px -3px hsla(45, 100%, 51%, 0.2);
 }
 .dark .stat-orb {
-  background: linear-gradient(135deg, hsla(45, 100%, 51%, 0.22), hsla(45, 100%, 51%, 0.06));
-  border: 1px solid hsla(45, 100%, 51%, 0.25);
-  box-shadow: 0 4px 14px -4px hsla(45, 100%, 51%, 0.3);
+  background: linear-gradient(135deg, hsla(43, 95%, 54%, 0.22), hsla(43, 95%, 54%, 0.06));
+  border: 1px solid hsla(43, 95%, 54%, 0.28);
+  box-shadow: 0 4px 14px -4px hsla(43, 95%, 54%, 0.35);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Glassmorphism surfaces — mobile app feel
+   ──────────────────────────────────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dark .glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+.dark .glass-card {
+  background: rgba(14, 20, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Crypto-standard price colors (Binance palette)
+   ──────────────────────────────────────────────────────────────────── */
+.crypto-up   { color: #0ecb81; }
+.crypto-down { color: #f6465d; }
+.bg-crypto-up   { background-color: rgba(14, 203, 129, 0.12); color: #0ecb81; }
+.bg-crypto-down { background-color: rgba(246,  70,  93, 0.12); color: #f6465d; }
+
+/* ────────────────────────────────────────────────────────────────────
+   Neon glow effects — premium accent
+   ──────────────────────────────────────────────────────────────────── */
+.glow-amber {
+  box-shadow:
+    0 0 10px -2px hsla(43, 95%, 54%, 0.5),
+    0 0 30px -8px hsla(43, 95%, 54%, 0.28);
+}
+.glow-amber-text { text-shadow: 0 0 16px hsla(43, 95%, 54%, 0.65); }
+
+.glow-green {
+  box-shadow:
+    0 0 10px -2px rgba(14, 203, 129, 0.5),
+    0 0 28px -8px rgba(14, 203, 129, 0.25);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Mobile bottom nav — active top-bar indicator
+   ──────────────────────────────────────────────────────────────────── */
+.nav-active-bar {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.25rem;   /* 20px */
+  height: 0.1875rem; /* 3px */
+  border-radius: 0 0 3px 3px;
+  background: hsl(43, 95%, 54%);
+  box-shadow: 0 0 8px 2px hsla(43, 95%, 54%, 0.55);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Utility: visually separate sections on dark bg
+   ──────────────────────────────────────────────────────────────────── */
+.surface-raised {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--card-border));
+  box-shadow: 0 2px 8px -4px rgba(0,0,0,0.25);
+}
+.dark .surface-raised {
+  background: linear-gradient(180deg, hsl(220 22% 8%) 0%, hsl(220 26% 7%) 100%);
+  border: 1px solid hsl(218 24% 12%);
+  box-shadow: 0 4px 16px -6px rgba(0,0,0,0.6), 0 1px 0 hsla(0,0%,100%,0.04) inset;
 }

@@ -693,9 +693,9 @@ export function AppHeader() {
 
         {/* ── Right: search + actions ─────────────── */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Search icon — shown at xl+ (where the full desktop nav is also
-              visible). Below xl the Quick Actions dropdown absorbs it. */}
-          <Button asChild variant="ghost" size="icon" className="hidden xl:inline-flex h-9 w-9 flex-shrink-0">
+          {/* Search icon — shown on mobile (< sm) and at xl+.
+              sm–xl range uses the MoreHorizontal consolidator instead. */}
+          <Button asChild variant="ghost" size="icon" className="inline-flex sm:hidden xl:inline-flex h-9 w-9 flex-shrink-0">
             <Link href="/markets" aria-label="Search markets">
               <Search className="h-4 w-4" />
             </Link>
