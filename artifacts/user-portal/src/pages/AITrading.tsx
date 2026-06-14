@@ -621,8 +621,8 @@ export default function AITrading() {
               </SectionCard>
             )}
 
-            {/* P&L summary cards */}
-            {pnlStats.total > 0 && (
+            {/* P&L summary cards — show whenever we have any subs or credits */}
+            {(pnlStats.net !== 0 || pnlStats.total > 0) && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4">
                   <div className="text-[11px] text-muted-foreground mb-1">Total Profit</div>
@@ -639,12 +639,16 @@ export default function AITrading() {
                   <div className={`text-lg font-bold font-mono ${pnlStats.net >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                     {pnlStats.net >= 0 ? "+" : ""}{fmtUSD(pnlStats.net, 4)}
                   </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">across {pnlStats.total} entries</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">all bots combined</div>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
                   <div className="text-[11px] text-muted-foreground mb-1">Win Rate</div>
-                  <div className="text-lg font-bold font-mono text-foreground">{pnlStats.winRate.toFixed(1)}%</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">profitable credits</div>
+                  <div className="text-lg font-bold font-mono text-foreground">
+                    {pnlStats.total > 0 ? pnlStats.winRate.toFixed(1) : "—"}%
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {pnlStats.total > 0 ? "profitable credits" : "no credits yet"}
+                  </div>
                 </div>
               </div>
             )}

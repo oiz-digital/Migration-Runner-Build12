@@ -121,11 +121,28 @@ router.get("/ai-trading/earnings", requireAuth, async (req, res): Promise<void> 
 });
 
 /* GET /api/ai-trading/pnl-summary — full aggregate P&L (not paginated).
- * Uses SQL SUM with CASE so it never under-counts regardless of how many
- * credits the user has accumulated. */
+ *
+ * Net P&L comes from subscriptions.total_earned — this is the canonical
+ * value updated atomically by the credit engine on every tick (and matches
+ * the "Total Earned" header stat).  Win/loss COUNTS come from the
+ * ai_trading_earnings log table which records individual credit events.
+ * Using two sources keeps both the headline number and the credit-level
+ * breakdown accurate even when historical seed data exists. */
 router.get("/ai-trading/pnl-summary", requireAuth, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const [row] = await db.execute(sql`
+
+  // ── 1. Canonical net P&L from subscriptions.total_earned ─────────────
+  // This is the authoritative total — updated atomically by the credit
+  // engine and matches the "Total Earned" header on the UI.
+  const [subRow] = await db.execute(sql`
+    SELECT COALESCE(SUM(total_earned::numeric), 0) AS net
+    FROM ai_trading_subscriptions
+    WHERE user_id = ${userId}
+  `).then(r => r.rows as Array<{ net: string }>);
+
+  // ── 2. Per-credit profit / loss / counts from the earnings log ─────────
+  // Individual credit events — used for breakdown cards & win-rate.
+  const [logRow] = await db.execute(sql`
     SELECT
       COALESCE(SUM(CASE WHEN amount_usdt::numeric > 0 THEN amount_usdt::numeric ELSE 0 END), 0)  AS profit,
       COALESCE(SUM(CASE WHEN amount_usdt::numeric < 0 THEN amount_usdt::numeric ELSE 0 END), 0)  AS loss,
@@ -137,13 +154,16 @@ router.get("/ai-trading/pnl-summary", requireAuth, async (req, res): Promise<voi
   `).then(r => r.rows as Array<{
     profit: string; loss: string; wins: number; losses: number; total: number;
   }>);
-  const profit  = parseFloat(row?.profit  ?? "0");
-  const loss    = parseFloat(row?.loss    ?? "0");
-  const wins    = row?.wins    ?? 0;
-  const losses  = row?.losses  ?? 0;
-  const total   = row?.total   ?? 0;
-  const net     = profit + loss;
-  const winRate = total > 0 ? (wins / total) * 100 : 0;
+
+  const net      = parseFloat(subRow?.net       ?? "0");
+  const profit   = parseFloat(logRow?.profit    ?? "0");
+  const loss     = parseFloat(logRow?.loss      ?? "0");
+  const wins     = logRow?.wins    ?? 0;
+  const losses   = logRow?.losses  ?? 0;
+  const total    = logRow?.total   ?? 0;
+  const winRate  = total > 0 ? (wins / total) * 100 : 0;
+
+  // net = canonical total (subscriptions); profit/loss/wins/losses = per-credit log
   res.json({ profit, loss, net, wins, losses, total, winRate });
 });
 
