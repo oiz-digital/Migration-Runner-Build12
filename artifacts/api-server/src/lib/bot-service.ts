@@ -1,5 +1,5 @@
 import { db, marketBotsTable, ordersTable, pairsTable, coinsTable, tradesTable, usersTable } from "@workspace/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { asc, and, eq, inArray, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { getRawTick } from "./price-service";
 import { rZadd, rZrem, rSet, rDel, rLpush, rPublish } from "./redis";
@@ -49,8 +49,12 @@ let botUserId: number | null = null;
 
 async function getBotUserId(): Promise<number | null> {
   if (botUserId) return botUserId;
+  // Order by id ASC so the same (lowest-id) admin is always selected
+  // across restarts, regardless of table or index scan order.
   const admins = await db.select().from(usersTable)
-    .where(sql`${usersTable.role} IN ('admin','superadmin')`).limit(1);
+    .where(sql`${usersTable.role} IN ('admin','superadmin')`)
+    .orderBy(asc(usersTable.id))
+    .limit(1);
   if (!admins[0]) return null;
   botUserId = admins[0].id;
   return botUserId;
@@ -387,6 +391,7 @@ async function runBotForPair(bot: any, uid: number) {
       const [trade] = await db.insert(tradesTable).values({
         orderId: mktOrder.id, userId: uid, pairId: pair.id, side: marketSide,
         price: indexPx, qty: String(marketQty.toFixed(8)), fee: "0",
+        isTaker: 1,
       }).returning();
       try {
         const tradePayload = JSON.stringify({

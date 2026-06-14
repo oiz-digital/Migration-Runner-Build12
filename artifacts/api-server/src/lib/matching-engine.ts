@@ -85,6 +85,7 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
   for (let iter = 0; iter < 200; iter++) {
     engineStats.matchesAttempted++;
     let matchExecuted = false;
+    let staleRemoved = false;
     let stop = false;
     let symbolForPub = "";
 
@@ -112,8 +113,11 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
 
         const maker = await getOrderForUpdate(tx, opp.id);
         if (!maker || (maker.status !== "open" && maker.status !== "partial")) {
-          // Stale entry; drop and continue
+          // Stale Redis entry — remove it and retry the outer loop so the
+          // taker can still match against deeper valid price levels. Setting
+          // staleRemoved prevents the loop from exiting on !matchExecuted.
           await rZrem(`orderbook:${symbol}:${maker?.side ?? (taker.side === "buy" ? "sell" : "buy")}`, String(opp.id));
+          staleRemoved = true;
           return;
         }
         if (maker.userId === taker.userId) {
@@ -557,7 +561,10 @@ export async function tryMatch(takerOrderId: number, opts?: { takerVipTier?: num
       await rPublish(`book.${symbolForPub}`, { type: "match", takerOrderId, ts: Date.now() });
     }
     if (stop) break;
-    if (!matchExecuted) break; // safety
+    // Only exit the sweep loop when nothing happened at all.
+    // If we just cleaned up a stale Redis entry (staleRemoved=true) we should
+    // retry so the taker can still match against the next valid price level.
+    if (!matchExecuted && !staleRemoved) break;
   }
 
   return { trades: totalTrades, remainingQty: finalRemaining, status: finalStatus };
@@ -579,30 +586,48 @@ export async function getDepth(symbol: string, levels = 20) {
     r.zrange(`orderbook:${symbol}:buy`, 0, 200, "WITHSCORES"),
     r.zrange(`orderbook:${symbol}:sell`, 0, 200, "WITHSCORES"),
   ]);
-  const aggBids: Record<string, number> = {};
-  const aggAsks: Record<string, number> = {};
+
+  // Build order-key arrays for both sides first, then fetch all payloads in
+  // two batched mget calls instead of one GET per entry (N+1 → 2 round-trips).
+  const buyIds: Array<{ id: string; price: number }> = [];
   for (let i = 0; i < buys.length; i += 2) {
-    const id = buys[i]; const score = Number(buys[i + 1]);
-    const price = -score;
-    const raw = await r.get(`orderbook:${symbol}:order:${id}`);
+    buyIds.push({ id: buys[i], price: -Number(buys[i + 1]) });
+  }
+  const sellIds: Array<{ id: string; price: number }> = [];
+  for (let i = 0; i < sells.length; i += 2) {
+    sellIds.push({ id: sells[i], price: Number(sells[i + 1]) });
+  }
+
+  const [buyRaws, sellRaws] = await Promise.all([
+    buyIds.length > 0
+      ? r.mget(...buyIds.map(b => `orderbook:${symbol}:order:${b.id}`))
+      : Promise.resolve([] as (string | null)[]),
+    sellIds.length > 0
+      ? r.mget(...sellIds.map(s => `orderbook:${symbol}:order:${s.id}`))
+      : Promise.resolve([] as (string | null)[]),
+  ]);
+
+  const aggBids: Record<string, number> = {};
+  for (let i = 0; i < buyIds.length; i++) {
+    const raw = buyRaws[i];
     if (!raw) continue;
     const o = JSON.parse(raw);
     const rem = Number(o.qty) - Number(o.filledQty ?? 0);
     if (rem <= 0) continue;
-    const k = price.toString();
+    const k = buyIds[i].price.toString();
     aggBids[k] = (aggBids[k] ?? 0) + rem;
   }
-  for (let i = 0; i < sells.length; i += 2) {
-    const id = sells[i]; const score = Number(sells[i + 1]);
-    const price = score;
-    const raw = await r.get(`orderbook:${symbol}:order:${id}`);
+  const aggAsks: Record<string, number> = {};
+  for (let i = 0; i < sellIds.length; i++) {
+    const raw = sellRaws[i];
     if (!raw) continue;
     const o = JSON.parse(raw);
     const rem = Number(o.qty) - Number(o.filledQty ?? 0);
     if (rem <= 0) continue;
-    const k = price.toString();
+    const k = sellIds[i].price.toString();
     aggAsks[k] = (aggAsks[k] ?? 0) + rem;
   }
+
   const bids = Object.entries(aggBids).map(([p, q]) => [Number(p), q] as [number, number]).sort((a, b) => b[0] - a[0]).slice(0, levels);
   const asks = Object.entries(aggAsks).map(([p, q]) => [Number(p), q] as [number, number]).sort((a, b) => a[0] - b[0]).slice(0, levels);
   return { bids, asks };
