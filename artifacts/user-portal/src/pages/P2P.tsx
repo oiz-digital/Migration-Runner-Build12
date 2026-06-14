@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, ShoppingCart, Tag, MessageSquare, Trash2, Power, ShieldCheck,
-  AlertTriangle, Loader2, Send, ArrowDown, ArrowUp, Wallet, RefreshCw,
+  AlertTriangle, AlertCircle, Loader2, Send, ArrowDown, ArrowUp, Wallet, RefreshCw,
   Check, X, Hourglass, CircleDot, IndianRupee, Building, Smartphone,
   Star, Edit2, CheckCircle2, Clock, Trophy, ExternalLink,
 } from "lucide-react";
@@ -717,6 +717,36 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
     if (!termsEdited) setTerms(defaultAdTerms(side, payWindowMins));
   }, [side, payWindowMins, termsEdited]);
 
+  // Seller's saved payment methods — needed for sell ad validation
+  const myMethodsQ = useListP2pPaymentMethods({
+    request: COOKIE_REQ,
+    query: { queryKey: ["/p2p/payment-methods"] },
+  });
+  const savedMethods: PaymentMethod[] = (myMethodsQ.data ?? []) as PaymentMethod[];
+
+  // Count how many saved accounts exist per method type
+  const savedCountByType = PAYMENT_METHODS.reduce<Record<string, number>>((acc, m) => {
+    acc[m.value] = savedMethods.filter(sm => sm.method === m.value && sm.active).length;
+    return acc;
+  }, {});
+  const hasSavedMethods = savedMethods.filter(sm => sm.active).length > 0;
+
+  // For sell ads: auto-deselect method types that have no saved accounts
+  useEffect(() => {
+    if (side === "sell" && savedMethods.length > 0) {
+      setMethods(prev => {
+        const valid = prev.filter(m => (savedCountByType[m] ?? 0) > 0);
+        // If nothing valid left, pick first available type
+        if (valid.length === 0) {
+          const first = PAYMENT_METHODS.find(m => (savedCountByType[m.value] ?? 0) > 0);
+          return first ? [first.value] : [];
+        }
+        return valid;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [side, savedMethods.length]);
+
   const coinsQ = useQuery<Coin[]>({
     queryKey: ["/coins"],
     queryFn: () => get<Coin[]>("/coins"),
@@ -770,7 +800,8 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   });
 
   const valid = !!coinSymbol && Number(price) > 0 && Number(totalQty) > 0
-    && Number(minFiat) > 0 && Number(maxFiat) >= Number(minFiat) && methods.length > 0;
+    && Number(minFiat) > 0 && Number(maxFiat) >= Number(minFiat) && methods.length > 0
+    && (side !== "sell" || hasSavedMethods);
 
   return (<>
     <Dialog open onOpenChange={adSuccess ? undefined : onClose}>
@@ -934,35 +965,69 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
 
           {/* Payment methods */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Accepted payment methods <span className="normal-case font-normal">(select at least one)</span>
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Accepted payment methods <span className="normal-case font-normal">(select at least one)</span>
+              </Label>
+            </div>
+
+            {/* Sell ad + no saved methods → hard block */}
+            {side === "sell" && !myMethodsQ.isLoading && !hasSavedMethods && (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-rose-300">No payment methods added</p>
+                  <p className="text-[11px] text-rose-400/80 mt-0.5">
+                    You need at least one saved UPI/bank account before posting a sell ad. Buyers will pay to your saved account.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-1.5 text-[11px] text-rose-300 underline underline-offset-2 hover:text-rose-200"
+                  >
+                    Go to Payment Methods tab →
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {PAYMENT_METHODS.map(m => {
                 const Icon = m.icon;
                 const checked = methods.includes(m.value);
+                const count = savedCountByType[m.value] ?? 0;
+                // For sell ads: disable types with no saved accounts
+                const disabled = side === "sell" && count === 0;
                 return (
                   <label
                     key={m.value}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${
-                      checked
-                        ? "border-violet-500/50 bg-violet-500/10 text-violet-300"
-                        : "border-border/60 hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+                      disabled
+                        ? "border-border/30 bg-muted/20 text-muted-foreground/40 cursor-not-allowed opacity-50"
+                        : checked
+                          ? "border-violet-500/50 bg-violet-500/10 text-violet-300 cursor-pointer"
+                          : "border-border/60 hover:bg-muted/40 text-muted-foreground hover:text-foreground cursor-pointer"
                     }`}
                   >
                     <Checkbox
                       checked={checked}
-                      onCheckedChange={(c) => setMethods(c ? [...methods, m.value] : methods.filter(x => x !== m.value))}
+                      disabled={disabled}
+                      onCheckedChange={(c) => !disabled && setMethods(c ? [...methods, m.value] : methods.filter(x => x !== m.value))}
                       className="shrink-0"
                       data-testid={`p2p-ad-method-${m.value}`}
                     />
                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-xs font-medium truncate">{m.label}</span>
+                    <span className="text-xs font-medium truncate">
+                      {m.label}
+                      {side === "sell" && count > 0 && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">({count})</span>
+                      )}
+                    </span>
                   </label>
                 );
               })}
             </div>
-            {methods.length === 0 && (
+            {methods.length === 0 && hasSavedMethods && (
               <div className="text-[11px] text-rose-400">Select at least one payment method</div>
             )}
           </div>
