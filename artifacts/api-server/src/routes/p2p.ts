@@ -8,6 +8,7 @@ import {
   p2pMessagesTable,
   p2pPaymentMethodsTable,
   p2pDisputesTable,
+  p2pRatingsTable,
   walletsTable,
   coinsTable,
   usersTable,
@@ -885,6 +886,76 @@ router.post("/p2p/orders/:id/messages", requireAuth, async (req, res): Promise<v
   }).returning();
   req.log.info({ orderId: id, senderId: me, senderRole: role, len: body.length }, "p2p chat message");
   res.status(201).json(created);
+});
+
+// ─── Rate counterparty ───────────────────────────────────────────────────
+// One rating per order per participant. Available once order reaches
+// "released" or "cancelled". Score 1–5, optional comment ≤300 chars.
+const RateBody = z.object({
+  score: z.number().int().min(1, "Score 1–5 required").max(5, "Score 1–5 required"),
+  comment: z.string().trim().max(300).optional(),
+}).strict();
+
+router.post("/p2p/orders/:id/rate", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = RateBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }); return; }
+  const { score, comment } = parsed.data;
+  const me = req.user!.id;
+  try {
+    const [o] = await db.select().from(p2pOrdersTable).where(eq(p2pOrdersTable.id, id)).limit(1);
+    if (!o) { res.status(404).json({ error: "Order not found" }); return; }
+    if (o.buyerId !== me && o.sellerId !== me) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (o.status !== "released" && o.status !== "cancelled") {
+      res.status(400).json({ error: "Can only rate completed or cancelled orders" }); return;
+    }
+    const ratedId = o.buyerId === me ? o.sellerId : o.buyerId;
+    const [existing] = await db.select({ id: p2pRatingsTable.id })
+      .from(p2pRatingsTable)
+      .where(and(eq(p2pRatingsTable.orderId, id), eq(p2pRatingsTable.raterId, me)))
+      .limit(1);
+    if (existing) { res.status(400).json({ error: "Already rated this order" }); return; }
+    const [rating] = await db.insert(p2pRatingsTable).values({
+      orderId: id, raterId: me, ratedId, score, comment: comment || null,
+    }).returning();
+    req.log.info({ orderId: id, raterId: me, ratedId, score }, "p2p rating submitted");
+    res.status(201).json(rating);
+  } catch (e) {
+    if (sendError(res, e)) return;
+    throw e;
+  }
+});
+
+// ─── Merchant public stats ────────────────────────────────────────────────
+// Aggregated per-user trade stats for the merchant profile card.
+// Returns: totalTrades (released), completionRate %, avgReleaseTimeSecs,
+// avgRating (null if no ratings yet), ratingCount.
+router.get("/p2p/merchant/:userId/stats", requireAuth, async (req, res): Promise<void> => {
+  const userId = Number(req.params.userId);
+  if (!Number.isFinite(userId)) { res.status(400).json({ error: "Invalid userId" }); return; }
+  const [stats] = await db.select({
+    total: sql<number>`count(*)::int`,
+    released: sql<number>`count(*) filter (where status = 'released')::int`,
+    cancelled: sql<number>`count(*) filter (where (status = 'cancelled' or status = 'expired'))::int`,
+    avgReleaseSecs: sql<number | null>`extract(epoch from avg(released_at - paid_at)) filter (where released_at is not null and paid_at is not null)`,
+  }).from(p2pOrdersTable)
+    .where(or(eq(p2pOrdersTable.buyerId, userId), eq(p2pOrdersTable.sellerId, userId)));
+  const [ratingStats] = await db.select({
+    avgRating: sql<number | null>`round(avg(score)::numeric, 1)`,
+    ratingCount: sql<number>`count(*)::int`,
+  }).from(p2pRatingsTable).where(eq(p2pRatingsTable.ratedId, userId));
+  const total = stats?.total ?? 0;
+  const released = stats?.released ?? 0;
+  const completionRate = total > 0 ? Math.round((released / total) * 100) : 100;
+  res.json({
+    userId,
+    totalTrades: released,
+    completionRate,
+    avgReleaseTimeSecs: stats?.avgReleaseSecs ? Math.round(Number(stats.avgReleaseSecs)) : null,
+    avgRating: ratingStats?.avgRating ? Number(ratingStats.avgRating) : null,
+    ratingCount: ratingStats?.ratingCount ?? 0,
+  });
 });
 
 // Admin / moderation

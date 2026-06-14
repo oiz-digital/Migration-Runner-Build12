@@ -24,6 +24,8 @@ export const p2pPaymentMethodsTable = pgTable("p2p_payment_methods", {
   // Soft-delete flag — keep the row so historical orders can still
   // reference the method that was used at the time of trade.
   active: boolean("active").notNull().default(true),
+  // Admin-verified flag — set true after manual or penny-drop verification.
+  verified: boolean("verified").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userIdx: index("p2p_pm_user_idx").on(t.userId),
@@ -204,3 +206,23 @@ export const p2pDisputesTable = pgTable("p2p_disputes", {
 }));
 
 export type P2pDispute = typeof p2pDisputesTable.$inferSelect;
+
+// ─── P2P Ratings ────────────────────────────────────────────────────────
+// One rating per completed/cancelled order per participant. After a trade
+// reaches status "released" or "cancelled", each party can leave a 1–5
+// star review with an optional comment for the counterparty.
+// Unique on (order_id, rater_id) — enforced in application layer.
+export const p2pRatingsTable = pgTable("p2p_ratings", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull(),
+  raterId: integer("rater_id").notNull(),
+  ratedId: integer("rated_id").notNull(),
+  score: integer("score").notNull(), // 1–5
+  comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orderRaterIdx: index("p2p_rating_order_rater_idx").on(t.orderId, t.raterId),
+  ratedIdx: index("p2p_rating_rated_idx").on(t.ratedId),
+}));
+
+export type P2pRating = typeof p2pRatingsTable.$inferSelect;

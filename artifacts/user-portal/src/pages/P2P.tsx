@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Users, Plus, ShoppingCart, Tag, MessageSquare, Trash2, Power, ShieldCheck,
   AlertTriangle, Loader2, Send, ArrowDown, ArrowUp, Wallet, RefreshCw,
   Check, X, Hourglass, CircleDot, IndianRupee, Building, Smartphone,
+  Star, Edit2, CheckCircle2, Clock, Trophy, ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useFeatureFlags } from "@/lib/features";
@@ -94,6 +95,15 @@ type ChatMsg = {
   body: string; createdAt: string;
 };
 
+type MerchantStats = {
+  userId: number;
+  totalTrades: number;
+  completionRate: number;
+  avgReleaseTimeSecs: number | null;
+  avgRating: number | null;
+  ratingCount: number;
+};
+
 const PAYMENT_METHODS = [
   { value: "upi", label: "UPI", icon: Smartphone },
   { value: "imps", label: "IMPS", icon: Building },
@@ -129,6 +139,18 @@ function timeLeft(iso: string): string {
 }
 function methodLabel(m: string): string {
   return PAYMENT_METHODS.find(p => p.value === m)?.label ?? m.toUpperCase();
+}
+
+function StarDisplay({ score, size = "sm" }: { score: number | null; size?: "sm" | "xs" }) {
+  if (!score) return null;
+  const cls = size === "xs" ? "w-3 h-3" : "w-3.5 h-3.5";
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1,2,3,4,5].map(s => (
+        <Star key={s} className={`${cls} ${score >= s ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`} />
+      ))}
+    </span>
+  );
 }
 
 
@@ -241,6 +263,7 @@ function MarketplaceTab() {
   const [coin, setCoin] = useState<string>("");
   const [method, setMethod] = useState<string>("");
   const [openOffer, setOpenOffer] = useState<Offer | null>(null);
+  const [viewMerchant, setViewMerchant] = useState<Merchant | null>(null);
 
   const offersQ = useListP2pOffers(
     {
@@ -345,10 +368,16 @@ function MarketplaceTab() {
                 {(offersQ.data ?? []).map((o: any) => (
                   <tr key={o.id} className="border-b border-border/40 hover:bg-muted/30" data-testid={`p2p-offer-${o.id}`}>
                     <td className="p-3">
-                      <div className="font-semibold">{o.merchant.name}</div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <ShieldCheck className="w-3 h-3" /> KYC L{o.merchant.kycLevel}
-                        {o.merchant.vipTier > 0 && <span>· VIP{o.merchant.vipTier}</span>}
+                      <button
+                        type="button"
+                        className="font-semibold text-left hover:text-amber-300 transition-colors"
+                        onClick={() => setViewMerchant(o.merchant)}
+                      >
+                        {o.merchant.name}
+                      </button>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                        <ShieldCheck className="w-3 h-3 text-emerald-400" /> KYC L{o.merchant.kycLevel}
+                        {o.merchant.vipTier > 0 && <span className="text-amber-400">· VIP{o.merchant.vipTier}</span>}
                       </div>
                     </td>
                     <td className="p-3 text-right">
@@ -392,6 +421,9 @@ function MarketplaceTab() {
       {openOffer && (
         <OpenOrderDialog offer={openOffer} onClose={() => setOpenOffer(null)} />
       )}
+      {viewMerchant && (
+        <MerchantStatsDialog merchant={viewMerchant} onClose={() => setViewMerchant(null)} />
+      )}
     </div>
   );
 }
@@ -427,9 +459,10 @@ function OpenOrderDialog({ offer, onClose }: { offer: Offer; onClose: () => void
 
   const fiatNum = Number(fiatAmount);
   const qty = fiatNum > 0 ? fiatNum / offer.price : 0;
+  const kycOk = (user?.kycLevel ?? 0) >= offer.minKycLevel;
   const valid = fiatNum >= offer.minFiat && fiatNum <= offer.maxFiat
     && qty <= offer.availableQty && qty > 0
-    && paymentMethodId != null;
+    && paymentMethodId != null && kycOk;
 
   const openMut = useOpenP2pOrder({
     request: COOKIE_REQ,
@@ -502,6 +535,14 @@ function OpenOrderDialog({ offer, onClose }: { offer: Offer; onClose: () => void
               </SelectContent>
             </Select>
           </div>
+
+          {!kycOk && (
+            <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+              This offer requires <strong>KYC Level {offer.minKycLevel}</strong>. Your level is {user?.kycLevel ?? 0}.{" "}
+              <Link href="/kyc" className="underline font-medium">Complete KYC →</Link>
+            </div>
+          )}
 
           {offer.terms && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -660,6 +701,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
   const [minFiat, setMinFiat] = useState("");
   const [maxFiat, setMaxFiat] = useState("");
   const [methods, setMethods] = useState<string[]>(["upi"]);
+  const [payWindowMins, setPayWindowMins] = useState(15);
   const [terms, setTerms] = useState("");
 
   const coinsQ = useQuery<Coin[]>({
@@ -770,7 +812,16 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
 
           <div>
             <Label>Pay window</Label>
-            <p className="text-sm text-muted-foreground">15 minutes to complete payment.</p>
+            <Select value={String(payWindowMins)} onValueChange={(v) => setPayWindowMins(Number(v))}>
+              <SelectTrigger data-testid="p2p-ad-paywindow"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15 minutes</SelectItem>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="45">45 minutes</SelectItem>
+                <SelectItem value="60">60 minutes</SelectItem>
+                <SelectItem value="90">90 minutes</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -798,7 +849,7 @@ function CreateAdDialog({ onClose }: { onClose: () => void }) {
                 minFiat: Number(minFiat),
                 maxFiat: Number(maxFiat),
                 paymentMethods: methods as Array<"upi" | "imps" | "neft" | "bank" | "paytm" | "phonepe" | "gpay">,
-                payWindowMins: 15,
+                payWindowMins: payWindowMins as 15,
                 ...(terms ? { terms } : {}),
               },
             })}
@@ -935,8 +986,10 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeEvidenceUrl, setDisputeEvidenceUrl] = useState("");
   const [showDispute, setShowDispute] = useState(false);
+  const [showRating, setShowRating] = useState(false);
   const [chatBody, setChatBody] = useState("");
   const [p2pSuccess, setP2pSuccess] = useState<GenericSuccess | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const orderQ = useGetP2pOrder(initial.id, {
     request: COOKIE_REQ,
@@ -990,7 +1043,8 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
             { label: "Sent",     value: `${order.qty} ${order.coin?.symbol ?? ""}`, accent: "text-emerald-400" },
             { label: "Received", value: `₹${Number(order.fiatAmount).toLocaleString("en-IN")}` },
           ],
-          primaryLabel: "Done",
+          primaryLabel: "Rate Counterparty",
+          onPrimaryExtra: () => setShowRating(true),
         });
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
@@ -1008,8 +1062,8 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
             { label: "Status",  value: "Cancelled", accent: "text-muted-foreground" },
             { label: "Escrow",  value: "Refunded to seller", accent: "text-emerald-400" },
           ],
-          primaryLabel: "Close",
-          onPrimaryExtra: onClose,
+          primaryLabel: "Rate Counterparty",
+          onPrimaryExtra: () => setShowRating(true),
         });
         qc.invalidateQueries({ queryKey: ["/p2p/orders"] });
       },
@@ -1043,6 +1097,8 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
         toast.error(e instanceof Error ? e.message : "Send failed"),
     },
   });
+
+  useScrollToBottom(chatEndRef, messagesQ.data?.length ?? 0);
 
   const isBuyer = order.role === "buyer";
   const isSeller = order.role === "seller";
@@ -1156,36 +1212,56 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
           {/* Right: chat */}
           <div>
             <SectionCard title={`Chat (${messagesQ.data?.length || 0})`} padded={false}>
-              <div className="h-[360px] overflow-y-auto p-3 space-y-2 text-sm">
+              <div
+                id="p2p-chat-scroll"
+                className="h-[360px] overflow-y-auto p-3 space-y-2 text-sm"
+              >
                 {(messagesQ.data ?? []).length === 0 && (
-                  <div className="text-center text-xs text-muted-foreground py-8">No messages yet</div>
+                  <div className="text-center text-xs text-muted-foreground py-8">No messages yet. Say hi 👋</div>
                 )}
                 {(messagesQ.data ?? []).map((m: any) => {
                   const fromMe = m.senderRole !== "system" && m.senderRole !== "admin"
                     && ((isBuyer && m.senderRole === "buyer") || (isSeller && m.senderRole === "seller"));
                   const isSystem = m.senderRole === "system";
                   const isAdmin = m.senderRole === "admin";
+                  const isImgUrl = /^https?:\/\/.+\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i.test(m.body.trim());
+                  const isUrl = /^https?:\/\//i.test(m.body.trim());
                   return (
                     <div key={m.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
                       <div className={`max-w-[80%] rounded-lg px-3 py-1.5 ${
-                        isSystem ? "bg-muted/50 text-xs text-muted-foreground italic mx-auto"
+                        isSystem ? "bg-muted/50 text-xs text-muted-foreground italic mx-auto text-center"
                         : isAdmin ? "bg-amber-500/20 border border-amber-500/30 text-amber-200"
                         : fromMe ? "bg-emerald-500/20 border border-emerald-500/30"
                         : "bg-muted/40 border border-border"
                       }`}>
                         {(isAdmin || (!isSystem && !fromMe)) && (
-                          <div className="text-[10px] opacity-70 mb-0.5 capitalize">{m.senderRole}</div>
+                          <div className="text-[10px] opacity-70 mb-0.5 capitalize font-medium">{m.senderRole}</div>
                         )}
-                        <div>{m.body}</div>
+                        {isImgUrl ? (
+                          <img
+                            src={m.body.trim()}
+                            alt="shared"
+                            className="max-w-full max-h-36 rounded object-cover mt-0.5"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                          />
+                        ) : isUrl ? (
+                          <a href={m.body.trim()} target="_blank" rel="noopener noreferrer"
+                             className="underline break-all flex items-center gap-1">
+                            <ExternalLink className="w-3 h-3 flex-shrink-0" />{m.body}
+                          </a>
+                        ) : (
+                          <div className="break-words">{m.body}</div>
+                        )}
                         <div className="text-[10px] opacity-60 mt-0.5">{relTime(m.createdAt)}</div>
                       </div>
                     </div>
                   );
                 })}
+                <div ref={chatEndRef} />
               </div>
               <div className="border-t border-border/60 p-2 flex gap-2">
                 <Input
-                  placeholder="Type a message…"
+                  placeholder="Type a message or paste an image URL…"
                   value={chatBody}
                   onChange={(e) => setChatBody(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && chatBody.trim()) { e.preventDefault(); sendChatMut.mutate({ id: order.id, data: { body: chatBody } }); } }}
@@ -1197,7 +1273,7 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
                   disabled={!chatBody.trim() || sendChatMut.isPending}
                   data-testid="p2p-chat-send"
                 >
-                  <Send className="w-4 h-4" />
+                  {sendChatMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
             </SectionCard>
@@ -1265,7 +1341,17 @@ function OrderDetailDialog({ order: initial, onClose }: { order: P2pOrder; onClo
       onClose={() => setP2pSuccess(null)}
       payload={p2pSuccess}
     />
+
+    {showRating && (
+      <RatingDialog order={order} onClose={() => setShowRating(false)} />
+    )}
   </>);
+}
+
+function useScrollToBottom(ref: React.RefObject<HTMLDivElement | null>, dep: number) {
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: "smooth" });
+  }, [dep]);
 }
 
 function Row({ label, value, mono, bold, accent }: { label: string; value: string; mono?: boolean; bold?: boolean; accent?: boolean }) {
@@ -1281,6 +1367,7 @@ function Row({ label, value, mono, bold, accent }: { label: string; value: strin
 function PaymentMethodsTab() {
   const qc = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const [editMethod, setEditMethod] = useState<PaymentMethod | null>(null);
 
   const methodsQ = useListP2pPaymentMethods({
     request: COOKIE_REQ,
@@ -1330,21 +1417,41 @@ function PaymentMethodsTab() {
                     <Wallet className="w-5 h-5 text-amber-300" />
                   </div>
                   <div>
-                    <div className="font-semibold">{m.label}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{m.label}</span>
+                      {m.verified
+                        ? <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-0.5">
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Verified
+                          </Badge>
+                        : <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+                            Self-reported
+                          </Badge>
+                      }
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {methodLabel(m.method)} · {m.account}
                       {m.ifsc && <> · {m.ifsc}</>}
                     </div>
                   </div>
                 </div>
-                <Button
-                  size="icon" variant="outline"
-                  onClick={() => { if (confirm("Remove this method?")) deleteMut.mutate({ id: m.id }); }}
-                  disabled={deleteMut.isPending}
-                  data-testid={`p2p-delete-method-${m.id}`}
-                >
-                  <Trash2 className="w-4 h-4 text-rose-400" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    size="icon" variant="outline"
+                    onClick={() => setEditMethod(m)}
+                    title="Edit method"
+                    data-testid={`p2p-edit-method-${m.id}`}
+                  >
+                    <Edit2 className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    size="icon" variant="outline"
+                    onClick={() => { if (confirm("Remove this payment method?")) deleteMut.mutate({ id: m.id }); }}
+                    disabled={deleteMut.isPending}
+                    data-testid={`p2p-delete-method-${m.id}`}
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -1352,7 +1459,276 @@ function PaymentMethodsTab() {
       </SectionCard>
 
       {adding && <AddMethodDialog onClose={() => setAdding(false)} />}
+      {editMethod && <EditMethodDialog method={editMethod} onClose={() => setEditMethod(null)} />}
     </div>
+  );
+}
+
+// ─── Rating Dialog ────────────────────────────────────────────────────────
+function RatingDialog({ order, onClose }: { order: P2pOrder; onClose: () => void }) {
+  const [score, setScore] = useState(0);
+  const [hovered, setHovered] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const counterparty = order.role === "buyer" ? order.seller : order.buyer;
+  const LABELS = ["", "Poor", "Fair", "Good", "Great", "Excellent!"];
+
+  const handleSubmit = async () => {
+    if (score === 0 || loading) return;
+    setLoading(true);
+    try {
+      await fetch(`/api/p2p/orders/${order.id}/rate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ score, ...(comment.trim() ? { comment: comment.trim() } : {}) }),
+      });
+      setSubmitted(true);
+    } catch {
+      toast.error("Could not submit rating — please try again");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-400" /> Rate Your Trade
+          </DialogTitle>
+          <DialogDescription>
+            How was your experience with <strong>{counterparty.name}</strong>?
+          </DialogDescription>
+        </DialogHeader>
+        {submitted ? (
+          <div className="text-center py-6 space-y-3">
+            <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
+            <div className="font-semibold text-lg">Thanks for your feedback!</div>
+            <div className="text-sm text-muted-foreground">Your review helps build trust on the P2P marketplace.</div>
+            <Button className="mt-2" onClick={onClose}>Close</Button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4 py-2">
+              <div className="flex justify-center gap-1.5">
+                {[1,2,3,4,5].map(s => (
+                  <button
+                    key={s} type="button"
+                    className="focus:outline-none transition-transform hover:scale-110 active:scale-95"
+                    onMouseEnter={() => setHovered(s)}
+                    onMouseLeave={() => setHovered(0)}
+                    onClick={() => setScore(s)}
+                  >
+                    <Star className={`w-9 h-9 transition-colors ${(hovered || score) >= s
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-muted-foreground/40"}`}
+                    />
+                  </button>
+                ))}
+              </div>
+              {(hovered || score) > 0 && (
+                <div className="text-center text-sm font-medium text-amber-300">
+                  {LABELS[hovered || score]}
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Comment (optional)</Label>
+                <Textarea
+                  placeholder="Share details about your experience…"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  maxLength={300}
+                  rows={2}
+                  className="mt-1"
+                />
+                <div className="text-right text-xs text-muted-foreground mt-0.5">{comment.length}/300</div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Skip</Button>
+              <Button onClick={handleSubmit} disabled={score === 0 || loading}>
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Submit Rating
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Merchant Stats Dialog ─────────────────────────────────────────────────
+function MerchantStatsDialog({ merchant, onClose }: { merchant: Merchant; onClose: () => void }) {
+  const [stats, setStats] = useState<MerchantStats | null>(null);
+  const [err, setErr] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/p2p/merchant/${merchant.id}/stats`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(setStats)
+      .catch(() => setErr(true));
+  }, [merchant.id]);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-400" /> {merchant.name}
+          </DialogTitle>
+          <DialogDescription>P2P merchant profile</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
+              <ShieldCheck className="w-3 h-3 mr-1" /> KYC Level {merchant.kycLevel}
+            </Badge>
+            {merchant.vipTier > 0 && (
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">
+                VIP {merchant.vipTier}
+              </Badge>
+            )}
+            <span className="text-xs text-muted-foreground ml-auto">
+              Since {new Date(merchant.createdAt).toLocaleDateString("en-IN", { year: "numeric", month: "short" })}
+            </span>
+          </div>
+
+          {err ? (
+            <div className="text-center text-sm text-muted-foreground py-2">Could not load stats.</div>
+          ) : !stats ? (
+            <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-amber-300" /></div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                <div className="text-2xl font-bold text-emerald-400">{stats.totalTrades}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Total Trades</div>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                <div className={`text-2xl font-bold ${stats.completionRate >= 90 ? "text-emerald-400" : stats.completionRate >= 70 ? "text-amber-400" : "text-rose-400"}`}>
+                  {stats.completionRate}%
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">Completion Rate</div>
+              </div>
+              {stats.avgRating != null && (
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
+                    <span className="text-2xl font-bold text-amber-400">{stats.avgRating}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{stats.ratingCount} review{stats.ratingCount !== 1 ? "s" : ""}</div>
+                </div>
+              )}
+              {stats.avgReleaseTimeSecs != null && (
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <Clock className="w-4 h-4 text-blue-400" />
+                    <span className="text-2xl font-bold text-blue-400">
+                      {stats.avgReleaseTimeSecs < 60
+                        ? `${stats.avgReleaseTimeSecs}s`
+                        : `${Math.round(stats.avgReleaseTimeSecs / 60)}m`}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">Avg Release Time</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Edit Payment Method Dialog ────────────────────────────────────────────
+function EditMethodDialog({ method, onClose }: { method: PaymentMethod; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [label, setLabel] = useState(method.label);
+  const [account, setAccount] = useState(method.account);
+  const [ifsc, setIfsc] = useState(method.ifsc || "");
+  const [holderName, setHolderName] = useState(method.holderName || "");
+
+  const needsBank = method.method === "imps" || method.method === "neft" || method.method === "bank";
+
+  const deleteMut = useDeleteP2pPaymentMethod({ request: COOKIE_REQ, mutation: {} });
+  const createMut = useCreateP2pPaymentMethod({
+    request: COOKIE_REQ,
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["/p2p/payment-methods"] });
+        toast.success("Payment method updated");
+        onClose();
+      },
+      onError: (e: unknown) =>
+        toast.error(e instanceof Error ? e.message : "Update failed"),
+    },
+  });
+
+  const valid = !!label && !!account && (!needsBank || (!!ifsc && !!holderName));
+  const busy = deleteMut.isPending || createMut.isPending;
+
+  const handleSave = () => {
+    if (!valid || busy) return;
+    deleteMut.mutate({ id: method.id }, {
+      onSuccess: () => {
+        createMut.mutate({
+          data: {
+            method: method.method as "upi" | "imps" | "neft" | "bank" | "paytm" | "phonepe" | "gpay",
+            label, account,
+            ...(needsBank ? { ifsc, holderName } : {}),
+          },
+        });
+      },
+      onError: (e: unknown) =>
+        toast.error(e instanceof Error ? e.message : "Could not update — please try again"),
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent data-testid="p2p-edit-method-dialog">
+        <DialogHeader>
+          <DialogTitle>Edit Payment Method</DialogTitle>
+          <DialogDescription>Updating saves a new record and removes the old one.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div>
+            <Label className="text-xs text-muted-foreground">Method type (read-only)</Label>
+            <div className="text-sm font-medium mt-0.5">{methodLabel(method.method)}</div>
+          </div>
+          <div>
+            <Label>Display label</Label>
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label>{needsBank ? "Account number" : method.method === "upi" ? "UPI ID (VPA)" : "Phone / Account"}</Label>
+            <Input value={account} onChange={(e) => setAccount(e.target.value)} className="mt-1" />
+          </div>
+          {needsBank && (
+            <>
+              <div>
+                <Label>IFSC code</Label>
+                <Input value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} className="mt-1" />
+              </div>
+              <div>
+                <Label>Account holder name</Label>
+                <Input value={holderName} onChange={(e) => setHolderName(e.target.value)} className="mt-1" />
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={!valid || busy} data-testid="p2p-edit-method-save">
+            {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
