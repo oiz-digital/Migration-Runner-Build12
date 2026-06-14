@@ -54,6 +54,10 @@ import {
   Download,
   ScanLine,
   Shield,
+  SendHorizontal,
+  Users,
+  UserCheck,
+  Mail,
 } from "lucide-react";
 import QRCodeSVG from "react-qr-code";
 
@@ -236,6 +240,7 @@ export default function Wallet() {
   const [depositOpen, setDepositOpen] = useState<{ currency: string; type: WalletType } | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState<{ currency: string; type: WalletType } | null>(null);
   const [transferOpen, setTransferOpen] = useState<{ currency?: string } | null>(null);
+  const [sendOpen, setSendOpen] = useState<{ currency?: string } | null>(null);
   const [walletSuccess, setWalletSuccess] = useState<GenericSuccess | null>(null);
 
   const handleWithdraw = (currency: string, type: WalletType) => {
@@ -410,7 +415,7 @@ export default function Wallet() {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 lg:max-w-lg w-full">
+            <div className="grid grid-cols-4 gap-2 sm:gap-3 lg:max-w-xl w-full">
               <Button
                 onClick={() => setDepositOpen({ currency: "USDT", type: "SPOT" })}
                 className="h-12 flex-col gap-0.5 bg-primary hover:bg-primary/90"
@@ -436,6 +441,15 @@ export default function Wallet() {
               >
                 <ArrowLeftRight className="h-4 w-4" />
                 <span className="text-xs font-semibold">Transfer</span>
+              </Button>
+              <Button
+                onClick={() => setSendOpen({})}
+                variant="outline"
+                className="h-12 flex-col gap-0.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                data-testid="button-p2p-send"
+              >
+                <SendHorizontal className="h-4 w-4" />
+                <span className="text-xs font-semibold">Send</span>
               </Button>
             </div>
           </div>
@@ -563,6 +577,16 @@ export default function Wallet() {
           open={!!transferOpen}
           onClose={() => setTransferOpen(null)}
           initialCurrency={transferOpen.currency}
+          allItems={items}
+          onDone={() => { walletQ.refetch(); qc.invalidateQueries({ queryKey: ["transactions"] }); }}
+          onSuccess={(d) => setWalletSuccess(d)}
+        />
+      )}
+      {sendOpen && (
+        <SendToUserDialog
+          open={!!sendOpen}
+          onClose={() => setSendOpen(null)}
+          initialCurrency={sendOpen.currency}
           allItems={items}
           onDone={() => { walletQ.refetch(); qc.invalidateQueries({ queryKey: ["transactions"] }); }}
           onSuccess={(d) => setWalletSuccess(d)}
@@ -1939,14 +1963,30 @@ function WithdrawDialog({
     return null;
   })();
 
+  const { user } = useAuth();
+  const [otpPhase, setOtpPhase] = useState<"form" | "otp">("form");
+  const [pendingOtpId, setPendingOtpId] = useState<number | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+
+  const requestOtp = useMutation({
+    mutationFn: () => post("/otp/send", { channel: "email", purpose: "withdraw", recipient: user?.email }),
+    onSuccess: (data: any) => {
+      setPendingOtpId(data.otpId);
+      setOtpPhase("otp");
+      toast.success("OTP sent to your email", { description: "Enter the 6-digit code to confirm your withdrawal." });
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to send OTP"),
+  });
+
   const submit = useMutation({
     mutationFn: async () => {
+      await post("/otp/verify", { otpId: pendingOtpId, code: otpCode });
       if (mode === "CRYPTO") {
         return post("/finance/withdraw/spot", {
-          currency, amount: amt, address: address.trim(), network: activeNet?.chain || network, memo: memo.trim() || undefined,
+          currency, amount: amt, address: address.trim(), network: activeNet?.chain || network, memo: memo.trim() || undefined, otpId: pendingOtpId,
         });
       }
-      return post("/finance/withdraw/fiat", { bankId: Number(bankId), amount: amt });
+      return post("/finance/withdraw/fiat", { bankId: Number(bankId), amount: amt, otpId: pendingOtpId });
     },
     onSuccess: () => {
       onSuccess?.({
@@ -1966,7 +2006,7 @@ function WithdrawDialog({
       onDone();
       onClose();
     },
-    onError: (e: any) => toast.error(e?.message || "Withdrawal failed"),
+    onError: (e: any) => { toast.error(e?.message || "Withdrawal failed"); setOtpPhase("form"); setPendingOtpId(null); setOtpCode(""); },
   });
 
   const wBrand = activeNet ? netBrand(activeNet.chain) : null;
@@ -2210,17 +2250,64 @@ function WithdrawDialog({
           )}
         </div>
 
+        {/* OTP verification section — shown after user clicks "Withdraw" */}
+        {otpPhase === "otp" && (
+          <div className="px-6 pb-2">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-amber-300">
+                <Mail className="h-4 w-4 shrink-0" />
+                <span>OTP sent to your registered email</span>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Enter 6-digit OTP code</label>
+                <Input
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  className="font-mono text-xl h-12 tracking-[0.4em] text-center"
+                  maxLength={6}
+                  autoFocus
+                  data-testid="input-withdraw-otp"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <button type="button" onClick={() => { setOtpPhase("form"); setPendingOtpId(null); setOtpCode(""); }} className="hover:text-foreground transition-colors">
+                  ← Back
+                </button>
+                <button type="button" onClick={() => requestOtp.mutate()} disabled={requestOtp.isPending} className="hover:text-foreground transition-colors disabled:opacity-50">
+                  Resend OTP
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between gap-3">
           <Button variant="outline" size="sm" onClick={onClose} className="h-9">Cancel</Button>
-          <Button
-            onClick={() => submit.mutate()}
-            disabled={!!validation || submit.isPending}
-            className="h-9 bg-rose-500 hover:bg-rose-500/90 text-white flex-1"
-            data-testid="button-withdraw-submit"
-          >
-            {submit.isPending ? "Submitting…" : `Withdraw ${currency}`}
-          </Button>
+          {otpPhase === "form" ? (
+            <Button
+              onClick={() => requestOtp.mutate()}
+              disabled={!!validation || requestOtp.isPending}
+              className="h-9 bg-rose-500 hover:bg-rose-500/90 text-white flex-1"
+              data-testid="button-withdraw-get-otp"
+            >
+              {requestOtp.isPending
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending OTP…</>
+                : `Withdraw ${currency}`}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => submit.mutate()}
+              disabled={otpCode.length !== 6 || submit.isPending}
+              className="h-9 bg-rose-500 hover:bg-rose-500/90 text-white flex-1"
+              data-testid="button-withdraw-submit"
+            >
+              {submit.isPending
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Confirming…</>
+                : "Confirm Withdrawal"}
+            </Button>
+          )}
         </div>
 
         {showAddBank && (
@@ -2451,6 +2538,290 @@ function TransferDialog({
             {submit.isPending ? "Transferring…" : "Transfer"}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Send-to-User (P2P) Dialog ────────────────────────────────────────────────
+
+type SendToUserStep = "lookup" | "amount" | "otp";
+
+interface SendToUserDialogProps {
+  open: boolean;
+  onClose: () => void;
+  initialCurrency?: string;
+  allItems: WalletItem[];
+  onDone: () => void;
+  onSuccess?: (d: GenericSuccess) => void;
+}
+
+function SendToUserDialog({ open, onClose, initialCurrency, allItems, onDone, onSuccess }: SendToUserDialogProps) {
+  const { user } = useAuth();
+  const [step, setStep] = useState<SendToUserStep>("lookup");
+  const [query, setQuery] = useState("");
+  const [recipient, setRecipient] = useState<{ id: number; name: string; uid: string; email: string } | null>(null);
+  const [currency, setCurrency] = useState(initialCurrency || "USDT");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [otpId, setOtpId] = useState<number | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [lookupErr, setLookupErr] = useState("");
+
+  const spotItems = allItems.filter(i => i.type === "SPOT" && Number(i.balance) > 0);
+  const selectedItem = allItems.find(i => i.currency === currency && i.type === "SPOT");
+  const available = Number(selectedItem?.balance ?? 0);
+  const amt = Number(amount);
+  const amtValid = Number.isFinite(amt) && amt > 0 && amt <= available;
+
+  function reset() {
+    setStep("lookup");
+    setQuery("");
+    setRecipient(null);
+    setCurrency(initialCurrency || "USDT");
+    setAmount("");
+    setNote("");
+    setOtpId(null);
+    setOtpCode("");
+    setLookupErr("");
+  }
+
+  function handleClose() { reset(); onClose(); }
+
+  const lookupMut = useMutation({
+    mutationFn: () => get(`/finance/transfer/p2p/lookup?q=${encodeURIComponent(query.trim())}`),
+    onSuccess: (data: any) => { setRecipient(data); setLookupErr(""); setStep("amount"); },
+    onError: (e: any) => setLookupErr(e?.message || "User not found"),
+  });
+
+  const requestOtp = useMutation({
+    mutationFn: () => post("/finance/transfer/p2p/request", { toUserId: recipient?.id, coinSymbol: currency, amount: amt }),
+    onSuccess: (data: any) => { setOtpId(data.otpId); setStep("otp"); toast.success("OTP sent to your email"); },
+    onError: (e: any) => toast.error(e?.message || "Failed to send OTP"),
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: async () => {
+      await post("/otp/verify", { otpId, code: otpCode });
+      return post("/finance/transfer/p2p/confirm", { otpId, toUserId: recipient?.id, coinSymbol: currency, amount: amt, note: note || undefined });
+    },
+    onSuccess: () => {
+      onSuccess?.({
+        kind: "generic",
+        accentColor: "#F59E0B",
+        iconKind: "transfer",
+        title: "Transfer Successful!",
+        subtitle: `${currency} sent to ${recipient?.name}`,
+        rows: [
+          { label: "Amount", value: `${amount} ${currency}`, accent: "text-amber-400" },
+          { label: "Recipient", value: recipient?.name || "", accent: "text-foreground" },
+          { label: "UID", value: recipient?.uid || "" },
+          ...(note ? [{ label: "Note", value: note }] : []),
+        ],
+        primaryLabel: "Done",
+      });
+      onDone();
+      handleClose();
+    },
+    onError: (e: any) => { toast.error(e?.message || "Transfer failed"); setStep("amount"); setOtpId(null); setOtpCode(""); },
+  });
+
+  const stepTitles: Record<SendToUserStep, string> = {
+    lookup: "Find Recipient",
+    amount: "Choose Amount",
+    otp: "Confirm Transfer",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-sm rounded-2xl p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-border/50">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-8 w-8 rounded-full bg-amber-500/15 flex items-center justify-center">
+              <SendHorizontal className="h-4 w-4 text-amber-400" />
+            </div>
+            <DialogTitle className="text-base font-semibold">Send to User</DialogTitle>
+          </div>
+          <p className="text-xs text-muted-foreground">{stepTitles[step]}</p>
+          {/* Step indicator */}
+          <div className="flex items-center gap-1.5 mt-3">
+            {(["lookup", "amount", "otp"] as SendToUserStep[]).map((s, i) => (
+              <div key={s} className={`h-1 flex-1 rounded-full transition-all ${step === s ? "bg-amber-400" : i < ["lookup","amount","otp"].indexOf(step) ? "bg-amber-400/50" : "bg-border"}`} />
+            ))}
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {/* Step 1: Lookup */}
+          {step === "lookup" && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Email or User ID</label>
+                <div className="flex gap-2">
+                  <Input
+                    value={query}
+                    onChange={(e) => { setQuery(e.target.value); setLookupErr(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && query.trim().length >= 3 && lookupMut.mutate()}
+                    placeholder="user@email.com or UID123"
+                    className="h-10 flex-1"
+                    autoFocus
+                    data-testid="input-p2p-lookup"
+                  />
+                  <Button
+                    onClick={() => lookupMut.mutate()}
+                    disabled={query.trim().length < 3 || lookupMut.isPending}
+                    className="h-10 px-4 bg-amber-500 hover:bg-amber-500/90 text-black font-semibold"
+                  >
+                    {lookupMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {lookupErr && (
+                  <p className="mt-1.5 text-xs text-rose-400 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> {lookupErr}</p>
+                )}
+              </div>
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground/70 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" /> How it works</p>
+                <p>Enter the exact email address or User ID of the recipient. We'll show their masked email to confirm before sending. An OTP will be required.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Amount */}
+          {step === "amount" && recipient && (
+            <div className="space-y-3">
+              {/* Recipient card */}
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 p-3 flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <UserCheck className="h-4 w-4 text-amber-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{recipient.name}</p>
+                  <p className="text-xs text-muted-foreground">{recipient.email} · {recipient.uid}</p>
+                </div>
+                <button type="button" onClick={() => { setStep("lookup"); setRecipient(null); }} className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">Change</button>
+              </div>
+
+              {/* Coin selector */}
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Coin</label>
+                <Select value={currency} onValueChange={setCurrency}>
+                  <SelectTrigger className="h-10" data-testid="select-p2p-coin"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {spotItems.map(i => (
+                      <SelectItem key={i.currency} value={i.currency}>{i.currency} — {fmtNum(Number(i.balance), 6)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-muted-foreground">Amount</label>
+                  <button type="button" onClick={() => setAmount(String(available))} className="text-xs text-primary hover:underline">
+                    Max: {fmtNum(available, 6)} {currency}
+                  </button>
+                </div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="h-11 text-lg font-semibold"
+                  data-testid="input-p2p-amount"
+                />
+                {amount && !amtValid && (
+                  <p className="mt-1.5 text-xs text-rose-400 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> {amt > available ? "Insufficient balance" : "Enter a valid amount"}</p>
+                )}
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Note (optional)</label>
+                <Input
+                  value={note}
+                  onChange={(e) => setNote(e.target.value.slice(0, 100))}
+                  placeholder="e.g. Settlement, Gift…"
+                  className="h-10"
+                  data-testid="input-p2p-note"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: OTP */}
+          {step === "otp" && recipient && (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 p-3 text-sm space-y-0.5">
+                <p className="font-medium">Review transfer</p>
+                <p className="text-muted-foreground text-xs">{amount} {currency} → {recipient.name} ({recipient.uid})</p>
+                {note && <p className="text-muted-foreground text-xs">Note: {note}</p>}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-sm font-medium text-amber-300 mb-2">
+                  <Mail className="h-4 w-4 shrink-0" />
+                  <span>OTP sent to your registered email</span>
+                </div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Enter 6-digit OTP code</label>
+                <Input
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  className="font-mono text-xl h-12 tracking-[0.4em] text-center"
+                  maxLength={6}
+                  autoFocus
+                  data-testid="input-p2p-otp"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <button type="button" onClick={() => { setStep("amount"); setOtpId(null); setOtpCode(""); }} className="hover:text-foreground transition-colors">
+                  ← Back
+                </button>
+                <button type="button" onClick={() => requestOtp.mutate()} disabled={requestOtp.isPending} className="hover:text-foreground transition-colors disabled:opacity-50">
+                  Resend OTP
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border/50 flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={handleClose} className="h-9">Cancel</Button>
+          {step === "lookup" && (
+            <Button
+              onClick={() => lookupMut.mutate()}
+              disabled={query.trim().length < 3 || lookupMut.isPending}
+              className="h-9 flex-1 bg-amber-500 hover:bg-amber-500/90 text-black font-semibold"
+            >
+              {lookupMut.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Looking up…</> : <><Users className="h-4 w-4 mr-2" /> Find User</>}
+            </Button>
+          )}
+          {step === "amount" && (
+            <Button
+              onClick={() => requestOtp.mutate()}
+              disabled={!amtValid || requestOtp.isPending}
+              className="h-9 flex-1 bg-amber-500 hover:bg-amber-500/90 text-black font-semibold"
+              data-testid="button-p2p-continue"
+            >
+              {requestOtp.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending OTP…</> : <><SendHorizontal className="h-4 w-4 mr-2" /> Continue</>}
+            </Button>
+          )}
+          {step === "otp" && (
+            <Button
+              onClick={() => confirmMut.mutate()}
+              disabled={otpCode.length !== 6 || confirmMut.isPending}
+              className="h-9 flex-1 bg-amber-500 hover:bg-amber-500/90 text-black font-semibold"
+              data-testid="button-p2p-confirm"
+            >
+              {confirmMut.isPending ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Sending…</> : <><CheckCircle2 className="h-4 w-4 mr-2" /> Confirm Send</>}
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

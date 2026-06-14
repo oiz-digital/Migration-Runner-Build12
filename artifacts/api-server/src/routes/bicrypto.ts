@@ -1465,7 +1465,7 @@ r.post("/finance/bank/accounts", bicryptoAuth, async (req: any, res): Promise<vo
 // overdraw. Funds move from `balance` → `locked` until the admin approves
 // or rejects (see admin.ts /admin/crypto-withdrawals/:id PATCH).
 r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<void> => {
-  const { currency, amount, address, network, memo } = req.body ?? {};
+  const { currency, amount, address, network, memo, otpId } = req.body ?? {};
   const amt = Number(amount);
   if (!currency || !address || !network || !Number.isFinite(amt) || amt <= 0) {
     res.status(400).json({ message: "currency, amount, address, network required" }); return;
@@ -1495,6 +1495,7 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
   if (net.memoRequired && !memo) {
     res.status(400).json({ message: "Memo / tag is required for this network" }); return;
   }
+  if (!otpId) { res.status(400).json({ message: "OTP verification required — verify your email before withdrawing" }); return; }
 
   // Fee = max(flatFee + amount*pct, feeMin)
   const flat = Number(net.withdrawFee);
@@ -1506,6 +1507,8 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
 
   try {
     const result = await db.transaction(async (tx) => {
+      const otpRes = await consumeVerifiedOtp({ otpId: Number(otpId), purpose: "withdraw", userId: req.bcUser.id, tx });
+      if (!otpRes.ok) { const e: any = new Error(otpRes.error); e.code = 400; throw e; }
       const debited = await tx.update(walletsTable).set({
         balance: sql`${walletsTable.balance} - ${amt}`,
         locked: sql`${walletsTable.locked} + ${amt}`,
@@ -1558,7 +1561,7 @@ r.post("/finance/withdraw/spot", bicryptoAuth, async (req: any, res): Promise<vo
 
 // ─── INR withdrawal (FIAT wallet → user's verified bank account) ─────────
 r.post("/finance/withdraw/fiat", bicryptoAuth, async (req: any, res): Promise<void> => {
-  const { bankId, amount } = req.body ?? {};
+  const { bankId, amount, otpId } = req.body ?? {};
   const amt = Number(amount);
   if (!bankId || !Number.isFinite(amt) || amt <= 0) {
     res.status(400).json({ message: "bankId and amount required" }); return;
@@ -1566,6 +1569,7 @@ r.post("/finance/withdraw/fiat", bicryptoAuth, async (req: any, res): Promise<vo
   if (amt < 100) {
     res.status(400).json({ message: "Minimum withdrawal is ₹100" }); return;
   }
+  if (!otpId) { res.status(400).json({ message: "OTP verification required — verify your email before withdrawing" }); return; }
 
   const bid = Number(bankId);
   const [bank] = await db.select().from(bankAccountsTable).where(and(
@@ -1588,6 +1592,8 @@ r.post("/finance/withdraw/fiat", bicryptoAuth, async (req: any, res): Promise<vo
 
   try {
     const result = await db.transaction(async (tx) => {
+      const otpRes = await consumeVerifiedOtp({ otpId: Number(otpId), purpose: "withdraw", userId: req.bcUser.id, tx });
+      if (!otpRes.ok) { const e: any = new Error(otpRes.error); e.code = 400; throw e; }
       const debited = await tx.update(walletsTable).set({
         balance: sql`${walletsTable.balance} - ${amt}`,
         locked: sql`${walletsTable.locked} + ${amt}`,
@@ -1753,6 +1759,132 @@ r.post("/finance/transfer/validate", bicryptoAuth, async (req: any, res): Promis
   )).limit(1);
   const have = w ? Number(w.balance) : 0;
   res.json({ valid: have >= amt, available: have, needed: amt });
+});
+
+// ─── P2P User-to-User Coin Transfer ────────────────────────────────────────
+
+// Step 1: Look up a recipient by email or UID — returns masked preview info
+r.get("/finance/transfer/p2p/lookup", bicryptoAuth, async (req: any, res): Promise<void> => {
+  const q = String(req.query.q ?? "").trim().toLowerCase();
+  if (q.length < 3) { res.status(400).json({ message: "Enter at least 3 characters to search" }); return; }
+
+  const [match] = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    email: usersTable.email,
+    uid: usersTable.uid,
+  }).from(usersTable).where(
+    or(eq(usersTable.email, q), eq(usersTable.uid, q.toUpperCase()))
+  ).limit(1);
+
+  if (!match) { res.status(404).json({ message: "No Zebvix user found with that email or UID" }); return; }
+  if (match.id === req.bcUser.id) { res.status(400).json({ message: "You cannot send to yourself" }); return; }
+
+  const [localPart = "", domain = ""] = match.email.split("@");
+  const maskedEmail = localPart.slice(0, Math.min(2, localPart.length)) + "***@" + domain;
+
+  res.json({ id: match.id, name: match.name || "Zebvix User", uid: match.uid, email: maskedEmail });
+});
+
+// Step 2: Request a P2P transfer — dispatches OTP to sender's registered email
+r.post("/finance/transfer/p2p/request", bicryptoAuth, async (req: any, res): Promise<void> => {
+  const { toUserId, coinSymbol, amount } = req.body ?? {};
+  const amt = Number(amount);
+  if (!toUserId || !coinSymbol || !Number.isFinite(amt) || amt <= 0) {
+    res.status(400).json({ message: "toUserId, coinSymbol, amount required" }); return;
+  }
+  if (Number(toUserId) === req.bcUser.id) {
+    res.status(400).json({ message: "Cannot send to yourself" }); return;
+  }
+  const [recipient] = await db.select({ id: usersTable.id })
+    .from(usersTable).where(eq(usersTable.id, Number(toUserId))).limit(1);
+  if (!recipient) { res.status(404).json({ message: "Recipient not found" }); return; }
+
+  const result = await dispatchOtp({
+    channel: "email",
+    purpose: "transfer",
+    recipient: req.bcUser.email,
+    log: req.log,
+  });
+  if (!result.ok) { res.status(result.status).json({ message: result.error }); return; }
+
+  res.json({
+    otpId: result.otpId,
+    expiresInSec: result.expiresInSec,
+    message: "OTP sent to your registered email — valid for 10 minutes",
+    ...(result.devCode ? { devCode: result.devCode } : {}),
+  });
+});
+
+// Step 3: Confirm P2P transfer — verify OTP then atomically debit sender + credit recipient
+r.post("/finance/transfer/p2p/confirm", bicryptoAuth, async (req: any, res): Promise<void> => {
+  const { otpId, toUserId, coinSymbol, amount, note } = req.body ?? {};
+  const amt = Number(amount);
+  if (!otpId || !toUserId || !coinSymbol || !Number.isFinite(amt) || amt <= 0) {
+    res.status(400).json({ message: "otpId, toUserId, coinSymbol, amount required" }); return;
+  }
+  if (Number(toUserId) === req.bcUser.id) {
+    res.status(400).json({ message: "Cannot send to yourself" }); return;
+  }
+
+  const sym = String(coinSymbol).toUpperCase();
+  const senderId = req.bcUser.id;
+  const recipientId = Number(toUserId);
+
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const otpRes = await consumeVerifiedOtp({ otpId: Number(otpId), purpose: "transfer", userId: senderId, tx });
+      if (!otpRes.ok) { const e: any = new Error(otpRes.error); e.code = 400; throw e; }
+
+      const [recipient] = await tx.select({ id: usersTable.id, name: usersTable.name })
+        .from(usersTable).where(eq(usersTable.id, recipientId)).limit(1);
+      if (!recipient) { const e: any = new Error("Recipient not found"); e.code = 404; throw e; }
+
+      const [coin] = await tx.select().from(coinsTable).where(eq(coinsTable.symbol, sym)).limit(1);
+      if (!coin) { const e: any = new Error("Currency not found"); e.code = 404; throw e; }
+
+      // Debit sender (race-safe balance guard)
+      const debited = await tx.update(walletsTable)
+        .set({ balance: sql`${walletsTable.balance} - ${amt}`, updatedAt: new Date() })
+        .where(and(
+          eq(walletsTable.userId, senderId),
+          eq(walletsTable.coinId, coin.id),
+          eq(walletsTable.walletType, "spot"),
+          sql`${walletsTable.balance} >= ${amt}`,
+        ))
+        .returning({ id: walletsTable.id, newBal: walletsTable.balance });
+      if (debited.length === 0) { const e: any = new Error("Insufficient balance"); e.code = 400; throw e; }
+      const srcBalAfter = Number(debited[0].newBal);
+      const srcBalBefore = srcBalAfter + amt;
+
+      // Credit recipient (upsert)
+      const credited = await tx.update(walletsTable)
+        .set({ balance: sql`${walletsTable.balance} + ${amt}`, updatedAt: new Date() })
+        .where(and(eq(walletsTable.userId, recipientId), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "spot")))
+        .returning({ id: walletsTable.id, newBal: walletsTable.balance });
+      let dstBalBefore: number, dstBalAfter: number;
+      if (credited.length === 0) {
+        await tx.insert(walletsTable).values({ userId: recipientId, coinId: coin.id, walletType: "spot", balance: String(amt), locked: "0" });
+        dstBalBefore = 0; dstBalAfter = amt;
+      } else {
+        dstBalAfter = Number(credited[0].newBal);
+        dstBalBefore = dstBalAfter - amt;
+      }
+
+      const noteText = note ? String(note).slice(0, 200) : `P2P send ${sym}`;
+      await tx.insert(walletLedgerTable).values([
+        { userId: senderId, coinId: coin.id, walletType: "spot", type: "p2p_debit", amount: String(-amt), balanceBefore: String(srcBalBefore), balanceAfter: String(srcBalAfter), refType: "p2p_transfer", refId: String(recipientId), note: noteText },
+        { userId: recipientId, coinId: coin.id, walletType: "spot", type: "p2p_credit", amount: String(amt), balanceBefore: String(dstBalBefore), balanceAfter: String(dstBalAfter), refType: "p2p_transfer", refId: String(senderId), note: noteText },
+      ]);
+
+      return { sym, amount: amt, recipientName: recipient.name };
+    });
+
+    res.status(201).json({ message: "Transfer successful", currency: outcome.sym, amount: outcome.amount, recipient: outcome.recipientName });
+  } catch (e: any) {
+    if (e?.code) { res.status(e.code).json({ message: e.message }); return; }
+    throw e;
+  }
 });
 
 // ──────────────────────────────────────────────────────────────────────────

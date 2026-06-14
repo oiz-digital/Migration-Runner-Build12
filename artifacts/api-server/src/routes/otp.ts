@@ -20,7 +20,7 @@ function hashCode(code: string): string {
 }
 
 const VALID_CHANNELS = new Set(["sms", "email"]);
-const VALID_PURPOSES = new Set(["signup", "login", "withdraw", "kyc", "2fa", "reset"]);
+const VALID_PURPOSES = new Set(["signup", "login", "withdraw", "kyc", "2fa", "reset", "transfer"]);
 
 // Core OTP dispatch — exported so other routes (e.g. /auth/challenge/send)
 // can server-drive an OTP without re-running through the HTTP layer. All

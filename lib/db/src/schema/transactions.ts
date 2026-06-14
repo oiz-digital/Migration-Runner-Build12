@@ -106,6 +106,8 @@ export const transfersTable = pgTable("transfers", {
   toWallet: text("to_wallet").notNull(),
   coinId: integer("coin_id").notNull(),
   amount: numeric("amount", { precision: 28, scale: 8 }).notNull(),
+  toUserId: integer("to_user_id"),
+  note: text("note"),
   status: text("status").notNull().default("completed"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
