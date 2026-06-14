@@ -15,7 +15,7 @@ import {
   walletLedgerTable,
 } from "@workspace/db";
 import { requireAuth, requireRole } from "../middlewares/auth";
-import { lockEscrow, releaseEscrow, refundEscrow, quantizeQty } from "../lib/p2p-escrow";
+import { lockEscrow, releaseEscrow, refundEscrow, quantizeQty, lockAdFunds, unlockAdFunds } from "../lib/p2p-escrow";
 import { logAdminAction } from "../lib/audit";
 
 const router: IRouter = Router();
@@ -280,35 +280,49 @@ router.post("/p2p/offers", requireAuth, async (req, res): Promise<void> => {
   if (u.kycLevel < 1) { res.status(403).json({ error: "KYC Level 1 required to post P2P ads" }); return; }
   try {
     const coin = await getCoinBySymbol(d.coinSymbol);
-    // For SELL ads we don't pre-lock balance — escrow only locks at the
-    // moment a buyer opens an order. But we DO check the merchant has at
-    // least totalQty available right now so we don't list an undeliverable ad.
-    if (d.side === "sell") {
-      const [w] = await db.select().from(walletsTable)
-        .where(and(eq(walletsTable.userId, u.id), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "spot")))
-        .limit(1);
-      if (!w || Number(w.balance) < d.totalQty) {
-        res.status(400).json({ error: `Insufficient ${coin.symbol} spot balance (need ${d.totalQty})` });
-        return;
+    const qtyStr = quantizeQty(d.totalQty);
+
+    const created = await db.transaction(async (tx) => {
+      // Insert the offer first so we have its ID for the ledger refId.
+      const [row] = await tx.insert(p2pOffersTable).values({
+        userId: u.id,
+        side: d.side,
+        coinId: coin.id,
+        fiat: d.fiat.toUpperCase(),
+        price: String(d.price),
+        totalQty: qtyStr,
+        availableQty: qtyStr,
+        minFiat: String(d.minFiat),
+        maxFiat: String(d.maxFiat),
+        paymentMethods: d.paymentMethods.join(","),
+        payWindowMins: d.payWindowMins,
+        terms: d.terms ?? null,
+        minKycLevel: d.minKycLevel,
+        minTrades: d.minTrades,
+        status: "online",
+      }).returning();
+
+      if (d.side === "sell") {
+        // Lock totalQty upfront — funds stay in p2pLocked for the ad's lifetime.
+        // Snapshot balance BEFORE the lock (lockAdFunds does FOR UPDATE internally).
+        const [wPre] = await tx.select({ balance: walletsTable.balance })
+          .from(walletsTable)
+          .where(and(eq(walletsTable.userId, u.id), eq(walletsTable.coinId, coin.id), eq(walletsTable.walletType, "spot")))
+          .limit(1);
+        const balBefore = wPre?.balance ?? "0";
+        const balAfter  = String((Number(balBefore) - Number(qtyStr)).toFixed(8));
+        await lockAdFunds(tx, u.id, coin.id, qtyStr);
+        await tx.insert(walletLedgerTable).values({
+          userId: u.id, coinId: coin.id, walletType: "spot", type: "p2p_debit",
+          amount: (-Number(qtyStr)).toFixed(8),
+          balanceBefore: balBefore, balanceAfter: balAfter,
+          refType: "p2p_offer", refId: String(row.id),
+          note: "P2P sell ad created — total qty locked",
+        });
       }
-    }
-    const [created] = await db.insert(p2pOffersTable).values({
-      userId: u.id,
-      side: d.side,
-      coinId: coin.id,
-      fiat: d.fiat.toUpperCase(),
-      price: String(d.price),
-      totalQty: String(d.totalQty),
-      availableQty: String(d.totalQty),
-      minFiat: String(d.minFiat),
-      maxFiat: String(d.maxFiat),
-      paymentMethods: d.paymentMethods.join(","),
-      payWindowMins: d.payWindowMins,
-      terms: d.terms ?? null,
-      minKycLevel: d.minKycLevel,
-      minTrades: d.minTrades,
-      status: "online",
-    }).returning();
+      return row;
+    });
+
     req.log.info({ offerId: created.id, userId: u.id, side: d.side, coin: coin.symbol, qty: d.totalQty }, "p2p offer created");
     const [hydrated] = await hydrateOffers([created]);
     res.status(201).json(hydrated);
@@ -339,11 +353,6 @@ router.patch("/p2p/offers/:id", requireAuth, async (req, res): Promise<void> => 
   if (!existing) { res.status(404).json({ error: "Offer not found" }); return; }
   if (existing.status === "suspended") { res.status(403).json({ error: "Suspended by admin — cannot edit" }); return; }
 
-  // Re-run the same invariants OfferBody enforces on create, against the
-  // post-patch view of the offer (patched fields overlaid on existing
-  // values). Prevents direct API callers from PATCHing into states the
-  // creation form would have rejected (e.g. maxFiat < minFiat,
-  // minFiat > totalQty*price).
   const newPrice    = parsed.data.price   ?? Number(existing.price);
   const newMinFiat  = parsed.data.minFiat ?? Number(existing.minFiat);
   const newMaxFiat  = parsed.data.maxFiat ?? Number(existing.maxFiat);
@@ -361,7 +370,41 @@ router.patch("/p2p/offers/:id", requireAuth, async (req, res): Promise<void> => 
   if (parsed.data.minFiat != null) upd.minFiat = String(parsed.data.minFiat);
   if (parsed.data.maxFiat != null) upd.maxFiat = String(parsed.data.maxFiat);
   if (parsed.data.terms !== undefined) upd.terms = parsed.data.terms || null;
-  const [updated] = await db.update(p2pOffersTable).set(upd).where(eq(p2pOffersTable.id, id)).returning();
+
+  // If closing a SELL ad, unlock the remaining available qty back to balance.
+  const closing = parsed.data.status === "closed" && existing.side === "sell";
+  const availQty = Number(existing.availableQty);
+
+  let updated: typeof p2pOffersTable.$inferSelect;
+  if (closing && availQty > 0) {
+    updated = await db.transaction(async (tx) => {
+      const [offerLocked] = await tx.select().from(p2pOffersTable)
+        .where(eq(p2pOffersTable.id, id)).for("update").limit(1);
+      const avail = Number(offerLocked.availableQty);
+      if (avail > 0) {
+        const avStr = avail.toFixed(8);
+        const [wPre] = await tx.select({ balance: walletsTable.balance, p2pLocked: walletsTable.p2pLocked })
+          .from(walletsTable)
+          .where(and(eq(walletsTable.userId, req.user!.id), eq(walletsTable.coinId, existing.coinId), eq(walletsTable.walletType, "spot")))
+          .limit(1);
+        const balBefore = wPre?.balance ?? "0";
+        const balAfter  = String((Number(balBefore) + avail).toFixed(8));
+        await unlockAdFunds(tx, req.user!.id, existing.coinId, avStr);
+        await tx.insert(walletLedgerTable).values({
+          userId: req.user!.id, coinId: existing.coinId, walletType: "spot", type: "p2p_credit",
+          amount: avail.toFixed(8),
+          balanceBefore: balBefore, balanceAfter: balAfter,
+          refType: "p2p_offer", refId: String(id), note: "P2P sell ad closed — remaining qty unlocked",
+        });
+      }
+      const [r] = await tx.update(p2pOffersTable).set(upd).where(eq(p2pOffersTable.id, id)).returning();
+      return r;
+    });
+  } else {
+    const [r] = await db.update(p2pOffersTable).set(upd).where(eq(p2pOffersTable.id, id)).returning();
+    updated = r;
+  }
+
   req.log.info({ offerId: id, userId: req.user!.id, fields: Object.keys(upd) }, "p2p offer patched");
   const [hydrated] = await hydrateOffers([updated]);
   res.json(hydrated);
@@ -370,19 +413,47 @@ router.patch("/p2p/offers/:id", requireAuth, async (req, res): Promise<void> => 
 router.delete("/p2p/offers/:id", requireAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  // Block delete if the offer still has active orders against it — admins
-  // resolve those via the dispute panel before the merchant can clean up.
-  const [openOrder] = await db.select({ id: p2pOrdersTable.id }).from(p2pOrdersTable)
-    .where(and(eq(p2pOrdersTable.offerId, id), inArray(p2pOrdersTable.status, ["pending", "paid", "disputed"])))
-    .limit(1);
-  if (openOrder) { res.status(400).json({ error: "Cannot delete — offer has active orders. Set offline instead." }); return; }
-  const [updated] = await db.update(p2pOffersTable)
-    .set({ status: "closed", updatedAt: new Date() })
-    .where(and(eq(p2pOffersTable.id, id), eq(p2pOffersTable.userId, req.user!.id)))
-    .returning();
-  if (!updated) { res.status(404).json({ error: "Offer not found" }); return; }
-  req.log.info({ offerId: id, userId: req.user!.id }, "p2p offer closed by owner");
-  res.json({ ok: true });
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(p2pOffersTable)
+        .where(and(eq(p2pOffersTable.id, id), eq(p2pOffersTable.userId, req.user!.id)))
+        .for("update").limit(1);
+      if (!existing) throw notFound("Offer not found");
+      // Block delete if the offer still has active orders.
+      const [openOrder] = await tx.select({ id: p2pOrdersTable.id }).from(p2pOrdersTable)
+        .where(and(eq(p2pOrdersTable.offerId, id), inArray(p2pOrdersTable.status, ["pending", "paid", "disputed"])))
+        .limit(1);
+      if (openOrder) throw bad("Cannot delete — offer has active orders. Set offline instead.");
+      // For SELL ads: unlock remaining availableQty back to balance.
+      const avail = Number(existing.availableQty);
+      if (existing.side === "sell" && avail > 0) {
+        const avStr = avail.toFixed(8);
+        const [wPre] = await tx.select({ balance: walletsTable.balance })
+          .from(walletsTable)
+          .where(and(eq(walletsTable.userId, req.user!.id), eq(walletsTable.coinId, existing.coinId), eq(walletsTable.walletType, "spot")))
+          .limit(1);
+        const balBefore = wPre?.balance ?? "0";
+        const balAfter  = String((Number(balBefore) + avail).toFixed(8));
+        await unlockAdFunds(tx, req.user!.id, existing.coinId, avStr);
+        await tx.insert(walletLedgerTable).values({
+          userId: req.user!.id, coinId: existing.coinId, walletType: "spot", type: "p2p_credit",
+          amount: avStr,
+          balanceBefore: balBefore, balanceAfter: balAfter,
+          refType: "p2p_offer", refId: String(id), note: "P2P sell ad deleted — remaining qty unlocked",
+        });
+      }
+      const [updated] = await tx.update(p2pOffersTable)
+        .set({ status: "closed", updatedAt: new Date() })
+        .where(eq(p2pOffersTable.id, id)).returning();
+      return updated;
+    });
+    req.log.info({ offerId: id, userId: req.user!.id }, "p2p offer deleted by owner");
+    res.json({ ok: true, offer: result });
+  } catch (e) {
+    if (sendError(res, e)) return;
+    req.log.error({ err: (e as Error)?.message, offerId: id }, "p2p offer delete failed");
+    throw e;
+  }
 });
 
 // Orders (Deals) — escrow-backed P2P trades
@@ -448,19 +519,49 @@ router.post("/p2p/orders", requireAuth, async (req, res): Promise<void> => {
       const acceptedMethods = String(offer.paymentMethods || "").split(",").filter(Boolean);
       if (!acceptedMethods.includes(pm.method)) throw bad(`This offer doesn't accept ${pm.method}`);
 
-      // ─── Escrow lock via shared helper — keeps wallet math centralised
-      // alongside release/refund and `routes/transfer.ts` patterns.
       const qtyStr = quantizeQty(qty);
       const fiatStr = fiatAmount.toFixed(2);
-      // Snapshot seller balance before escrow lock for accurate ledger audit trail.
-      const [sellerWPre] = await tx.select({ balance: walletsTable.balance })
-        .from(walletsTable)
-        .where(and(eq(walletsTable.userId, sellerId), eq(walletsTable.coinId, offer.coinId), eq(walletsTable.walletType, "spot")))
-        .limit(1);
-      const sellerBalBefore = sellerWPre?.balance ?? "0";
-      const sellerBalAfterLock = String((parseFloat(sellerBalBefore) - Number(qtyStr)).toFixed(8));
-      await lockEscrow(tx, sellerId, offer.coinId, qtyStr);
 
+      // ─── Escrow logic ─────────────────────────────────────────────────────
+      // SELL offer: funds were locked into p2pLocked when the ad was posted,
+      //   so no wallet move is needed here — just decrement availableQty.
+      // BUY offer:  the counterparty (opener) is the seller; they have NOT
+      //   pre-locked anything, so we call lockEscrow to move their balance
+      //   → p2pLocked now, as in the original per-order escrow model.
+      if (offer.side === "buy") {
+        await lockEscrow(tx, sellerId, offer.coinId, qtyStr);
+        const [sellerWPre] = await tx.select({ balance: walletsTable.balance })
+          .from(walletsTable)
+          .where(and(eq(walletsTable.userId, sellerId), eq(walletsTable.coinId, offer.coinId), eq(walletsTable.walletType, "spot")))
+          .limit(1);
+        const sellerBalBefore = sellerWPre?.balance ?? "0";
+        const sellerBalAfterLock = String((parseFloat(sellerBalBefore) - Number(qtyStr)).toFixed(8));
+        // Write ledger AFTER lockEscrow so balance reflects the new state.
+        const [tempOrder] = await tx.insert(p2pOrdersTable).values({
+          offerId: offer.id, buyerId, sellerId, coinId: offer.coinId,
+          fiat: offer.fiat, price: String(price), qty: qtyStr, fiatAmount: fiatStr,
+          paymentMethod: pm.method, paymentAccount: pm.account, paymentLabel: pm.label,
+          paymentIfsc: pm.ifsc, paymentHolderName: pm.holderName, status: "pending",
+          expiresAt: new Date(Date.now() + offer.payWindowMins * 60 * 1000),
+        }).returning();
+        await tx.update(p2pOffersTable).set({
+          availableQty: sql`${p2pOffersTable.availableQty} - ${qtyStr}::numeric`,
+          updatedAt: new Date(),
+        }).where(eq(p2pOffersTable.id, offer.id));
+        await tx.insert(walletLedgerTable).values({
+          userId: sellerId, coinId: offer.coinId, walletType: "spot", type: "p2p_debit",
+          amount: (-Number(qtyStr)).toFixed(8),
+          balanceBefore: sellerBalBefore, balanceAfter: sellerBalAfterLock,
+          refType: "p2p_order", refId: String(tempOrder.id), note: "P2P escrow lock (buy offer)",
+        });
+        await tx.insert(p2pMessagesTable).values({
+          orderId: tempOrder.id, senderId: me.id, senderRole: "system",
+          body: `Order opened — buyer must pay ₹${fiatStr} within ${offer.payWindowMins} minutes.`,
+        });
+        return tempOrder;
+      }
+
+      // SELL offer path: funds already in p2pLocked; just decrement availableQty.
       // Decrement available liquidity on the offer.
       await tx.update(p2pOffersTable).set({
         availableQty: sql`${p2pOffersTable.availableQty} - ${qtyStr}::numeric`,
@@ -484,12 +585,9 @@ router.post("/p2p/orders", requireAuth, async (req, res): Promise<void> => {
         status: "pending",
         expiresAt,
       }).returning();
-      await tx.insert(walletLedgerTable).values({
-        userId: sellerId, coinId: offer.coinId, walletType: "spot", type: "p2p_debit",
-        amount: (-Number(qtyStr)).toFixed(8),
-        balanceBefore: sellerBalBefore, balanceAfter: sellerBalAfterLock,
-        refType: "p2p_order", refId: String(order.id), note: "P2P escrow lock",
-      });
+      // No wallet ledger entry at order-open for sell offers — the ad-creation
+      // ledger entry already recorded the full lock. Order release/cancel will
+      // write the final credit entries.
 
       // Seed a system message so the chat shows the deal opening as
       // its first event (great for audit + onboarding context).
@@ -720,28 +818,42 @@ async function cancelOrder(orderId: number, actorId: number, actorRole: string) 
         : "Order is under dispute — only an admin can cancel");
     }
 
-    // Refund seller's escrow via shared helper.
     const qtyStr = quantizeQty(o.qty);
-    // Snapshot seller balance before refund for accurate ledger audit trail.
-    const [cancelSellerWPre] = await tx.select({ balance: walletsTable.balance })
-      .from(walletsTable)
-      .where(and(eq(walletsTable.userId, o.sellerId), eq(walletsTable.coinId, o.coinId), eq(walletsTable.walletType, "spot")))
-      .limit(1);
-    const cancelSellerBalBefore = cancelSellerWPre?.balance ?? "0";
-    const cancelSellerBalAfter  = String((parseFloat(cancelSellerBalBefore) + Number(qtyStr)).toFixed(8));
-    await refundEscrow(tx, o.sellerId, o.coinId, qtyStr);
-    await tx.insert(walletLedgerTable).values({
-      userId: o.sellerId, coinId: o.coinId, walletType: "spot", type: "p2p_credit",
-      amount: Number(qtyStr).toFixed(8),
-      balanceBefore: cancelSellerBalBefore, balanceAfter: cancelSellerBalAfter,
-      refType: "p2p_order", refId: String(o.id), note: "P2P escrow refunded (order cancelled)",
-    });
 
-    // Restore offer's available liquidity.
-    await tx.update(p2pOffersTable).set({
-      availableQty: sql`${p2pOffersTable.availableQty} + ${qtyStr}::numeric`,
-      updatedAt: new Date(),
-    }).where(eq(p2pOffersTable.id, o.offerId));
+    // Fetch the offer to determine side (SELL vs BUY escrow model).
+    const [offer] = await tx.select({ side: p2pOffersTable.side })
+      .from(p2pOffersTable).where(eq(p2pOffersTable.id, o.offerId)).limit(1);
+    const isSellOffer = offer?.side === "sell";
+
+    if (isSellOffer) {
+      // SELL offer: seller's funds are already in p2pLocked from the ad-level lock.
+      // Do NOT call refundEscrow — funds stay locked for the ad, just restore
+      // availableQty so the slot is available for new orders.
+      await tx.update(p2pOffersTable).set({
+        availableQty: sql`${p2pOffersTable.availableQty} + ${qtyStr}::numeric`,
+        updatedAt: new Date(),
+      }).where(eq(p2pOffersTable.id, o.offerId));
+    } else {
+      // BUY offer: counterparty seller locked at order-open time — refund them.
+      const [cancelSellerWPre] = await tx.select({ balance: walletsTable.balance })
+        .from(walletsTable)
+        .where(and(eq(walletsTable.userId, o.sellerId), eq(walletsTable.coinId, o.coinId), eq(walletsTable.walletType, "spot")))
+        .limit(1);
+      const cancelSellerBalBefore = cancelSellerWPre?.balance ?? "0";
+      const cancelSellerBalAfter  = String((parseFloat(cancelSellerBalBefore) + Number(qtyStr)).toFixed(8));
+      await refundEscrow(tx, o.sellerId, o.coinId, qtyStr);
+      await tx.insert(walletLedgerTable).values({
+        userId: o.sellerId, coinId: o.coinId, walletType: "spot", type: "p2p_credit",
+        amount: Number(qtyStr).toFixed(8),
+        balanceBefore: cancelSellerBalBefore, balanceAfter: cancelSellerBalAfter,
+        refType: "p2p_order", refId: String(o.id), note: "P2P escrow refunded (buy-offer order cancelled)",
+      });
+      // Restore offer's available liquidity.
+      await tx.update(p2pOffersTable).set({
+        availableQty: sql`${p2pOffersTable.availableQty} + ${qtyStr}::numeric`,
+        updatedAt: new Date(),
+      }).where(eq(p2pOffersTable.id, o.offerId));
+    }
 
     const [updated] = await tx.update(p2pOrdersTable).set({
       status: "cancelled",
@@ -756,7 +868,9 @@ async function cancelOrder(orderId: number, actorId: number, actorRole: string) 
 
     await tx.insert(p2pMessagesTable).values({
       orderId, senderId: actorId, senderRole: isAdmin ? "admin" : "system",
-      body: isAdmin ? "Admin cancelled and refunded escrow to seller." : "Order cancelled — escrow refunded to seller.",
+      body: isSellOffer
+        ? (isAdmin ? "Admin cancelled order — qty returned to ad reserve." : "Order cancelled — qty returned to ad reserve.")
+        : (isAdmin ? "Admin cancelled and refunded escrow to seller." : "Order cancelled — escrow refunded to seller."),
     });
     return updated;
   });

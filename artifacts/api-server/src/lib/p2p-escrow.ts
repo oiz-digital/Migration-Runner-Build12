@@ -100,3 +100,35 @@ export async function refundEscrow(tx: Tx, sellerId: number, coinId: number, qty
     updatedAt: new Date(),
   }).where(eq(walletsTable.id, wallet.id));
 }
+
+// ─── Ad-level fund operations ────────────────────────────────────────────────
+// Called at sell ad creation/deletion, NOT at order open/cancel (those are
+// already covered by the upfront lock). Buy ads do not use these at all.
+
+/** Lock totalQty when a SELL ad goes live. balance → p2pLocked. */
+export async function lockAdFunds(tx: Tx, sellerId: number, coinId: number, qty: string | number): Promise<void> {
+  const q = quantizeQty(qty);
+  const wallet = await ensureSpotWalletForUpdate(tx, sellerId, coinId);
+  if (Number(wallet.balance) < Number(q)) {
+    throw new EscrowError(400, "Insufficient balance to post sell ad");
+  }
+  await tx.update(walletsTable).set({
+    balance: sql`${walletsTable.balance} - ${q}::numeric`,
+    p2pLocked: sql`${walletsTable.p2pLocked} + ${q}::numeric`,
+    updatedAt: new Date(),
+  }).where(eq(walletsTable.id, wallet.id));
+}
+
+/** Unlock remainingQty when a SELL ad is closed/deleted. p2pLocked → balance. */
+export async function unlockAdFunds(tx: Tx, sellerId: number, coinId: number, qty: string | number): Promise<void> {
+  const q = quantizeQty(qty);
+  const wallet = await ensureSpotWalletForUpdate(tx, sellerId, coinId);
+  if (Number(wallet.p2pLocked) + 1e-8 < Number(q)) {
+    throw new EscrowError(500, "Ad unlock accounting error — p2p_locked < availableQty");
+  }
+  await tx.update(walletsTable).set({
+    balance: sql`${walletsTable.balance} + ${q}::numeric`,
+    p2pLocked: sql`${walletsTable.p2pLocked} - ${q}::numeric`,
+    updatedAt: new Date(),
+  }).where(eq(walletsTable.id, wallet.id));
+}
