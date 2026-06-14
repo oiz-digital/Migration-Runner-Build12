@@ -289,6 +289,7 @@ export default function Futures() {
   const [slPrice, setSlPrice] = useState("");
   const [reduceOnly, setReduceOnly] = useState(false);
   const [bottomTab, setBottomTab] = useState<"positions" | "open" | "history">("positions");
+  const [pairScope, setPairScope] = useState<"this" | "all">("this");
 
   const [futuresSuccess, setFuturesSuccess] = useState<GenericSuccess | null>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
@@ -347,8 +348,10 @@ export default function Futures() {
   // NOTE: no silent .catch fallback — react-query surfaces error state so the
   // bottom panel can warn the user instead of showing a misleading empty list.
   const positionsQuery = useQuery<any>({
-    queryKey: ["futures", "positions", base, quote],
-    queryFn: () => get(`/futures/position?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`),
+    queryKey: ["futures", "positions", base, quote, pairScope],
+    queryFn: () => pairScope === "this"
+      ? get(`/futures/position?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`)
+      : get(`/futures/position`),
     enabled: !!user,
     refetchInterval: 4000,
   });
@@ -364,8 +367,10 @@ export default function Futures() {
 
   // ─── Orders for this symbol ──────────────────
   const openOrdersQuery = useQuery<any>({
-    queryKey: ["futures", "orders", "open", base, quote],
-    queryFn: () => get(`/futures/order?status=OPEN&currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`),
+    queryKey: ["futures", "orders", "open", base, quote, pairScope],
+    queryFn: () => pairScope === "this"
+      ? get(`/futures/order?status=OPEN&currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`)
+      : get(`/futures/order?status=OPEN`),
     enabled: !!user,
     refetchInterval: 5000,
   });
@@ -379,8 +384,10 @@ export default function Futures() {
   }, [openOrdersQuery.data]);
 
   const historyQuery = useQuery<any>({
-    queryKey: ["futures", "orders", "history", base, quote, bottomTab],
-    queryFn: () => get(`/futures/order?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}&limit=30`),
+    queryKey: ["futures", "orders", "history", base, quote, bottomTab, pairScope],
+    queryFn: () => pairScope === "this"
+      ? get(`/futures/order?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}&limit=30`)
+      : get(`/futures/order?limit=50`),
     enabled: !!user && bottomTab === "history",
     refetchInterval: 15000,
   });
@@ -542,17 +549,36 @@ export default function Futures() {
             Order History
           </TabsTrigger>
         </TabsList>
-        {bottomTab === "open" && openOrderRows.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => cancelAllMutation.mutate()}
-            disabled={cancelAllMutation.isPending}
-          >
-            Cancel all
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Pair scope toggle */}
+          <div className="flex items-center gap-0 p-0.5 bg-muted/30 rounded border border-border/60 text-[10px]">
+            <button
+              type="button"
+              onClick={() => setPairScope("this")}
+              className={`px-2 py-0.5 rounded-sm transition-colors font-medium ${pairScope === "this" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              This Pair
+            </button>
+            <button
+              type="button"
+              onClick={() => setPairScope("all")}
+              className={`px-2 py-0.5 rounded-sm transition-colors font-medium ${pairScope === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              All Pairs
+            </button>
+          </div>
+          {bottomTab === "open" && openOrderRows.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => cancelAllMutation.mutate()}
+              disabled={cancelAllMutation.isPending}
+            >
+              Cancel all
+            </Button>
+          )}
+        </div>
       </div>
       <TabsContent value="positions" className="flex-1 m-0 overflow-auto">
         <PositionsTable

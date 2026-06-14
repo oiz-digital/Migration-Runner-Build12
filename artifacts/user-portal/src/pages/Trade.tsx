@@ -297,6 +297,7 @@ export default function Trade() {
   const [reduceOnly, setReduceOnly] = useState(false);
   const [bookAggregation, setBookAggregation] = useState<"0.01" | "0.1" | "1" | "10">("0.1");
   const [bottomTab, setBottomTab] = useState<"open" | "history">("open");
+  const [pairScope, setPairScope] = useState<"this" | "all">("this");
   const [fillsOrderId, setFillsOrderId] = useState<number | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -498,8 +499,10 @@ export default function Trade() {
 
   // ─── Orders ────────────────────────────
   const { data: openOrders } = useQuery<any>({
-    queryKey: ["orders", "open", base, quote],
-    queryFn: () => get(`/exchange/order?status=OPEN&currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`),
+    queryKey: ["orders", "open", base, quote, pairScope],
+    queryFn: () => pairScope === "this"
+      ? get(`/exchange/order?status=OPEN&currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}`)
+      : get(`/exchange/order?status=OPEN`),
     enabled: !!user,
     refetchInterval: 5000,
   });
@@ -513,8 +516,10 @@ export default function Trade() {
   }, [openOrders]);
 
   const { data: historyData } = useQuery<any>({
-    queryKey: ["orders", "history", base, quote, bottomTab],
-    queryFn: () => get(`/exchange/order?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}&limit=30`),
+    queryKey: ["orders", "history", base, quote, bottomTab, pairScope],
+    queryFn: () => pairScope === "this"
+      ? get(`/exchange/order?currency=${encodeURIComponent(base)}&pair=${encodeURIComponent(quote)}&limit=30`)
+      : get(`/exchange/order?limit=50`),
     enabled: !!user && bottomTab === "history",
     refetchInterval: 15000,
   });
@@ -677,17 +682,36 @@ export default function Trade() {
             Order History
           </TabsTrigger>
         </TabsList>
-        {bottomTab === "open" && orderRows.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => cancelAllMutation.mutate()}
-            disabled={cancelAllMutation.isPending}
-          >
-            Cancel all
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Pair scope toggle */}
+          <div className="flex items-center gap-0 p-0.5 bg-muted/30 rounded border border-border/60 text-[10px]">
+            <button
+              type="button"
+              onClick={() => setPairScope("this")}
+              className={`px-2 py-0.5 rounded-sm transition-colors font-medium ${pairScope === "this" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              This Pair
+            </button>
+            <button
+              type="button"
+              onClick={() => setPairScope("all")}
+              className={`px-2 py-0.5 rounded-sm transition-colors font-medium ${pairScope === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              All Pairs
+            </button>
+          </div>
+          {bottomTab === "open" && orderRows.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => cancelAllMutation.mutate()}
+              disabled={cancelAllMutation.isPending}
+            >
+              Cancel all
+            </Button>
+          )}
+        </div>
       </div>
       <TabsContent value="open" className="flex-1 m-0 overflow-auto">
         <OrdersTable rows={orderRows} loading={!user} mode="open" onCancel={(id) => cancelMutation.mutate(id)} cancelingId={cancelMutation.variables as any} quotesForLabel={enabledQuotes} onViewFills={(id) => setFillsOrderId(Number(id))} />
