@@ -128,10 +128,27 @@ export async function tickSettleFunding(): Promise<{ settled: number; totalValue
               eq(walletsTable.walletType, "futures"),
             )).for("update").limit(1);
             if (!w) return;
+
+            // Charge from free balance first. When free balance is insufficient
+            // (all equity is in locked position margin), deduct the shortfall
+            // directly from the position's marginAmount so the risk engine sees
+            // the reduced equity on its next tick and can trigger liquidation if
+            // necessary. Never let wallet.balance go negative.
+            const freeBalance = Math.max(0, Number(w.balance));
+            const fromBalance = Math.min(freeBalance, payment);
+            const fromMargin = payment - fromBalance;
+
             await trx.update(walletsTable).set({
-              balance: sql`${walletsTable.balance} - ${payment}`,
+              balance: sql`GREATEST(0, ${walletsTable.balance} - ${payment})`,
               updatedAt: new Date(),
             }).where(eq(walletsTable.id, w.id));
+
+            if (fromMargin > 0.000001) {
+              await trx.update(futuresPositionsTable).set({
+                marginAmount: sql`GREATEST(0, ${futuresPositionsTable.marginAmount} - ${fromMargin})`,
+              }).where(eq(futuresPositionsTable.id, pos.id));
+            }
+
             // Unique constraint on (fundingRateId, positionId) prevents double-charge on retry
             await trx.insert(fundingPaymentsTable).values({
               positionId: pos.id, userId: pos.userId, pairId: fr.pairId, fundingRateId: fr.id,

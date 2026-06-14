@@ -76,8 +76,12 @@ func (e *Engine) Place(pairID int64, taker *Order, orderType string) MatchResult
                 levels = &bk.Bids
         }
 
-        for remaining > 0 && len(*levels) > 0 {
-                lv := (*levels)[0]
+        // Use an explicit level index so we can advance past all-self-trade levels
+        // without re-examining them (the old (*levels)[0] approach would have
+        // required a break to avoid an infinite loop, but that abandoned valid
+        // fills sitting at deeper price levels).
+        for lvIdx := 0; remaining > 0 && lvIdx < len(*levels); {
+                lv := (*levels)[lvIdx]
                 // Limit price gating
                 if orderType == OrderLimit {
                         if taker.Side == SideBuy && taker.Price < lv.Price {
@@ -131,17 +135,18 @@ func (e *Engine) Place(pairID int64, taker *Order, orderType string) MatchResult
                 }
                 lv.Orders = out
                 if len(lv.Orders) == 0 {
-                        // remove empty top level
-                        *levels = (*levels)[1:]
+                        // Remove the now-empty level; next level shifts into lvIdx so
+                        // do NOT increment the index.
+                        *levels = append((*levels)[:lvIdx], (*levels)[lvIdx+1:]...)
                         continue
                 }
-                // If no fills happened and the level still has orders, the
-                // remaining makers all belong to the taker (self-trade skip).
-                // Stop matching — we can't pop the level (those orders are real)
-                // and re-evaluating it would loop forever. The taker either
-                // rests (limit) or is REJECTED (market) below.
+                // All orders at this level belong to the taker (self-trade prevention).
+                // Advance past this level and keep checking deeper levels — a valid
+                // counterparty may exist at the next price level within the taker's
+                // limit. Never break here; that would abandon those fills.
                 if !progressed {
-                        break
+                        lvIdx++
+                        continue
                 }
         }
 
